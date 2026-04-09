@@ -57,7 +57,7 @@ public:
     static constexpr float kDefaultDoubleJumpBoostHeight = 1.25f;
     static constexpr double kDoubleJumpCooldownSeconds = 5.0;
     static constexpr double kDoubleJumpWindowSeconds = 0.35;
-    static constexpr float kDefaultGravityAcceleration = 3.7f;
+    static constexpr float kDefaultGravityAcceleration = 6.8f;
     static constexpr float kDefaultPlayerRadius = 0.30f;
     static constexpr float kDefaultStandingHeight = 1.80f;
     static constexpr float kDefaultCrouchingHeight = 1.50f;

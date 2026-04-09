@@ -232,49 +232,6 @@ void updateDeathScreenMessage(DeathSequenceState& deathState, Player& player) {
   player.setDeathSequenceState(true, deathState.elapsedSeconds, deathState.message);
 }
 
-void stepDeathScreenMessage(DeathSequenceState& deathState, Player& player,
-                           int delta) {
-  if (!deathState.messages || deathState.messages->empty() || delta == 0) {
-    return;
-  }
-
-  const std::size_t count = deathState.messages->size();
-  const std::size_t offset = static_cast<std::size_t>(delta > 0 ? delta : -delta);
-  if (delta > 0) {
-    deathState.messageIndex = (deathState.messageIndex + offset) % count;
-  } else {
-    deathState.messageIndex =
-        (deathState.messageIndex + count - (offset % count)) % count;
-  }
-
-  updateDeathScreenMessage(deathState, player);
-}
-
-void handleDeathScreenDebugInput(DeathSequenceState& deathState, Player& player,
-                                 double currentTime) {
-  if (!deathState.active) {
-    return;
-  }
-
-  if (Input::keyPressed(GLFW_KEY_L)) {
-    deathState.paused = !deathState.paused;
-    if (deathState.paused) {
-      deathState.pausedRenderTimeSeconds = currentTime;
-      std::printf("[Death Screen] Paused.\n");
-    } else {
-      std::printf("[Death Screen] Resumed.\n");
-    }
-  }
-
-  if (Input::keyPressed(GLFW_KEY_LEFT)) {
-    stepDeathScreenMessage(deathState, player, 1);
-  }
-
-  if (Input::keyPressed(GLFW_KEY_RIGHT)) {
-    stepDeathScreenMessage(deathState, player, 1);
-  }
-}
-
 float deathScreenTextOpacity(float elapsedSeconds) {
   const float fadeIn = glm::clamp(
       elapsedSeconds / DeathSequenceState::kTextFadeDurationSeconds, 0.0f, 1.0f);
@@ -800,7 +757,6 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
     Input::update();
     auto& inputActions = InputMapping::InputActionSystem::instance();
     const bool deathSequenceActive = deathState.active;
-    handleDeathScreenDebugInput(deathState, player, currentTime);
     const bool deathSequencePaused = deathState.paused;
     inputActions.setCaptureMode(
         !deathSequenceActive && settingsBundle.uiState.controlsCaptureOpen);

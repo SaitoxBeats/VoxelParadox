@@ -10,6 +10,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <random>
 #include <thread>
 #include <unordered_map>
@@ -27,6 +28,8 @@ constexpr std::size_t kPreferredSfxSourceCount = 48u;
 constexpr std::size_t kMusicStreamCount = 2u;
 constexpr std::size_t kMusicBufferCount = 3u;
 constexpr std::size_t kMusicChunkBytes = 65536u;
+constexpr std::size_t kDefaultMusicPreloadLookahead = 2u;
+constexpr int kMusicPreloadPressureCooldownFrames = 600;
 
 void logAudioMessage(const char* level, const std::string& message) {
   std::printf("[Audio][%s] %s\n", level, message.c_str());
@@ -58,6 +61,21 @@ bool isWavMusicTrackPath(const std::filesystem::path& path) {
   std::transform(extension.begin(), extension.end(), extension.begin(),
                  [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
   return extension == ".wav";
+}
+
+bool isMp3MusicTrackPath(const std::filesystem::path& path) {
+  std::string extension = path.extension().string();
+  std::transform(extension.begin(), extension.end(), extension.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return extension == ".mp3";
+}
+
+bool isAllocationFailureMessage(const std::string& message) {
+  return message.find("bad allocation") != std::string::npos ||
+         message.find("bad alloc") != std::string::npos ||
+         message.find("bad_alloc") != std::string::npos ||
+         message.find("out of memory") != std::string::npos ||
+         message.find("ran out of memory") != std::string::npos;
 }
 
 struct EventRuntimeState {
@@ -168,6 +186,8 @@ struct AudioManager::Impl {
   bool backendReady = false;
   bool silentMode = true;
   bool musicImmediateRequest = false;
+  int musicPreloadPressureCooldownFrames = 0;
+  bool musicPreloadPressureLogged = false;
   bool gameplayPaused = false;
 
   ~Impl() { shutdown(); }
@@ -208,6 +228,52 @@ struct AudioManager::Impl {
     musicPreloadWorkerStopRequested = false;
   }
 
+  bool musicMemoryPressureActive() const {
+    return musicPreloadPressureCooldownFrames > 0;
+  }
+
+  std::size_t musicPreloadLookahead() const {
+    return musicMemoryPressureActive() ? 0u : kDefaultMusicPreloadLookahead;
+  }
+
+  std::size_t pendingMusicPreloadCount() {
+    std::scoped_lock<std::mutex> lock(musicPreloadQueueMutex);
+    return musicPreloadQueue.size();
+  }
+
+  std::size_t musicDecodeCacheEntryCount() {
+    std::scoped_lock<std::mutex> lock(musicDecodeCacheMutex);
+    return musicDecodeCache.size();
+  }
+
+  void noteMusicMemoryPressure(const char* origin) {
+    musicPreloadPressureCooldownFrames =
+        std::max(musicPreloadPressureCooldownFrames, kMusicPreloadPressureCooldownFrames);
+    if (musicPreloadPressureLogged) {
+      return;
+    }
+
+    const MusicRuntimeState* primary = primaryMusicStream();
+    std::printf(
+        "[Audio][WARN] Music memory pressure detected during %s (context='%s', track='%s', queue=%zu, cache=%zu).\n",
+        origin, desiredMusicContext ? desiredMusicContext->name.c_str() : "",
+        primary ? primary->trackId.c_str() : "", pendingMusicPreloadCount(),
+        musicDecodeCacheEntryCount());
+    std::fflush(stdout);
+    musicPreloadPressureLogged = true;
+  }
+
+  void updateMusicMemoryPressureState() {
+    if (musicPreloadPressureCooldownFrames <= 0) {
+      return;
+    }
+
+    musicPreloadPressureCooldownFrames--;
+    if (musicPreloadPressureCooldownFrames == 0) {
+      musicPreloadPressureLogged = false;
+    }
+  }
+
   void runMusicPreloadWorker() {
     while (true) {
       MusicPreloadJob job;
@@ -230,17 +296,35 @@ struct AudioManager::Impl {
         std::string error;
         const bool loaded = loadAudioFile(job.path, *decodedData, error);
 
-        std::scoped_lock<std::mutex> stateLock(job.state->mutex);
-        if (loaded) {
-          job.state->status = MusicDecodeState::Status::Ready;
-          job.state->decodedData = std::move(decodedData);
-          job.state->error.clear();
-          continue;
+        {
+          std::scoped_lock<std::mutex> stateLock(job.state->mutex);
+          if (loaded) {
+            job.state->status = MusicDecodeState::Status::Ready;
+            job.state->decodedData = std::move(decodedData);
+            job.state->error.clear();
+            continue;
+          }
+
+          job.state->status = MusicDecodeState::Status::Failed;
+          job.state->decodedData.reset();
+          job.state->error = error;
         }
 
-        job.state->status = MusicDecodeState::Status::Failed;
-        job.state->decodedData.reset();
-        job.state->error = std::move(error);
+        if (isAllocationFailureMessage(error)) {
+          noteMusicMemoryPressure("music preload");
+        }
+      } catch (const std::bad_alloc& exception) {
+        {
+          std::scoped_lock<std::mutex> stateLock(job.state->mutex);
+          job.state->status = MusicDecodeState::Status::Failed;
+          job.state->decodedData.reset();
+          job.state->error = "Music preload threw an exception for '" +
+                             job.path.string() + "': " + exception.what();
+        }
+
+        noteMusicMemoryPressure("music preload");
+        logAudioMessage("WARN", "Music preload threw an exception for '" +
+                                    job.path.string() + "': " + exception.what());
       } catch (const std::exception& exception) {
         {
           std::scoped_lock<std::mutex> stateLock(job.state->mutex);
@@ -255,6 +339,9 @@ struct AudioManager::Impl {
           {
             std::scoped_lock<std::mutex> stateLock(job.state->mutex);
             job.state->error = error;
+          }
+          if (isAllocationFailureMessage(error)) {
+            noteMusicMemoryPressure("music preload");
           }
           logAudioMessage("WARN", error);
         } catch (...) {
@@ -331,6 +418,8 @@ struct AudioManager::Impl {
     primaryMusicStreamIndex = -1;
     activeMusicTags.clear();
     nextMusicTrackIndices.clear();
+    musicPreloadPressureCooldownFrames = 0;
+    musicPreloadPressureLogged = false;
     gameplayPaused = false;
     std::scoped_lock<std::mutex> lock(musicDecodeCacheMutex);
     musicDecodeCache.clear();
@@ -913,22 +1002,45 @@ struct AudioManager::Impl {
       return;
     }
 
-    std::shared_ptr<MusicDecodeState> state;
-    {
-      std::scoped_lock<std::mutex> lock(musicDecodeCacheMutex);
-      if (musicDecodeCache.find(pathKey) != musicDecodeCache.end()) {
-        return;
+    if (musicMemoryPressureActive() && isMp3MusicTrackPath(path)) {
+      return;
+    }
+
+    try {
+      std::shared_ptr<MusicDecodeState> state;
+      {
+        std::scoped_lock<std::mutex> lock(musicDecodeCacheMutex);
+        const auto found = musicDecodeCache.find(pathKey);
+        if (found != musicDecodeCache.end()) {
+          MusicDecodeState::Status status = MusicDecodeState::Status::Loading;
+          {
+            std::scoped_lock<std::mutex> stateLock(found->second->mutex);
+            status = found->second->status;
+          }
+
+          if (status != MusicDecodeState::Status::Failed) {
+            return;
+          }
+
+          musicDecodeCache.erase(found);
+        }
+
+        state = std::make_shared<MusicDecodeState>();
+        musicDecodeCache[pathKey] = state;
       }
 
-      state = std::make_shared<MusicDecodeState>();
-      musicDecodeCache[pathKey] = state;
+      {
+        std::scoped_lock<std::mutex> lock(musicPreloadQueueMutex);
+        musicPreloadQueue.push_back(MusicPreloadJob{path, pathKey, std::move(state)});
+      }
+      musicPreloadQueueCv.notify_one();
+    } catch (const std::bad_alloc&) {
+      {
+        std::scoped_lock<std::mutex> lock(musicDecodeCacheMutex);
+        musicDecodeCache.erase(pathKey);
+      }
+      noteMusicMemoryPressure("music preload queue");
     }
-
-    {
-      std::scoped_lock<std::mutex> lock(musicPreloadQueueMutex);
-      musicPreloadQueue.push_back(MusicPreloadJob{path, pathKey, std::move(state)});
-    }
-    musicPreloadQueueCv.notify_one();
   }
 
   const MusicTrackDefinition* consumeNextMusicTrack(const MusicContextDefinition& context) {
@@ -1157,6 +1269,9 @@ struct AudioManager::Impl {
     try {
       if (isWavMusicTrackPath(track.path)) {
         if (!music.reader.open(track.path, error)) {
+          if (isAllocationFailureMessage(error)) {
+            noteMusicMemoryPressure("music startup");
+          }
           if (!error.empty()) {
             logAudioMessage("WARN", error);
           }
@@ -1166,16 +1281,40 @@ struct AudioManager::Impl {
         std::shared_ptr<const DecodedAudioData> decodedTrack;
         requestMusicPreload(&track);
         if (!tryGetPreloadedMusicTrack(track, decodedTrack, error)) {
-          if (!error.empty()) {
-            logAudioMessage("WARN", error);
+          bool shouldFallbackToDirectDecode = musicMemoryPressureActive();
+          if (isAllocationFailureMessage(error)) {
+            noteMusicMemoryPressure("music startup");
+            shouldFallbackToDirectDecode = true;
           }
-          return false;
-        }
 
-        if (!music.reader.open(decodedTrack)) {
+          if (!shouldFallbackToDirectDecode) {
+            if (!error.empty()) {
+              logAudioMessage("WARN", error);
+            }
+            return false;
+          }
+
+          error.clear();
+          if (!music.reader.open(track.path, error)) {
+            if (isAllocationFailureMessage(error)) {
+              noteMusicMemoryPressure("music startup");
+            }
+            if (!error.empty()) {
+              logAudioMessage("WARN", error);
+            }
+            return false;
+          }
+        } else if (!music.reader.open(decodedTrack)) {
           error = "Music preload finished, but the decoded track is invalid: " +
                   track.path.string();
           logAudioMessage("WARN", error);
+          return false;
+        }
+
+        if (!decodedTrack && !music.reader.valid()) {
+          if (!error.empty()) {
+            logAudioMessage("WARN", error);
+          }
           return false;
         }
       }
@@ -1377,7 +1516,12 @@ struct AudioManager::Impl {
   }
 
   void requestUpcomingTrackPreload(const MusicContextDefinition& context) {
-    requestContextMusicPreload(context, 2u);
+    const std::size_t lookahead = musicPreloadLookahead();
+    if (lookahead == 0u) {
+      return;
+    }
+
+    requestContextMusicPreload(context, lookahead);
   }
 
   void updateTrackEndTransition(const MusicContextDefinition& context) {
@@ -1414,64 +1558,71 @@ struct AudioManager::Impl {
       return;
     }
 
-    refreshDesiredMusicContext();
-    for (MusicRuntimeState& music : musicStreams) {
-      updateMusicFade(music, dtSeconds);
-      updateMusicStreaming(music, dtSeconds);
-    }
-
-    if (!settings.musicEnabled || desiredMusicContext == nullptr) {
+    try {
+      updateMusicMemoryPressureState();
+      refreshDesiredMusicContext();
       for (MusicRuntimeState& music : musicStreams) {
-        if (music.active && !music.stopAfterFade) {
-          const MusicContextDefinition* context =
-              contextDefinitionForName(music.contextName);
-          beginMusicFade(music, 0.0f,
-                         context ? std::max(0.0f, context->fadeOutSeconds) : 1.0f, true);
-        }
+        updateMusicFade(music, dtSeconds);
+        updateMusicStreaming(music, dtSeconds);
       }
-      musicImmediateRequest = false;
-      return;
-    }
 
-    requestUpcomingTrackPreload(*desiredMusicContext);
-    trimMusicDecodeCache([this](std::unordered_set<std::string>& retainedKeys) {
-      if (desiredMusicContext == nullptr) {
+      if (!settings.musicEnabled || desiredMusicContext == nullptr) {
+        for (MusicRuntimeState& music : musicStreams) {
+          if (music.active && !music.stopAfterFade) {
+            const MusicContextDefinition* context =
+                contextDefinitionForName(music.contextName);
+            beginMusicFade(music, 0.0f,
+                           context ? std::max(0.0f, context->fadeOutSeconds) : 1.0f, true);
+          }
+        }
+        musicImmediateRequest = false;
         return;
       }
 
-      const MusicTrackDefinition* nextTrack = peekNextMusicTrack(*desiredMusicContext, 0u);
-      const MusicTrackDefinition* followingTrack = peekNextMusicTrack(*desiredMusicContext, 1u);
-      if (nextTrack) {
-        retainedKeys.insert(musicPathKey(nextTrack->path));
-      }
-      if (followingTrack) {
-        retainedKeys.insert(musicPathKey(followingTrack->path));
-      }
-    });
-
-    MusicRuntimeState* primary = primaryMusicStream();
-    if (!primary) {
-      const MusicTrackDefinition* firstTrack = consumeNextMusicTrack(*desiredMusicContext);
-      if (firstTrack) {
-        transitionToTrack(*desiredMusicContext, *firstTrack, true);
-      }
-      musicImmediateRequest = false;
-      return;
-    }
-
-    const bool sameContext = primary->contextName == desiredMusicContext->name;
-    if (!sameContext || musicImmediateRequest) {
-      if (!currentTrackMatchesContext(*desiredMusicContext)) {
-        const MusicTrackDefinition* desiredTrack = consumeNextMusicTrack(*desiredMusicContext);
-        if (desiredTrack) {
-          transitionToTrack(*desiredMusicContext, *desiredTrack, true);
+      requestUpcomingTrackPreload(*desiredMusicContext);
+      trimMusicDecodeCache([this](std::unordered_set<std::string>& retainedKeys) {
+        if (desiredMusicContext == nullptr) {
+          return;
         }
-      }
-    } else {
-      updateTrackEndTransition(*desiredMusicContext);
-    }
 
-    musicImmediateRequest = false;
+        const std::size_t retainedLookahead = musicPreloadLookahead();
+        for (std::size_t offset = 0u; offset < retainedLookahead; offset++) {
+          const MusicTrackDefinition* track =
+              peekNextMusicTrack(*desiredMusicContext, offset);
+          if (track) {
+            retainedKeys.insert(musicPathKey(track->path));
+          }
+        }
+      });
+
+      MusicRuntimeState* primary = primaryMusicStream();
+      if (!primary) {
+        const MusicTrackDefinition* firstTrack = consumeNextMusicTrack(*desiredMusicContext);
+        if (firstTrack) {
+          transitionToTrack(*desiredMusicContext, *firstTrack, true);
+        }
+        musicImmediateRequest = false;
+        return;
+      }
+
+      const bool sameContext = primary->contextName == desiredMusicContext->name;
+      if (!sameContext || musicImmediateRequest) {
+        if (!currentTrackMatchesContext(*desiredMusicContext)) {
+          const MusicTrackDefinition* desiredTrack =
+              consumeNextMusicTrack(*desiredMusicContext);
+          if (desiredTrack) {
+            transitionToTrack(*desiredMusicContext, *desiredTrack, true);
+          }
+        }
+      } else {
+        updateTrackEndTransition(*desiredMusicContext);
+      }
+
+      musicImmediateRequest = false;
+    } catch (const std::bad_alloc&) {
+      noteMusicMemoryPressure("music update");
+      musicImmediateRequest = false;
+    }
   }
 };
 

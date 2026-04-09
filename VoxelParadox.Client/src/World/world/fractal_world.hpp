@@ -14,6 +14,7 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -163,6 +164,16 @@ public:
     int maxQueuedChunkGenerations = 0;
     int maxReadyChunksPerFrame = 0;
     int maxMeshesPerFrame = 0;
+    int memoryPressureCooldownFrames = 0;
+    bool memoryPressureLogged = false;
+
+    struct ChunkRetryState {
+        int cooldownFrames = 0;
+        bool remeshOnRelease = false;
+    };
+
+    static constexpr int kMemoryPressureCooldownFrames = 180;
+    static constexpr int kChunkRetryCooldownFrames = 120;
 
     // Funcao: executa 'markSparseEditIndexDirty' no mundo fractal ativo.
     // Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
@@ -228,14 +239,19 @@ public:
     // Funcao: atualiza 'update' no mundo fractal ativo.
     // Detalhe: usa 'playerPos', 'viewForward' para sincronizar o estado derivado com o frame atual.
     void update(const glm::vec3& playerPos, const glm::vec3& viewForward) {
-        // O update do mundo e dividido em streaming, integracao de jobs, descarte e remesh incremental.
-        refreshStreamingBudgets();
-        glm::ivec3 center = worldToChunkPos(glm::ivec3(glm::floor(playerPos)));
-        const glm::vec3 prioritizedViewForward = sanitizeViewForward(viewForward);
-        loadChunksAround(center, prioritizedViewForward);
-        processReadyChunks(center, prioritizedViewForward);
-        unloadDistantChunks(center);
-        rebuildDirtyMeshes(center, prioritizedViewForward);
+        // The world update is split into streaming, job integration, unload, and remesh stages.
+        try {
+            updateMemoryPressureState();
+            refreshStreamingBudgets();
+            glm::ivec3 center = worldToChunkPos(glm::ivec3(glm::floor(playerPos)));
+            const glm::vec3 prioritizedViewForward = sanitizeViewForward(viewForward);
+            loadChunksAround(center, prioritizedViewForward);
+            processReadyChunks(center, prioritizedViewForward);
+            unloadDistantChunks(center);
+            rebuildDirtyMeshes(center, prioritizedViewForward);
+        } catch (const std::bad_alloc&) {
+            noteMemoryPressure("world update");
+        }
     }
 
     // Funcao: verifica 'isAreaGenerated' no mundo fractal ativo.
@@ -280,8 +296,14 @@ public:
             Chunk* py = getChunkIfLoaded(cp + glm::ivec3(0, 1, 0));
             Chunk* nz = getChunkIfLoaded(cp + glm::ivec3(0, 0, -1));
             Chunk* pz = getChunkIfLoaded(cp + glm::ivec3(0, 0, 1));
-            chunk->buildMesh(depth, nx, px, ny, py, nz, pz,
-                             isGreedyMeshingEnabled());
+            try {
+                chunk->buildMesh(depth, nx, px, ny, py, nz, pz,
+                                 isGreedyMeshingEnabled());
+            } catch (const std::bad_alloc&) {
+                noteMemoryPressure("immediate mesh build", &cp);
+                scheduleChunkRetry(cp, true);
+                return;
+            }
         }
     }
 
@@ -388,6 +410,11 @@ public:
                 chunks.erase(it);
             }
 
+            if (isAllocationFailureMessage(failure.error)) {
+                noteMemoryPressure("chunk generation result", &failure.pos);
+                scheduleChunkRetry(failure.pos, false);
+            }
+
             if (!failure.error.empty()) {
                 std::printf("[World][WARN] Chunk generation failed at (%d, %d, %d): %s\n",
                             failure.pos.x, failure.pos.y, failure.pos.z,
@@ -440,6 +467,7 @@ public:
             applySparseEditsToChunk(*ptr);
             ptr->generated = true;
             ptr->generating = false;
+            chunkRetryStates.erase(data->pos);
             refreshChunkOccupancy(data->pos);
             markDirty(data->pos);
             markNeighborShellDirty(data->pos);
@@ -472,31 +500,44 @@ public:
     // Detalhe: usa 'cp' para expor um dado derivado ou um acesso controlado ao estado interno.
     // Retorno: devolve 'Chunk*' para dar acesso direto ao objeto resolvido por esta rotina.
     Chunk* getChunkBlocking(glm::ivec3 cp) {
-        auto it = chunks.find(cp);
-        if (it == chunks.end()) {
-            auto chunk = std::make_unique<Chunk>(cp);
-            Chunk* ptr = chunk.get();
-            chunks[cp] = std::move(chunk);
-            it = chunks.find(cp);
+        try {
+            auto it = chunks.find(cp);
             if (it == chunks.end()) {
+                auto chunk = std::make_unique<Chunk>(cp);
+                Chunk* ptr = chunk.get();
+                chunks[cp] = std::move(chunk);
+                it = chunks.find(cp);
+                if (it == chunks.end()) {
+                    return ptr;
+                }
+            }
+
+            Chunk* ptr = it->second.get();
+            if (ptr->generated) {
                 return ptr;
             }
-        }
 
-        Chunk* ptr = it->second.get();
-        if (ptr->generated) {
+            generator.generate(*ptr);
+            pruneRedundantSparseEditsForChunk(cp, ptr->blocks);
+            applySparseEditsToChunk(*ptr);
+            ptr->generated = true;
+            ptr->generating = false;
+            chunkRetryStates.erase(cp);
+            refreshChunkOccupancy(cp);
+            markDirty(cp);
+            markNeighborShellDirty(cp);
             return ptr;
-        }
+        } catch (const std::bad_alloc&) {
+            auto it = chunks.find(cp);
+            if (it != chunks.end() && it->second && !it->second->generated) {
+                removeChunkOccupancy(cp);
+                chunks.erase(it);
+            }
 
-        generator.generate(*ptr);
-        pruneRedundantSparseEditsForChunk(cp, ptr->blocks);
-        applySparseEditsToChunk(*ptr);
-        ptr->generated = true;
-        ptr->generating = false;
-        refreshChunkOccupancy(cp);
-        markDirty(cp);
-        markNeighborShellDirty(cp);
-        return ptr;
+            noteMemoryPressure("blocking chunk generation", &cp);
+            scheduleChunkRetry(cp, false);
+            return nullptr;
+        }
     }
 
     // Funcao: retorna 'getChunkIfLoaded' no mundo fractal ativo.
@@ -567,91 +608,95 @@ public:
     void render(const glm::vec3& renderCameraPos, const glm::mat4& renderViewProjection,
                 const glm::vec3& cullingCameraPos,
                 const glm::mat4& cullingViewProjection) const {
-        (void)renderCameraPos;
-        (void)renderViewProjection;
-        const glm::ivec3 center =
-            worldToChunkPos(glm::ivec3(glm::floor(cullingCameraPos)));
-        const int rd = renderDistance;
-        const int rd2 = rd * rd;
-        const int verticalRadius = verticalChunkRadius();
-        const auto renderStart = std::chrono::steady_clock::now();
+        try {
+            (void)renderCameraPos;
+            (void)renderViewProjection;
+            const glm::ivec3 center =
+                worldToChunkPos(glm::ivec3(glm::floor(cullingCameraPos)));
+            const int rd = renderDistance;
+            const int rd2 = rd * rd;
+            const int verticalRadius = verticalChunkRadius();
+            const auto renderStart = std::chrono::steady_clock::now();
 
-        ENGINE::Visibility::ClusterVisibilityContext visibilityContext{};
-        visibilityContext.cameraPos = cullingCameraPos;
-        visibilityContext.viewProjection = cullingViewProjection;
-        visibilityContext.frustum =
-            ENGINE::Visibility::Frustum::fromViewProjection(cullingViewProjection);
-        visibilityContext.clusterChunkDimensions =
-            ENGINE::Visibility::kDefaultClusterChunkDimensions;
-        visibilityContext.chunkSize = Chunk::SIZE;
-        visibilityContext.occluderSolidityThreshold =
-            ENGINE::Visibility::kDefaultOccluderSolidityThreshold;
-        visibilityContext.enableFrustumCulling = true;
-        visibilityContext.enableOcclusionCulling = true;
-        visibilityContext.chunkCandidates.reserve(chunks.size());
+            ENGINE::Visibility::ClusterVisibilityContext visibilityContext{};
+            visibilityContext.cameraPos = cullingCameraPos;
+            visibilityContext.viewProjection = cullingViewProjection;
+            visibilityContext.frustum =
+                ENGINE::Visibility::Frustum::fromViewProjection(cullingViewProjection);
+            visibilityContext.clusterChunkDimensions =
+                ENGINE::Visibility::kDefaultClusterChunkDimensions;
+            visibilityContext.chunkSize = Chunk::SIZE;
+            visibilityContext.occluderSolidityThreshold =
+                ENGINE::Visibility::kDefaultOccluderSolidityThreshold;
+            visibilityContext.enableFrustumCulling = true;
+            visibilityContext.enableOcclusionCulling = true;
+            visibilityContext.chunkCandidates.reserve(chunks.size());
 
-        for (const auto& [pos, chunk] : chunks) {
-            if (!chunk || !chunk->generated || chunk->vertexCount <= 0) {
-                continue;
+            for (const auto& [pos, chunk] : chunks) {
+                if (!chunk || !chunk->generated || chunk->vertexCount <= 0) {
+                    continue;
+                }
+
+                glm::ivec3 d = pos - center;
+                if (std::abs(d.y) > verticalRadius) {
+                    continue;
+                }
+                const int dist2 = d.x * d.x + d.y * d.y + d.z * d.z;
+                if (dist2 > rd2) continue;
+
+                ENGINE::Visibility::ChunkRenderCandidate candidate{};
+                candidate.chunkCoord = pos;
+                const glm::vec3 minCorner = glm::vec3(pos) * static_cast<float>(Chunk::SIZE);
+                const glm::vec3 maxCorner =
+                    minCorner + glm::vec3(static_cast<float>(Chunk::SIZE));
+                candidate.minCorner = minCorner;
+                candidate.maxCorner = maxCorner;
+                candidate.vertexCount = chunk->vertexCount;
+                candidate.solidVoxelCount = getChunkSolidVoxelCount(pos);
+                candidate.userData = chunk.get();
+                visibilityContext.chunkCandidates.push_back(candidate);
+
+                const ENGINE::Visibility::ClusterCoord clusterCoord =
+                    ENGINE::Visibility::computeClusterCoord(
+                        pos, visibilityContext.clusterChunkDimensions);
+                if (visibilityContext.clusterSummaries.find(clusterCoord) ==
+                    visibilityContext.clusterSummaries.end()) {
+                    visibilityContext.clusterSummaries.emplace(
+                        clusterCoord, buildClusterSummary(clusterCoord));
+                }
             }
 
-            glm::ivec3 d = pos - center;
-            if (std::abs(d.y) > verticalRadius) {
-                continue;
-            }
-            const int dist2 = d.x * d.x + d.y * d.y + d.z * d.z;
-            if (dist2 > rd2) continue;
+            const ENGINE::Visibility::VisibleChunkList visibleChunkList =
+                ENGINE::Visibility::buildVisibleChunkList(visibilityContext);
 
-            ENGINE::Visibility::ChunkRenderCandidate candidate{};
-            candidate.chunkCoord = pos;
-            const glm::vec3 minCorner = glm::vec3(pos) * static_cast<float>(Chunk::SIZE);
-            const glm::vec3 maxCorner =
-                minCorner + glm::vec3(static_cast<float>(Chunk::SIZE));
-            candidate.minCorner = minCorner;
-            candidate.maxCorner = maxCorner;
-            candidate.vertexCount = chunk->vertexCount;
-            candidate.solidVoxelCount = getChunkSolidVoxelCount(pos);
-            candidate.userData = chunk.get();
-            visibilityContext.chunkCandidates.push_back(candidate);
-
-            const ENGINE::Visibility::ClusterCoord clusterCoord =
-                ENGINE::Visibility::computeClusterCoord(
-                    pos, visibilityContext.clusterChunkDimensions);
-            if (visibilityContext.clusterSummaries.find(clusterCoord) ==
-                visibilityContext.clusterSummaries.end()) {
-                visibilityContext.clusterSummaries.emplace(
-                    clusterCoord, buildClusterSummary(clusterCoord));
+            for (const std::size_t visibleIndex : visibleChunkList.visibleChunkIndices) {
+                const ENGINE::Visibility::ChunkRenderCandidate& candidate =
+                    visibilityContext.chunkCandidates[visibleIndex];
+                const auto* visibleChunk =
+                    static_cast<const Chunk*>(candidate.userData);
+                if (visibleChunk) {
+                    visibleChunk->render();
+                }
             }
+
+            lastRenderDiagnostics = RenderDiagnostics{
+                visibleChunkList.candidateChunkCount,
+                visibleChunkList.frustumCulledChunkCount,
+                visibleChunkList.occlusionCulledChunkCount,
+                visibleChunkList.visibleClusterCount,
+                visibleChunkList.visibleChunkCount,
+                visibleChunkList.totalSubmittedVertices,
+            };
+
+            const auto renderEnd = std::chrono::steady_clock::now();
+            const float totalRenderMs = std::chrono::duration<float, std::milli>(
+                                            renderEnd - renderStart)
+                                            .count();
+            ENGINE::ACCUMULATECHUNKRENDER(totalRenderMs,
+                                          visibleChunkList.visibleChunkCount);
+        } catch (const std::bad_alloc&) {
+            const_cast<FractalWorld*>(this)->noteMemoryPressure("world render");
         }
-
-        const ENGINE::Visibility::VisibleChunkList visibleChunkList =
-            ENGINE::Visibility::buildVisibleChunkList(visibilityContext);
-
-        for (const std::size_t visibleIndex : visibleChunkList.visibleChunkIndices) {
-            const ENGINE::Visibility::ChunkRenderCandidate& candidate =
-                visibilityContext.chunkCandidates[visibleIndex];
-            const auto* visibleChunk =
-                static_cast<const Chunk*>(candidate.userData);
-            if (visibleChunk) {
-            visibleChunk->render();
-            }
-        }
-
-        lastRenderDiagnostics = RenderDiagnostics{
-            visibleChunkList.candidateChunkCount,
-            visibleChunkList.frustumCulledChunkCount,
-            visibleChunkList.occlusionCulledChunkCount,
-            visibleChunkList.visibleClusterCount,
-            visibleChunkList.visibleChunkCount,
-            visibleChunkList.totalSubmittedVertices,
-        };
-
-        const auto renderEnd = std::chrono::steady_clock::now();
-        const float totalRenderMs = std::chrono::duration<float, std::milli>(
-                                        renderEnd - renderStart)
-                                        .count();
-        ENGINE::ACCUMULATECHUNKRENDER(totalRenderMs,
-                                      visibleChunkList.visibleChunkCount);
     }
 
     void render(const glm::vec3& cameraPos, const glm::mat4& viewProjection) const {
@@ -771,8 +816,11 @@ public:
     }
 
 private:
+    static constexpr float kDroppedItemGravityAcceleration = 1.71f;
+
     std::vector<glm::ivec3> chunkLoadOffsets;
     std::deque<glm::ivec3> dirtyChunkQueue;
+    std::unordered_map<glm::ivec3, ChunkRetryState, IVec3Hash, IVec3Equal> chunkRetryStates;
     int chunkLoadOffsetsRenderDistance = -1;
     bool sparseEditIndexDirty = true;
     mutable RenderDiagnostics lastRenderDiagnostics{};
@@ -786,6 +834,101 @@ private:
     std::unordered_map<ENGINE::Visibility::ClusterCoord, int,
                        ENGINE::Visibility::ClusterCoordHash>
         clusterLoadedChunkCounts;
+
+    static bool isAllocationFailureMessage(const std::string& message) {
+        return message.find("bad allocation") != std::string::npos ||
+               message.find("bad alloc") != std::string::npos ||
+               message.find("bad_alloc") != std::string::npos ||
+               message.find("out of memory") != std::string::npos ||
+               message.find("ran out of memory") != std::string::npos;
+    }
+
+    bool memoryPressureActive() const {
+        return memoryPressureCooldownFrames > 0;
+    }
+
+    bool isChunkRetryPending(const glm::ivec3& cp) const {
+        return chunkRetryStates.find(cp) != chunkRetryStates.end();
+    }
+
+    void scheduleChunkRetry(const glm::ivec3& cp, bool remeshOnRelease) {
+        try {
+            ChunkRetryState& retryState = chunkRetryStates[cp];
+            retryState.cooldownFrames =
+                std::max(retryState.cooldownFrames, kChunkRetryCooldownFrames);
+            retryState.remeshOnRelease = retryState.remeshOnRelease || remeshOnRelease;
+        } catch (const std::bad_alloc&) {
+            return;
+        }
+
+        if (!remeshOnRelease) {
+            return;
+        }
+
+        auto it = chunks.find(cp);
+        if (it == chunks.end() || !it->second) {
+            return;
+        }
+
+        it->second->dirty = true;
+        it->second->dirtyQueued = false;
+    }
+
+    void noteMemoryPressure(const char* origin, const glm::ivec3* chunkPos = nullptr) {
+        memoryPressureCooldownFrames =
+            std::max(memoryPressureCooldownFrames, kMemoryPressureCooldownFrames);
+        if (memoryPressureLogged) {
+            return;
+        }
+
+        const int queuedChunkJobs = asyncChunkState
+                                        ? asyncChunkState->queuedChunkGenerations.load(
+                                              std::memory_order_relaxed)
+                                        : 0;
+        if (chunkPos) {
+            std::printf(
+                "[World][WARN] Memory pressure detected during %s at (%d, %d, %d) (loaded=%zu, queued=%d, dirty=%zu, renderDistance=%d, budgets=%d/%d/%d).\n",
+                origin, chunkPos->x, chunkPos->y, chunkPos->z, chunks.size(),
+                queuedChunkJobs, dirtyChunkQueue.size(), renderDistance,
+                maxQueuedChunkGenerations, maxReadyChunksPerFrame, maxMeshesPerFrame);
+        } else {
+            std::printf(
+                "[World][WARN] Memory pressure detected during %s (loaded=%zu, queued=%d, dirty=%zu, renderDistance=%d, budgets=%d/%d/%d).\n",
+                origin, chunks.size(), queuedChunkJobs, dirtyChunkQueue.size(),
+                renderDistance, maxQueuedChunkGenerations, maxReadyChunksPerFrame,
+                maxMeshesPerFrame);
+        }
+        std::fflush(stdout);
+        memoryPressureLogged = true;
+    }
+
+    void updateMemoryPressureState() {
+        if (memoryPressureCooldownFrames > 0) {
+            memoryPressureCooldownFrames--;
+            if (memoryPressureCooldownFrames == 0) {
+                memoryPressureLogged = false;
+            }
+        }
+
+        for (auto it = chunkRetryStates.begin(); it != chunkRetryStates.end();) {
+            if (it->second.cooldownFrames > 0) {
+                it->second.cooldownFrames--;
+            }
+
+            if (it->second.cooldownFrames > 0) {
+                ++it;
+                continue;
+            }
+
+            const glm::ivec3 retryPos = it->first;
+            const bool remeshOnRelease = it->second.remeshOnRelease;
+            it = chunkRetryStates.erase(it);
+
+            if (remeshOnRelease) {
+                markDirty(retryPos);
+            }
+        }
+    }
 
     // Funcao: executa 'refreshStreamingBudgets' no mundo fractal ativo.
     // Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
@@ -915,10 +1058,21 @@ private:
             std::max(1, static_cast<int>(chunkThreadPool.threadCount()));
         const int distanceScale = std::clamp(renderDistance, 2, 10);
         const int verticalScale = verticalChunkRadius();
-        maxQueuedChunkGenerations =
+        const int queuedBudget =
             std::clamp(3 + workerCount + distanceScale / 3 + verticalScale, 4, 12);
-        maxReadyChunksPerFrame = std::clamp(1 + workerCount / 2, 2, 4);
-        maxMeshesPerFrame = std::clamp(1 + workerCount / 3, 1, 2);
+        const int readyBudget = std::clamp(1 + workerCount / 2, 2, 4);
+        const int meshBudget = std::clamp(1 + workerCount / 3, 1, 2);
+
+        if (memoryPressureActive()) {
+            maxQueuedChunkGenerations = std::max(2, queuedBudget / 2);
+            maxReadyChunksPerFrame = std::max(1, readyBudget - 1);
+            maxMeshesPerFrame = 1;
+            return;
+        }
+
+        maxQueuedChunkGenerations = queuedBudget;
+        maxReadyChunksPerFrame = readyBudget;
+        maxMeshesPerFrame = meshBudget;
     }
 
     // Funcao: normaliza 'sanitizeViewForward' no mundo fractal ativo.
@@ -1033,94 +1187,118 @@ private:
             return false;
         }
 
+        if (isChunkRetryPending(cp)) {
+            return false;
+        }
+
         if (chunks.find(cp) != chunks.end()) {
             return false;
         }
 
-        auto chunk = std::make_unique<Chunk>(cp);
-        chunk->generating = true;
-        chunks[cp] = std::move(chunk);
-        asyncChunkState->queuedChunkGenerations.fetch_add(1, std::memory_order_relaxed);
+        bool generationQueued = false;
+        try {
+            auto chunk = std::make_unique<Chunk>(cp);
+            chunk->generating = true;
+            chunks[cp] = std::move(chunk);
 
-        WorldGenerator genCopy = generator;
-        std::shared_ptr<AsyncChunkState> state = asyncChunkState;
+            WorldGenerator genCopy = generator;
+            std::shared_ptr<AsyncChunkState> state = asyncChunkState;
+            asyncChunkState->queuedChunkGenerations.fetch_add(1, std::memory_order_relaxed);
+            generationQueued = true;
 
-        chunkThreadPool.enqueue([cp, genCopy, state]() mutable {
-            if (!state) {
-                return;
-            }
-
-            struct TaskGuard {
-                std::shared_ptr<AsyncChunkState> state;
-                ~TaskGuard() {
-                    if (state) {
-                        state->queuedChunkGenerations.fetch_sub(
-                            1, std::memory_order_relaxed);
-                    }
+            chunkThreadPool.enqueue([cp, genCopy, state]() mutable {
+                if (!state) {
+                    return;
                 }
-            };
-            TaskGuard guard{state};
 
-            if (!state->acceptingResults.load(std::memory_order_acquire)) {
-                return;
-            }
-
-            try {
-                auto data = std::make_unique<ChunkData>();
-                data->pos = cp;
-
-                Chunk temp(cp);
-                genCopy.generate(temp);
-                memcpy(data->blocks, temp.blocks, sizeof(temp.blocks));
+                struct TaskGuard {
+                    std::shared_ptr<AsyncChunkState> state;
+                    ~TaskGuard() {
+                        if (state) {
+                            state->queuedChunkGenerations.fetch_sub(
+                                1, std::memory_order_relaxed);
+                        }
+                    }
+                };
+                TaskGuard guard{state};
 
                 if (!state->acceptingResults.load(std::memory_order_acquire)) {
                     return;
                 }
 
-                {
-                    std::lock_guard<std::mutex> lock(state->readyMutex);
-                    if (state->acceptingResults.load(std::memory_order_relaxed)) {
-                        state->readyChunks.push_back(std::move(data));
-                    }
-                }
-            } catch (const std::exception& exception) {
                 try {
-                    std::lock_guard<std::mutex> lock(state->readyMutex);
-                    if (state->acceptingResults.load(std::memory_order_relaxed)) {
-                        state->failedChunks.push_back(
-                            {cp, std::string(exception.what())});
+                    auto data = std::make_unique<ChunkData>();
+                    data->pos = cp;
+
+                    Chunk temp(cp);
+                    genCopy.generate(temp);
+                    memcpy(data->blocks, temp.blocks, sizeof(temp.blocks));
+
+                    if (!state->acceptingResults.load(std::memory_order_acquire)) {
+                        return;
+                    }
+
+                    {
+                        std::lock_guard<std::mutex> lock(state->readyMutex);
+                        if (state->acceptingResults.load(std::memory_order_relaxed)) {
+                            state->readyChunks.push_back(std::move(data));
+                        }
+                    }
+                } catch (const std::exception& exception) {
+                    try {
+                        std::lock_guard<std::mutex> lock(state->readyMutex);
+                        if (state->acceptingResults.load(std::memory_order_relaxed)) {
+                            state->failedChunks.push_back(
+                                {cp, std::string(exception.what())});
+                        }
+                    } catch (...) {
+                        std::fprintf(stderr,
+                                     "[World][WARN] Chunk generation failed at (%d, %d, %d), and the failure could not be queued safely.\n",
+                                     cp.x, cp.y, cp.z);
+                        std::fflush(stderr);
                     }
                 } catch (...) {
-                    std::fprintf(stderr,
-                                 "[World][WARN] Chunk generation failed at (%d, %d, %d), and the failure could not be queued safely.\n",
-                                 cp.x, cp.y, cp.z);
-                    std::fflush(stderr);
-                }
-            } catch (...) {
-                try {
-                    std::lock_guard<std::mutex> lock(state->readyMutex);
-                    if (state->acceptingResults.load(std::memory_order_relaxed)) {
-                        state->failedChunks.push_back(
-                            {cp, "unknown exception"});
+                    try {
+                        std::lock_guard<std::mutex> lock(state->readyMutex);
+                        if (state->acceptingResults.load(std::memory_order_relaxed)) {
+                            state->failedChunks.push_back(
+                                {cp, "unknown exception"});
+                        }
+                    } catch (...) {
+                        std::fprintf(stderr,
+                                     "[World][WARN] Chunk generation failed at (%d, %d, %d) with an unknown exception, and the failure could not be queued safely.\n",
+                                     cp.x, cp.y, cp.z);
+                        std::fflush(stderr);
                     }
-                } catch (...) {
-                    std::fprintf(stderr,
-                                 "[World][WARN] Chunk generation failed at (%d, %d, %d) with an unknown exception, and the failure could not be queued safely.\n",
-                                 cp.x, cp.y, cp.z);
-                    std::fflush(stderr);
                 }
+            });
+            return true;
+        } catch (const std::bad_alloc&) {
+            if (generationQueued && asyncChunkState) {
+                asyncChunkState->queuedChunkGenerations.fetch_sub(
+                    1, std::memory_order_relaxed);
             }
-        });
-        return true;
+
+            auto it = chunks.find(cp);
+            if (it != chunks.end()) {
+                removeChunkOccupancy(cp);
+                chunks.erase(it);
+            }
+
+            noteMemoryPressure("chunk generation queue", &cp);
+            scheduleChunkRetry(cp, false);
+            return false;
+        }
     }
 
     // Funcao: simula 'simulateDroppedItemPhysics' no mundo fractal ativo.
     // Detalhe: usa 'item', 'dt' para avancar a regra de jogo ou fisica usando o intervalo informado.
 #pragma endregion
 
-#pragma region FractalWorldDroppedItems
+    #pragma region FractalWorldDroppedItems
     void simulateDroppedItemPhysics(DroppedItem& item, float dt) {
-        // Zero-gravity item drift with gentle drag keeps motion readable and stable.
+        // Martian gravity with gentle drag keeps motion readable and stable.
+        item.velocity.y -= kDroppedItemGravityAcceleration * dt;
         const float damping = std::pow(0.985f, dt * 60.0f);
         item.velocity *= damping;
     }
@@ -1213,10 +1391,17 @@ private:
 
         Chunk* chunk = it->second.get();
         chunk->dirty = true;
+        if (isChunkRetryPending(cp)) return;
         if (chunk->dirtyQueued) return;
 
-        dirtyChunkQueue.push_back(cp);
-        chunk->dirtyQueued = true;
+        try {
+            dirtyChunkQueue.push_back(cp);
+            chunk->dirtyQueued = true;
+        } catch (const std::bad_alloc&) {
+            chunk->dirtyQueued = false;
+            noteMemoryPressure("dirty queue enqueue", &cp);
+            scheduleChunkRetry(cp, true);
+        }
     }
 
     // Funcao: executa 'markNeighborShellDirty' no mundo fractal ativo.
@@ -1318,6 +1503,7 @@ private:
         for (auto& p : toRemove) {
             removeChunkOccupancy(p);
             chunks.erase(p);
+            chunkRetryStates.erase(p);
         }
     }
 
@@ -1359,7 +1545,9 @@ private:
                   });
 
         int meshedThisFrame = 0;
-        for (const DirtyCandidate& candidate : candidates) {
+        for (std::size_t candidateIndex = 0; candidateIndex < candidates.size();
+             candidateIndex++) {
+            const DirtyCandidate& candidate = candidates[candidateIndex];
             auto it = chunks.find(candidate.pos);
             if (it == chunks.end()) continue;
             Chunk* chunk = it->second.get();
@@ -1382,9 +1570,20 @@ private:
             Chunk* nz = readyNeighbor(candidate.pos + glm::ivec3(0,0,-1));
             Chunk* pz = readyNeighbor(candidate.pos + glm::ivec3(0,0,1));
 
-            chunk->buildMesh(depth, nx, px, ny, py, nz, pz,
-                             isGreedyMeshingEnabled());
-            meshedThisFrame++;
+            try {
+                chunk->buildMesh(depth, nx, px, ny, py, nz, pz,
+                                 isGreedyMeshingEnabled());
+                chunkRetryStates.erase(candidate.pos);
+                meshedThisFrame++;
+            } catch (const std::bad_alloc&) {
+                noteMemoryPressure("chunk mesh rebuild", &candidate.pos);
+                scheduleChunkRetry(candidate.pos, true);
+                for (std::size_t retryIndex = candidateIndex + 1u;
+                     retryIndex < candidates.size(); retryIndex++) {
+                    markDirty(candidates[retryIndex].pos);
+                }
+                break;
+            }
         }
     }
 };

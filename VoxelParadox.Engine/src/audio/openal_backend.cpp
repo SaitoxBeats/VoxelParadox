@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <new>
 #include <string>
 #include <system_error>
 
@@ -452,20 +453,26 @@ bool loadAudioFile(const std::filesystem::path& path, DecodedAudioData& outData,
   outData = {};
   outError.clear();
 
-  const std::string extension = lowerExtension(path);
-  if (extension == ".wav") {
-    return decodeWavFile(path, outData, outError);
-  }
-  if (extension == ".ogg") {
-    return decodeOggFile(path, outData, outError);
-  }
-  if (extension == ".mp3") {
-    return decodeMp3File(path, outData, outError);
-  }
+  try {
+    const std::string extension = lowerExtension(path);
+    if (extension == ".wav") {
+      return decodeWavFile(path, outData, outError);
+    }
+    if (extension == ".ogg") {
+      return decodeOggFile(path, outData, outError);
+    }
+    if (extension == ".mp3") {
+      return decodeMp3File(path, outData, outError);
+    }
 
-  outError = "Unsupported audio format '" + extension +
-             "' for file: " + path.string();
-  return false;
+    outError = "Unsupported audio format '" + extension +
+               "' for file: " + path.string();
+    return false;
+  } catch (const std::bad_alloc&) {
+    outData = {};
+    outError = "Audio decode ran out of memory for file: " + path.string();
+    return false;
+  }
 }
 
 bool AudioStreamReader::open(const std::filesystem::path& path,
