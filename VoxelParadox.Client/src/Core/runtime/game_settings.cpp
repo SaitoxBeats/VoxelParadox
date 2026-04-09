@@ -42,9 +42,6 @@ namespace {
 // - sanitize repairs invalid or old config values
 // - helper functions below convert user-facing tokens to internal enums
 
-// Funcao: normaliza 'toLower' na configuracao persistente do runtime.
-// Detalhe: usa 'value' para limpar a entrada para reduzir inconsistencias antes do uso.
-// Retorno: devolve 'std::string' com o texto pronto para exibicao, lookup ou serializacao.
 std::string toLower(std::string value) {
   std::transform(value.begin(), value.end(), value.begin(),
                  [](unsigned char ch) {
@@ -53,9 +50,6 @@ std::string toLower(std::string value) {
   return value;
 }
 
-// Funcao: renderiza 'renderDistanceToken' na configuracao persistente do runtime.
-// Detalhe: usa 'preset' para desenhar a saida visual correspondente usando o estado atual.
-// Retorno: devolve 'const char*' com o texto pronto para exibicao, lookup ou serializacao.
 const char* renderDistanceToken(WorldStack::RenderDistancePreset preset) {
   switch (preset) {
   case WorldStack::RenderDistancePreset::SHORT:
@@ -70,9 +64,6 @@ const char* renderDistanceToken(WorldStack::RenderDistancePreset preset) {
   return "normal";
 }
 
-// Funcao: interpreta 'parseRenderDistanceToken' na configuracao persistente do runtime.
-// Detalhe: usa 'token' para converter a entrada textual para a representacao interna correspondente.
-// Retorno: devolve 'WorldStack::RenderDistancePreset' com o resultado composto por esta chamada.
 WorldStack::RenderDistancePreset parseRenderDistanceToken(
     const std::string& token) {
   const std::string lower = toLower(token);
@@ -88,9 +79,7 @@ WorldStack::RenderDistancePreset parseRenderDistanceToken(
   return WorldStack::RenderDistancePreset::NORMAL;
 }
 
-// Funcao: executa 'windowModeToken' na configuracao persistente do runtime.
-// Detalhe: usa 'mode' para encapsular esta etapa especifica do subsistema.
-// Retorno: devolve 'const char*' com o texto pronto para exibicao, lookup ou serializacao.
+
 const char* windowModeToken(ENGINE::VIEWPORTMODE mode) {
   switch (mode) {
   case ENGINE::VIEWPORTMODE::WINDOWMODE:
@@ -103,9 +92,7 @@ const char* windowModeToken(ENGINE::VIEWPORTMODE mode) {
   return "borderless";
 }
 
-// Funcao: interpreta 'parseWindowModeToken' na configuracao persistente do runtime.
-// Detalhe: usa 'token' para converter a entrada textual para a representacao interna correspondente.
-// Retorno: devolve 'ENGINE::VIEWPORTMODE' com o resultado composto por esta chamada.
+
 ENGINE::VIEWPORTMODE parseWindowModeToken(const std::string& token) {
   const std::string lower = toLower(token);
   if (lower == "windowed") {
@@ -117,16 +104,12 @@ ENGINE::VIEWPORTMODE parseWindowModeToken(const std::string& token) {
   return ENGINE::VIEWPORTMODE::BORDERLESS;
 }
 
-// Funcao: verifica 'isTtfFile' na configuracao persistente do runtime.
-// Detalhe: usa 'path' para avaliar a condicao consultada com base no estado atual.
-// Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
+
 bool isTtfFile(const std::filesystem::path& path) {
   return toLower(path.extension().string()) == ".ttf";
 }
 
-// Funcao: normaliza 'sanitizeFontFileName' na configuracao persistente do runtime.
-// Detalhe: usa 'value' para limpar a entrada para reduzir inconsistencias antes do uso.
-// Retorno: devolve 'std::string' com o texto pronto para exibicao, lookup ou serializacao.
+
 std::string sanitizeFontFileName(const std::string& value) {
   if (value.empty()) {
     return {};
@@ -134,23 +117,17 @@ std::string sanitizeFontFileName(const std::string& value) {
   return std::filesystem::path(value).filename().string();
 }
 
-// Funcao: verifica 'sameResolution' na configuracao persistente do runtime.
-// Detalhe: usa 'a', 'b' para avaliar a condicao consultada com base no estado atual.
-// Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
+
 bool sameResolution(const glm::ivec2& a, const glm::ivec2& b) {
   return a.x == b.x && a.y == b.y;
 }
 
-// Funcao: verifica 'isValidResolution' na configuracao persistente do runtime.
-// Detalhe: usa 'resolution' para avaliar a condicao consultada com base no estado atual.
-// Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
+
 bool isValidResolution(const glm::ivec2& resolution) {
   return resolution.x > 0 && resolution.y > 0;
 }
 
-// Funcao: verifica 'hasResolution' na configuracao persistente do runtime.
-// Detalhe: usa 'resolutions', 'target' para avaliar a condicao consultada com base no estado atual.
-// Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
+
 bool hasResolution(const std::vector<glm::ivec2>& resolutions,
                    const glm::ivec2& target) {
   return std::find_if(resolutions.begin(), resolutions.end(),
@@ -160,9 +137,6 @@ bool hasResolution(const std::vector<glm::ivec2>& resolutions,
 }
 
 #ifdef _WIN32
-// Funcao: executa 'currentDisplayResolution' na configuracao persistente do runtime.
-// Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
-// Retorno: devolve 'std::optional<glm::ivec2>' com a colecao ou o resultado agregado montado por esta etapa.
 std::optional<glm::ivec2> currentDisplayResolution() {
   DEVMODEW mode{};
   mode.dmSize = sizeof(mode);
@@ -180,9 +154,7 @@ std::optional<glm::ivec2> currentDisplayResolution() {
 }
 #endif
 
-// Funcao: executa 'defaultResolutionFallback' na configuracao persistente do runtime.
-// Detalhe: usa 'availableResolutions' para encapsular esta etapa especifica do subsistema.
-// Retorno: devolve 'glm::ivec2' com o resultado composto por esta chamada.
+
 glm::ivec2 defaultResolutionFallback(
     const std::vector<glm::ivec2>& availableResolutions) {
   if (!availableResolutions.empty()) {
@@ -207,9 +179,7 @@ glm::ivec2 defaultResolutionFallback(
 
 } // namespace
 
-// Funcao: executa 'fontAssetPath' na configuracao persistente do runtime.
-// Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
-// Retorno: devolve 'std::string' com o texto pronto para exibicao, lookup ou serializacao.
+
 #pragma endregion
 
 #pragma region SettingsSerialization
@@ -218,9 +188,7 @@ std::string GameSettings::fontAssetPath() const {
       .generic_string();
 }
 
-// Funcao: executa 'fontDisplayName' na configuracao persistente do runtime.
-// Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
-// Retorno: devolve 'std::string' com o texto pronto para exibicao, lookup ou serializacao.
+
 std::string GameSettings::fontDisplayName() const {
   return std::filesystem::path(fontFile).stem().string();
 }
@@ -266,9 +234,6 @@ void GameSettings::sanitize(
   }
 }
 
-// Funcao: salva 'save' na configuracao persistente do runtime.
-// Detalhe: usa 'outError' para persistir os dados recebidos no formato esperado pelo projeto.
-// Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
 bool GameSettings::save(std::string* outError) const {
   std::error_code ec;
   const std::filesystem::path directory = settingsDirectory();
@@ -308,6 +273,18 @@ bool GameSettings::save(std::string* outError) const {
       {"categoryVolumes", categoryVolumes},
       {"categoryMuted", categoryMuted},
   };
+  nlohmann::json controlsJson = nlohmann::json::object();
+  for (const auto& [actionId, binding] : controlOverrides) {
+    if (binding.empty()) {
+      continue;
+    }
+
+    controlsJson[actionId] = {
+        {"inputType", InputMapping::inputBindingTypeToken(binding.type)},
+        {"bind", binding.codeName},
+    };
+  }
+  json["controls"] = controlsJson;
 
   std::ofstream output(settingsFilePath(), std::ios::binary | std::ios::trunc);
   if (!output.is_open()) {
@@ -329,9 +306,6 @@ bool GameSettings::save(std::string* outError) const {
   return true;
 }
 
-// Funcao: carrega 'load' na configuracao persistente do runtime.
-// Detalhe: usa 'outError' para ler dados externos e adapta-los ao formato interno usado pelo jogo.
-// Retorno: devolve 'GameSettings' com o resultado composto por esta chamada.
 GameSettings GameSettings::load(std::string* outError) {
   GameSettings settings;
   const std::vector<std::string> fonts = availableFonts();
@@ -431,6 +405,32 @@ GameSettings GameSettings::load(std::string* outError) {
         }
       }
     }
+    if (json.contains("controls") && json["controls"].is_object()) {
+      const nlohmann::json& controlsJson = json["controls"];
+      for (auto it = controlsJson.begin(); it != controlsJson.end(); ++it) {
+        if (!it.value().is_object()) {
+          continue;
+        }
+
+        const nlohmann::json& bindingJson = it.value();
+        if (!bindingJson.contains("inputType") ||
+            !bindingJson["inputType"].is_string() ||
+            !bindingJson.contains("bind") ||
+            !bindingJson["bind"].is_string()) {
+          continue;
+        }
+
+        InputMapping::InputBinding binding;
+        binding.type = InputMapping::parseInputBindingTypeToken(
+            bindingJson["inputType"].get<std::string>());
+        binding.codeName = bindingJson["bind"].get<std::string>();
+        if (binding.empty()) {
+          continue;
+        }
+
+        settings.controlOverrides[it.key()] = std::move(binding);
+      }
+    }
   } catch (const std::exception& exception) {
     if (outError) {
       *outError = std::string("Failed to parse settings file: ") + exception.what();
@@ -441,9 +441,6 @@ GameSettings GameSettings::load(std::string* outError) {
   return settings;
 }
 
-// Funcao: executa 'availableFonts' na configuracao persistente do runtime.
-// Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
-// Retorno: devolve 'std::vector<std::string>' com o texto pronto para exibicao, lookup ou serializacao.
 #pragma endregion
 
 #pragma region SettingsDiscovery
@@ -473,9 +470,6 @@ std::vector<std::string> GameSettings::availableFonts() {
   return fonts;
 }
 
-// Funcao: executa 'availableDisplayResolutions' na configuracao persistente do runtime.
-// Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
-// Retorno: devolve 'std::vector<glm::ivec2>' com a colecao ou o resultado agregado montado por esta etapa.
 std::vector<glm::ivec2> GameSettings::availableDisplayResolutions() {
   std::vector<glm::ivec2> resolutions;
 
@@ -517,9 +511,6 @@ std::vector<glm::ivec2> GameSettings::availableDisplayResolutions() {
   return resolutions;
 }
 
-// Funcao: define 'settingsDirectory' na configuracao persistente do runtime.
-// Detalhe: centraliza a logica necessaria para aplicar ao componente o valor ou configuracao recebida.
-// Retorno: devolve 'std::filesystem::path' com o resultado composto por esta chamada.
 #pragma endregion
 
 #pragma region SettingsPaths
@@ -534,9 +525,6 @@ std::filesystem::path GameSettings::settingsDirectory() {
   return AppPaths::workspaceRoot() / "VoxelParadoxData";
 }
 
-// Funcao: define 'settingsFilePath' na configuracao persistente do runtime.
-// Detalhe: centraliza a logica necessaria para aplicar ao componente o valor ou configuracao recebida.
-// Retorno: devolve 'std::filesystem::path' com o resultado composto por esta chamada.
 std::filesystem::path GameSettings::settingsFilePath() {
   return settingsDirectory() / "GameSettings.json";
 }

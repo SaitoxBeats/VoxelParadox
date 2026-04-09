@@ -13,10 +13,19 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <utility>
 #include <vector>
 
+#include "Core/config/client_assets.hpp"
 #include "path/app_paths.hpp"
 #pragma endregion
+
+namespace {
+
+constexpr std::uint32_t kReplacementCodepoint = 0xFFFD;
+constexpr std::uint32_t kQuestionMarkCodepoint = static_cast<std::uint32_t>('?');
+
+} // namespace
 
 #pragma region HudTextLifecycle
 // Funcao: executa 'hudText' no elemento de texto do HUD.
@@ -73,14 +82,206 @@ hudText::~hudText() {
 #pragma endregion
 
 #pragma region HudTextFontCache
+std::shared_ptr<hudText::SharedFontData> hudText::getOrLoadFontData(
+    const std::string& fontPath, int fontSize) {
+    const std::string cacheKey = makeFontCacheKey(fontPath, fontSize);
+    auto& cache = sharedFontCache();
+    auto found = cache.find(cacheKey);
+    if (found != cache.end()) {
+        return found->second;
+    }
+
+    const std::filesystem::path resolvedFontPath = AppPaths::resolve(fontPath);
+    std::ifstream file(resolvedFontPath, std::ios::binary | std::ios::ate);
+    if (!file) {
+        std::cerr << "hudText: Failed to open font file: "
+                  << resolvedFontPath.string() << "\n";
+        return {};
+    }
+
+    const std::streamsize size = file.tellg();
+    if (size <= 0) {
+        std::cerr << "hudText: Failed to read font file: "
+                  << resolvedFontPath.string() << "\n";
+        return {};
+    }
+
+    file.seekg(0, std::ios::beg);
+    auto fontData = std::make_shared<SharedFontData>();
+    fontData->fontBuffer.resize(static_cast<std::size_t>(size));
+    if (!file.read(reinterpret_cast<char*>(fontData->fontBuffer.data()), size)) {
+        std::cerr << "hudText: Failed to read font file: "
+                  << resolvedFontPath.string() << "\n";
+        return {};
+    }
+
+    stbtt_fontinfo font;
+    int offset = stbtt_GetFontOffsetForIndex(fontData->fontBuffer.data(), 0);
+    if (offset == -1) {
+        offset = 0;
+    }
+
+    if (!stbtt_InitFont(&font, fontData->fontBuffer.data(), offset)) {
+        std::cerr << "hudText: stbtt_InitFont failed for "
+                  << resolvedFontPath.string() << "\n";
+        return {};
+    }
+
+    fontData->fontOffset = offset;
+    fontData->scale = stbtt_ScaleForPixelHeight(&font, static_cast<float>(fontSize));
+
+    cache[cacheKey] = fontData;
+    return fontData;
+}
+
+std::vector<std::uint32_t> hudText::decodeUtf8(const std::string& value) {
+    std::vector<std::uint32_t> codepoints;
+    codepoints.reserve(value.size());
+
+    for (std::size_t i = 0; i < value.size();) {
+        const unsigned char c0 = static_cast<unsigned char>(value[i]);
+
+        if (c0 < 0x80) {
+            codepoints.push_back(static_cast<std::uint32_t>(c0));
+            ++i;
+            continue;
+        }
+
+        std::uint32_t codepoint = kReplacementCodepoint;
+        std::size_t sequenceLength = 1;
+
+        if ((c0 & 0xE0) == 0xC0 && i + 1 < value.size()) {
+            const unsigned char c1 = static_cast<unsigned char>(value[i + 1]);
+            if ((c1 & 0xC0) == 0x80) {
+                const std::uint32_t candidate =
+                    ((static_cast<std::uint32_t>(c0 & 0x1F) << 6) |
+                     static_cast<std::uint32_t>(c1 & 0x3F));
+                if (candidate >= 0x80) {
+                    codepoint = candidate;
+                    sequenceLength = 2;
+                }
+            }
+        } else if ((c0 & 0xF0) == 0xE0 && i + 2 < value.size()) {
+            const unsigned char c1 = static_cast<unsigned char>(value[i + 1]);
+            const unsigned char c2 = static_cast<unsigned char>(value[i + 2]);
+            if ((c1 & 0xC0) == 0x80 && (c2 & 0xC0) == 0x80) {
+                const std::uint32_t candidate =
+                    ((static_cast<std::uint32_t>(c0 & 0x0F) << 12) |
+                     (static_cast<std::uint32_t>(c1 & 0x3F) << 6) |
+                     static_cast<std::uint32_t>(c2 & 0x3F));
+                if (candidate >= 0x800 &&
+                    !(candidate >= 0xD800 && candidate <= 0xDFFF)) {
+                    codepoint = candidate;
+                    sequenceLength = 3;
+                }
+            }
+        } else if ((c0 & 0xF8) == 0xF0 && i + 3 < value.size()) {
+            const unsigned char c1 = static_cast<unsigned char>(value[i + 1]);
+            const unsigned char c2 = static_cast<unsigned char>(value[i + 2]);
+            const unsigned char c3 = static_cast<unsigned char>(value[i + 3]);
+            if ((c1 & 0xC0) == 0x80 && (c2 & 0xC0) == 0x80 &&
+                (c3 & 0xC0) == 0x80) {
+                const std::uint32_t candidate =
+                    ((static_cast<std::uint32_t>(c0 & 0x07) << 18) |
+                     (static_cast<std::uint32_t>(c1 & 0x3F) << 12) |
+                     (static_cast<std::uint32_t>(c2 & 0x3F) << 6) |
+                     static_cast<std::uint32_t>(c3 & 0x3F));
+                if (candidate >= 0x10000 && candidate <= 0x10FFFF) {
+                    codepoint = candidate;
+                    sequenceLength = 4;
+                }
+            }
+        }
+
+        codepoints.push_back(codepoint);
+        i += sequenceLength;
+    }
+
+    return codepoints;
+}
+
+bool hudText::loadGlyph(SharedFontData& fontData, std::uint32_t codepoint) {
+    if (codepoint == '\n' || codepoint == '\r') {
+        return false;
+    }
+    if (fontData.characters.find(codepoint) != fontData.characters.end()) {
+        return true;
+    }
+    if (fontData.missingGlyphs.find(codepoint) != fontData.missingGlyphs.end()) {
+        return false;
+    }
+    if (fontData.fontBuffer.empty()) {
+        fontData.missingGlyphs.insert(codepoint);
+        return false;
+    }
+    if (codepoint > 0x10FFFF || (codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+        fontData.missingGlyphs.insert(codepoint);
+        return false;
+    }
+
+    stbtt_fontinfo font;
+    if (!stbtt_InitFont(&font, fontData.fontBuffer.data(), fontData.fontOffset)) {
+        fontData.missingGlyphs.insert(codepoint);
+        return false;
+    }
+
+    const int glyphIndex = stbtt_FindGlyphIndex(&font, static_cast<int>(codepoint));
+    if (glyphIndex == 0 && codepoint != static_cast<std::uint32_t>('?')) {
+        fontData.missingGlyphs.insert(codepoint);
+        return false;
+    }
+
+    int width = 0;
+    int height = 0;
+    int xoff = 0;
+    int yoff = 0;
+    unsigned char* bitmap = stbtt_GetCodepointBitmap(
+        &font, fontData.scale, fontData.scale, static_cast<int>(codepoint), &width,
+        &height, &xoff, &yoff);
+
+    int advanceWidth = 0;
+    int leftSideBearing = 0;
+    stbtt_GetCodepointHMetrics(
+        &font, static_cast<int>(codepoint), &advanceWidth, &leftSideBearing);
+
+    unsigned int texture = 0;
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    if (bitmap) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED,
+                     GL_UNSIGNED_BYTE, bitmap);
+        stbtt_FreeBitmap(bitmap, nullptr);
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE,
+                     nullptr);
+    }
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    const Character character = {
+        texture,
+        glm::ivec2(width, height),
+        glm::ivec2(xoff, yoff),
+        static_cast<unsigned int>(advanceWidth * fontData.scale)
+    };
+    fontData.characters[codepoint] = character;
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return true;
+}
+
 void hudText::cleanupSharedFontCache() {
     auto& cache = sharedFontCache();
     for (auto& [key, fontData] : cache) {
         (void)key;
         if (!fontData) continue;
-        for (size_t i = 0; i < fontData->characters.size(); i++) {
-            if (!fontData->characterLoaded[i]) continue;
-            GLuint texture = fontData->characters[i].TextureID;
+        for (auto& [codepoint, character] : fontData->characters) {
+            (void)codepoint;
+            GLuint texture = character.TextureID;
             if (texture != 0) {
                 glDeleteTextures(1, &texture);
             }
@@ -112,86 +313,15 @@ void hudText::loadFont() {
         return;
     }
 
-    const std::string cacheKey = makeFontCacheKey(fontPath, fontSize);
-    auto& cache = sharedFontCache();
-    auto found = cache.find(cacheKey);
-    if (found != cache.end()) {
-        sharedFontData = found->second;
-        return;
-    }
+    sharedFontData = getOrLoadFontData(fontPath, fontSize);
+    fallbackFontData.clear();
 
-    // Read the TTF file
-    const std::filesystem::path resolvedFontPath = AppPaths::resolve(fontPath);
-    std::ifstream file(resolvedFontPath, std::ios::binary | std::ios::ate);
-    if (!file) {
-        std::cerr << "hudText: Failed to open font file: "
-                  << resolvedFontPath.string() << "\n";
-        return;
-    }
-
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::vector<unsigned char> buffer(size);
-    if (!file.read((char*)buffer.data(), size)) {
-        std::cerr << "hudText: Failed to read font file\n";
-        return;
-    }
-
-    stbtt_fontinfo font;
-    int offset = stbtt_GetFontOffsetForIndex(buffer.data(), 0);
-    if (offset == -1) offset = 0; // Default to 0 for single-font TTF files
-
-    if (!stbtt_InitFont(&font, buffer.data(), offset)) {
-        std::cerr << "hudText: stbtt_InitFont failed for "
-                  << resolvedFontPath.string() << "\n";
-        return;
-    }
-
-    float scale = stbtt_ScaleForPixelHeight(&font, (float)fontSize);
-    int ascent, descent, lineGap;
-    stbtt_GetFontVMetrics(&font, &ascent, &descent, &lineGap);
-    ascent = (int)(ascent * scale);
-    descent = (int)(descent * scale);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    auto fontData = std::make_shared<SharedFontData>();
-
-    for (int c = 32; c < 127; c++) {
-        int width = 0, height = 0, xoff = 0, yoff = 0;
-        unsigned char* bitmap = stbtt_GetCodepointBitmap(&font, scale, scale, c, &width, &height, &xoff, &yoff);
-
-        int advanceWidth = 0, leftSideBearing = 0;
-        stbtt_GetCodepointHMetrics(&font, c, &advanceWidth, &leftSideBearing);
-
-        unsigned int texture;
-        glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_2D, texture);
-
-        if (bitmap) {
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
-            stbtt_FreeBitmap(bitmap, nullptr);
-        } else {
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+    const std::string fallbackFontPath = ClientAssets::kUnicodeFallbackFont;
+    if (!fallbackFontPath.empty() && fallbackFontPath != fontPath) {
+        if (auto fallback = getOrLoadFontData(fallbackFontPath, fontSize)) {
+            fallbackFontData.push_back(std::move(fallback));
         }
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-        Character character = {
-            texture,
-            glm::ivec2(width, height),
-            glm::ivec2(xoff, yoff),
-            (unsigned int)(advanceWidth * scale)
-        };
-        fontData->characters[static_cast<size_t>(c)] = character;
-        fontData->characterLoaded[static_cast<size_t>(c)] = true;
     }
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    cache[cacheKey] = fontData;
-    sharedFontData = std::move(fontData);
 }
 
 // Funcao: prepara 'setupBuffers' no elemento de texto do HUD.
@@ -211,6 +341,38 @@ void hudText::setupBuffers() {
     glBindVertexArray(0);
 }
 
+const hudText::Character* hudText::resolveCharacter(std::uint32_t codepoint) const {
+    auto resolveFromFont = [&](std::shared_ptr<SharedFontData>& fontData)
+        -> const Character* {
+        if (!fontData) {
+            return nullptr;
+        }
+        if (!loadGlyph(*fontData, codepoint)) {
+            return nullptr;
+        }
+        auto found = fontData->characters.find(codepoint);
+        return found != fontData->characters.end() ? &found->second : nullptr;
+    };
+
+    if (const Character* character = resolveFromFont(sharedFontData)) {
+        return character;
+    }
+
+    for (auto& fontData : fallbackFontData) {
+        if (const Character* character = resolveFromFont(fontData)) {
+            return character;
+        }
+    }
+
+    if (codepoint != kQuestionMarkCodepoint) {
+        if (const Character* fallback = resolveCharacter(kQuestionMarkCodepoint)) {
+            return fallback;
+        }
+    }
+
+    return nullptr;
+}
+
 // Funcao: mede 'measure' no elemento de texto do HUD.
 // Detalhe: centraliza a logica necessaria para calcular o tamanho final necessario para layout ou ajuste visual.
 // Retorno: devolve 'glm::vec2' com o resultado composto por esta chamada.
@@ -223,7 +385,7 @@ glm::vec2 hudText::measure() const {
 // Retorno: devolve 'glm::vec2' com o resultado composto por esta chamada.
 glm::vec2 hudText::measureText(const std::string& value) const {
     const float lineHeight = static_cast<float>(fontSize) * scaleAmt.y * 1.4f;
-    if (!sharedFontData) {
+    if (!sharedFontData && fallbackFontData.empty()) {
         return glm::vec2(0.0f, lineHeight);
     }
 
@@ -231,19 +393,19 @@ glm::vec2 hudText::measureText(const std::string& value) const {
     float lineWidth = 0.0f;
     int lines = 1;
 
-    for (char rawChar : value) {
-        if (rawChar == '\n') {
+    for (std::uint32_t codepoint : decodeUtf8(value)) {
+        if (codepoint == '\n') {
             maxWidth = std::max(maxWidth, lineWidth);
             lineWidth = 0.0f;
-            lines++;
+            ++lines;
             continue;
         }
 
-        unsigned char c = static_cast<unsigned char>(rawChar);
-        if (c >= sharedFontData->characters.size()) continue;
-        if (!sharedFontData->characterLoaded[static_cast<size_t>(c)]) continue;
-        const Character ch = sharedFontData->characters[static_cast<size_t>(c)];
-        lineWidth += (ch.Advance * scaleAmt.x);
+        const Character* ch = resolveCharacter(codepoint);
+        if (!ch) {
+            continue;
+        }
+        lineWidth += (static_cast<float>(ch->Advance) * scaleAmt.x);
     }
     maxWidth = std::max(maxWidth, lineWidth);
 
@@ -254,7 +416,7 @@ glm::vec2 hudText::measureText(const std::string& value) const {
 // Funcao: renderiza 'draw' no elemento de texto do HUD.
 // Detalhe: usa 'shader', 'screenWidth', 'screenHeight' para desenhar a saida visual correspondente usando o estado atual.
 void hudText::draw(Shader& shader, int screenWidth, int screenHeight) {
-    if (!sharedFontData) {
+    if (!sharedFontData && fallbackFontData.empty()) {
         return;
     }
 
@@ -276,24 +438,23 @@ void hudText::draw(Shader& shader, int screenWidth, int screenHeight) {
     float currentY = (float)drawY;
     const float lineHeight = (float)fontSize * scaleAmt.y * 1.4f;
 
-    for (char rawChar : text) {
-        if (rawChar == '\n') {
+    for (std::uint32_t codepoint : decodeUtf8(text)) {
+        if (codepoint == '\n') {
             currentX = (float)drawX;
             currentY += lineHeight;
             continue;
         }
 
-        unsigned char c = static_cast<unsigned char>(rawChar);
-        if (c >= sharedFontData->characters.size()) continue;
-        if (!sharedFontData->characterLoaded[static_cast<size_t>(c)]) continue;
+        const Character* ch = resolveCharacter(codepoint);
+        if (!ch) {
+            continue;
+        }
 
-        const Character ch = sharedFontData->characters[static_cast<size_t>(c)];
+        float xpos = currentX + ch->Bearing.x * scaleAmt.x;
+        float ypos = currentY + ch->Bearing.y * scaleAmt.y + (float)fontSize;
 
-        float xpos = currentX + ch.Bearing.x * scaleAmt.x;
-        float ypos = currentY + ch.Bearing.y * scaleAmt.y + (float)fontSize;
-
-        float w = ch.Size.x * scaleAmt.x;
-        float h = ch.Size.y * scaleAmt.y;
+        float w = ch->Size.x * scaleAmt.x;
+        float h = ch->Size.y * scaleAmt.y;
 
         float vertices[6][4] = {
             { xpos,     ypos,       0.0f, 0.0f }, // TL
@@ -305,7 +466,7 @@ void hudText::draw(Shader& shader, int screenWidth, int screenHeight) {
             { xpos,     ypos,       0.0f, 0.0f }  // TL
         };
 
-        glBindTexture(GL_TEXTURE_2D, ch.TextureID);
+        glBindTexture(GL_TEXTURE_2D, ch->TextureID);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -314,7 +475,7 @@ void hudText::draw(Shader& shader, int screenWidth, int screenHeight) {
         shader.setMat4("model", model);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        currentX += (ch.Advance * scaleAmt.x);
+        currentX += (static_cast<float>(ch->Advance) * scaleAmt.x);
     }
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);

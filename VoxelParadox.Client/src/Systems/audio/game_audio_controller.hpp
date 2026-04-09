@@ -28,6 +28,8 @@ struct GameAudioFrameState {
     bool settingsMenuOpen = false;
     bool inventoryOpen = false;
     bool portalPreviewActive = false;
+    bool deathScreenActive = false;
+    bool deathScreenFadeOutActive = false;
     std::string biomePresetId;
 };
 
@@ -63,6 +65,7 @@ public:
     void onPlayerDoubleJump();
     void onPlayerFootstep(BlockType blockType, const glm::vec3& worldPosition,
         float gain, float pitch);
+    void onDeathSequenceStarted();
 
     // --- Gameplay Events (World/Entities) ---
     void onEnemyTriggerActivated(const glm::vec3& worldPosition);
@@ -86,6 +89,8 @@ private:
     bool musicBootstrapped_ = false;
     bool hasPendingBiomeOverride_ = false;
     bool forceImmediateMusicRefresh_ = false;
+    bool deathScreenActive_ = false;
+    bool deathScreenFadeOutStarted_ = false;
 };
 
 #pragma endregion

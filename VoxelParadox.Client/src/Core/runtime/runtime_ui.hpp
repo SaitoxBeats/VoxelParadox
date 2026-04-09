@@ -23,6 +23,7 @@ namespace RuntimeUI {
 enum class SettingsMenuTab : std::uint8_t {
   General = 0,
   Sound,
+  Controls,
 };
 
 struct RuntimeUiState {
@@ -38,6 +39,11 @@ struct RuntimeUiState {
   float saveToastFadeOutDuration = 0.32f;
   SettingsMenuTab activeSettingsTab = SettingsMenuTab::General;
   ENGINE::VIEWPORTMODE lastNonFullscreenMode = ENGINE::VIEWPORTMODE::BORDERLESS;
+  std::size_t controlsCategoryIndex = 0;
+  bool controlsCaptureOpen = false;
+  bool controlsCaptureIgnoreMouseLeft = false;
+  std::string controlsCaptureActionId{};
+  std::string controlsWarningMessage{};
 };
 
 glm::ivec2 appliedViewportSizeForSettings(const GameSettings& settings);

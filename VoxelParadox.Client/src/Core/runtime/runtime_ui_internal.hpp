@@ -137,6 +137,7 @@ void addSettingsDiscardConfirmHUD(
     GameAudioController& audioController,
     GameSettings& appliedSettings, GameSettings& pendingSettings,
     RuntimeUiState& uiState);
+void addSettingsControlsCaptureHUD(RuntimeUiState& uiState);
 void addInventoryMenuHUD(Player& player, Renderer& renderer,
                          WorldStack& worldStack);
 void addPortalTrackerHUD(Player& player, WorldStack& worldStack,

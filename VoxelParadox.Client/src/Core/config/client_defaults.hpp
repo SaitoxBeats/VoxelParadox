@@ -15,7 +15,7 @@ inline constexpr std::uint32_t kRootSeed = 42;
 
 inline constexpr char kWindowTitle[] = "Voxel Paradox";
 inline constexpr char kPreferredRootBiomePresetId[] = "waves_of_god";
-inline constexpr char kDefaultFontFile[] = "Minecraft.ttf";
+inline constexpr char kDefaultFontFile[] = "ChillBitmap.ttf";
 
 inline constexpr glm::vec3 kPlayerSpawnPosition(0.0f);
 inline constexpr glm::ivec2 kDefaultWindowedResolution(1280, 720);

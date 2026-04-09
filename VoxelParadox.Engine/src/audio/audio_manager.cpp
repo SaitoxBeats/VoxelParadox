@@ -397,6 +397,18 @@ struct AudioManager::Impl {
     slot.handle = {};
   }
 
+  void stopAllActiveSources() {
+    if (!backendReady) {
+      return;
+    }
+
+    for (SourceSlot& slot : sources) {
+      if (slot.active) {
+        stopSourceSlot(slot);
+      }
+    }
+  }
+
   void reclaimFinishedSources() {
     if (!backendReady) {
       return;
@@ -1565,6 +1577,10 @@ AudioSourceHandle AudioManager::playBlockAction(
     const SoundPlaybackRequest& request) {
   const SoundEventId eventId = impl_->database.resolveBlockAction(blockId, action);
   return impl_->playEventById(eventId, request);
+}
+
+void AudioManager::stopAllActiveSounds() {
+  impl_->stopAllActiveSources();
 }
 
 void AudioManager::setMusicRequest(const MusicPlaybackRequest& request) {

@@ -7,8 +7,21 @@
 
 #include "client_defaults.hpp"
 #include "engine/bootstrap.hpp"
+#include "input/input_action_system.hpp"
 
 namespace RuntimeUI::Detail {
+
+namespace {
+
+void resetControlsMenuState(RuntimeUiState& uiState) {
+  uiState.controlsCategoryIndex = 0;
+  uiState.controlsCaptureOpen = false;
+  uiState.controlsCaptureIgnoreMouseLeft = false;
+  uiState.controlsCaptureActionId.clear();
+  uiState.controlsWarningMessage.clear();
+}
+
+} // namespace
 
 const char* renderDistanceDisplayName(WorldStack::RenderDistancePreset preset) {
   switch (preset) {
@@ -82,6 +95,23 @@ bool sameAudioSettings(const ENGINE::AUDIO::AudioSettings& a,
   return true;
 }
 
+bool sameControlOverrides(const InputMapping::ControlBindingOverrides& a,
+                         const InputMapping::ControlBindingOverrides& b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+
+  for (const auto& [actionId, binding] : a) {
+    const auto otherIt = b.find(actionId);
+    if (otherIt == b.end() ||
+        !InputMapping::sameBinding(binding, otherIt->second)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 bool sameGameSettings(const GameSettings& a, const GameSettings& b) {
   return a.fontFile == b.fontFile &&
          sameResolution(a.resolution, b.resolution) &&
@@ -91,7 +121,8 @@ bool sameGameSettings(const GameSettings& a, const GameSettings& b) {
          a.windowMode == b.windowMode &&
          a.vSyncEnabled == b.vSyncEnabled &&
          a.showFpsCounterOnly == b.showFpsCounterOnly &&
-         sameAudioSettings(a.audioSettings, b.audioSettings);
+         sameAudioSettings(a.audioSettings, b.audioSettings) &&
+         sameControlOverrides(a.controlOverrides, b.controlOverrides);
 }
 
 bool hasPendingSettingsChanges(const GameSettings& appliedSettings,
@@ -353,6 +384,9 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
       !sameResolution(appliedSettings.resolution, pendingSettings.resolution);
   const bool audioChanged =
       !sameAudioSettings(appliedSettings.audioSettings, pendingSettings.audioSettings);
+  const bool controlsChanged =
+      !sameControlOverrides(appliedSettings.controlOverrides,
+                            pendingSettings.controlOverrides);
 
   if (appliedSettings.renderDistance != pendingSettings.renderDistance) {
     worldStack.setRenderDistancePreset(pendingSettings.renderDistance);
@@ -406,6 +440,13 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
                 onOffText(pendingSettings.audioSettings.globalMute));
   }
 
+  if (controlsChanged) {
+    InputMapping::InputActionSystem::instance().applyOverrides(
+        pendingSettings.controlOverrides);
+    std::printf("[Settings] Controls updated: %zu override(s)\n",
+                pendingSettings.controlOverrides.size());
+  }
+
   if (fontChanged) {
     std::printf("[Settings] HUD font: %s\n", pendingSettings.fontFile.c_str());
   }
@@ -426,6 +467,7 @@ void openSettingsMenu(RuntimeUiState& uiState,
   uiState.settingsMenuOpen = true;
   uiState.settingsDiscardConfirmOpen = false;
   uiState.activeSettingsTab = RuntimeUI::SettingsMenuTab::General;
+  resetControlsMenuState(uiState);
 }
 
 void discardPendingSettings(RuntimeUiState& uiState,
@@ -433,6 +475,7 @@ void discardPendingSettings(RuntimeUiState& uiState,
                             GameSettings& pendingSettings) {
   pendingSettings = appliedSettings;
   uiState.settingsDiscardConfirmOpen = false;
+  resetControlsMenuState(uiState);
 }
 
 void closeSettingsMenu(RuntimeUiState& uiState,

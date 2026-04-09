@@ -1,17 +1,37 @@
-#include "enemy_spawn_system.hpp"
+// enemy_spawn_system.cpp
+// Unity mental model: a focused encounter director that decides when and where
+// enemies can appear around the player.
+// Role: owns the enemy spawn rules, spawn validation, and debug spawn hooks.
+// Flow: configuration is sampled once, candidate positions are validated against
+// the world and the player, and successful spawns reset the cooldown.
 
+#pragma region Includes
+
+// 1. Standard Library
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
+#include <string>
 
+// 2. Third-party Libraries
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
+// 3. Internal Engine/Core Modules (Foundation)
+
+// 4. Local Project Modules (Specific to this system)
 #include "enemy_definition.hpp"
+#include "enemy_spawn_system.hpp"
 #include "player/player.hpp"
 #include "world/fractal_world.hpp"
 
+#pragma endregion
+
 namespace {
+
+#pragma region 1. Configuration & Helpers
+// --- 1. Configuration & Helpers ---
 
 struct EnemySpawnConfig {
     EnemyType type = EnemyType::Guy;
@@ -43,6 +63,7 @@ float randomRange(float minValue, float maxValue) {
     if (maxValue <= minValue) {
         return minValue;
     }
+
     return minValue + (maxValue - minValue) * randomZeroToOne();
 }
 
@@ -51,6 +72,7 @@ glm::vec2 randomSpawnOffset(const EnemySpawnConfig& config) {
     const float radius =
         randomRange(static_cast<float>(config.minSpawnDistanceBlocks),
                     static_cast<float>(config.maxSpawnDistanceBlocks));
+
     return glm::vec2(std::cos(angleRadians), std::sin(angleRadians)) * radius;
 }
 
@@ -62,6 +84,7 @@ bool hasRequiredVerticalClearance(FractalWorld& world,
             return false;
         }
     }
+
     return true;
 }
 
@@ -77,6 +100,7 @@ bool findSupportBlockNearHeight(FractalWorld& world, const glm::ivec2& columnXZ,
         if (!isSolid(world.getBlock(supportBlock))) {
             continue;
         }
+
         if (!hasRequiredVerticalClearance(world, supportBlock, requiredAirBlocks)) {
             continue;
         }
@@ -132,12 +156,14 @@ bool isFarEnoughFromExistingEnemies(const FractalWorld& world,
                                     const glm::vec3& spawnPosition,
                                     float minDistance) {
     const float minDistanceSquared = minDistance * minDistance;
+
     for (const WorldEnemy& enemy : world.enemies) {
         const glm::vec3 delta = enemy.position - spawnPosition;
         if (glm::dot(delta, delta) < minDistanceSquared) {
             return false;
         }
     }
+
     return true;
 }
 
@@ -166,11 +192,10 @@ bool tryFindEnemySpawn(FractalWorld& world, const Player& player,
             static_cast<int>(std::floor(playerPosition.z + offset.y)));
 
         glm::ivec3 supportBlock(0);
-        if (!findSupportBlockNearHeight(world, columnXZ, playerY,
-                                        config.verticalSearchUpBlocks,
-                                        config.verticalSearchDownBlocks,
-                                        config.minVerticalClearanceBlocks,
-                                        supportBlock)) {
+        if (!findSupportBlockNearHeight(
+                world, columnXZ, playerY, config.verticalSearchUpBlocks,
+                config.verticalSearchDownBlocks, config.minVerticalClearanceBlocks,
+                supportBlock)) {
             continue;
         }
 
@@ -259,12 +284,16 @@ void logEnemySpawn(const FractalWorld& world, EnemyType type,
     std::printf(
         "[Enemy Spawn] Spawned enemy type=%d | reason=%s | pos=(%.2f, %.2f, %.2f) | "
         "yaw=%.1f | worldSeed=%u | nextCooldown=%.2f min\n",
-        static_cast<int>(type), spawnReason,
-        spawnPosition.x, spawnPosition.y, spawnPosition.z, yawDegrees, world.seed,
-        nextCooldownMinutes);
+        static_cast<int>(type), spawnReason, spawnPosition.x, spawnPosition.y,
+        spawnPosition.z, yawDegrees, world.seed, nextCooldownMinutes);
 }
 
-}  // namespace
+#pragma endregion
+
+} // namespace
+
+#pragma region 2. Public API
+// --- 2. Public API ---
 
 bool tryForceSpawnWorldEnemyNearPlayer(FractalWorld& world, const Player& player,
                                        EnemyType type,
@@ -281,8 +310,8 @@ bool tryForceSpawnWorldEnemyNearPlayer(FractalWorld& world, const Player& player
 
     glm::vec3 spawnPosition(0.0f);
     float yawDegrees = 0.0f;
-    if (!tryFindEnemySpawn(world, player, *definition, config,
-                           spawnPosition, yawDegrees)) {
+    if (!tryFindEnemySpawn(world, player, *definition, config, spawnPosition,
+                           yawDegrees)) {
         setFailureReason(outFailureReason,
                          "no valid location found near the player.");
         return false;
@@ -308,9 +337,10 @@ bool tryForceSpawnWorldEnemyAt(FractalWorld& world, EnemyType type,
         return false;
     }
 
-    const glm::ivec3 supportBlock(static_cast<int>(std::floor(spawnPosition.x)),
-                                  static_cast<int>(std::floor(spawnPosition.y - 1.0f)),
-                                  static_cast<int>(std::floor(spawnPosition.z)));
+    const glm::ivec3 supportBlock(
+        static_cast<int>(std::floor(spawnPosition.x)),
+        static_cast<int>(std::floor(spawnPosition.y - 1.0f)),
+        static_cast<int>(std::floor(spawnPosition.z)));
     if (!isSolid(world.getBlock(supportBlock))) {
         setFailureReason(outFailureReason,
                          "the target position is not on top of a solid block.");
@@ -364,8 +394,10 @@ void updateWorldEnemySpawning(FractalWorld& world, const Player& player, float d
             std::printf(
                 "[Enemy Spawn] Debug spawn blocked: an enemy is already active in the world.\n");
         }
+
         return;
     }
+
     if (!immediateDebugSpawn && world.enemySpawnState.cooldownSeconds > 0.0f) {
         return;
     }
@@ -380,12 +412,13 @@ void updateWorldEnemySpawning(FractalWorld& world, const Player& player, float d
 
     glm::vec3 spawnPosition(0.0f);
     float yawDegrees = 0.0f;
-    if (!tryFindEnemySpawn(world, player, *definition, config,
-                           spawnPosition, yawDegrees)) {
+    if (!tryFindEnemySpawn(world, player, *definition, config, spawnPosition,
+                           yawDegrees)) {
         if (immediateDebugSpawn) {
             std::printf(
                 "[Enemy Spawn] Debug spawn failed: no valid location found near the player.\n");
         }
+
         world.enemySpawnState.cooldownSeconds = config.retryDelaySeconds;
         return;
     }
@@ -396,3 +429,5 @@ void updateWorldEnemySpawning(FractalWorld& world, const Player& player, float d
                   world.enemySpawnState.cooldownSeconds,
                   immediateDebugSpawn ? "debug" : "scheduled");
 }
+
+#pragma endregion

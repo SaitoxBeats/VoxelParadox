@@ -77,6 +77,11 @@ Player::PersistentState Player::capturePersistentState() const {
         getUniverseCreationCooldownRemainingSeconds();
     state.doubleJumpCooldownRemainingSeconds =
         glm::max(0.0, nextDoubleJumpTimeSeconds - ENGINE::GETTIME());
+    state.hasSpawnpoint = spawnpointDefined;
+    state.spawnpointPosition = spawnpointPosition;
+    state.spawnpointUniverseSeed = spawnpointUniverseSeed;
+    state.spawnpointBiomeSelection = spawnpointBiomeSelection;
+    state.spawnpointTraversalStack = spawnpointTraversalStack;
     state.grounded = grounded;
     state.crouching = crouching;
     state.currentEyeHeight = currentEyeHeight;
@@ -102,6 +107,11 @@ void Player::applyPersistentState(const PersistentState& state) {
         ENGINE::GETTIME() + glm::max(0.0, state.universeCreationCooldownRemainingSeconds);
     nextDoubleJumpTimeSeconds =
         ENGINE::GETTIME() + glm::max(0.0, state.doubleJumpCooldownRemainingSeconds);
+    spawnpointDefined = state.hasSpawnpoint;
+    spawnpointPosition = state.spawnpointPosition;
+    spawnpointUniverseSeed = state.spawnpointUniverseSeed;
+    spawnpointBiomeSelection = state.spawnpointBiomeSelection;
+    spawnpointTraversalStack = state.spawnpointTraversalStack;
     grounded = state.grounded;
     crouching = state.crouching;
     currentEyeHeight = glm::clamp(state.currentEyeHeight,
@@ -122,6 +132,23 @@ void Player::applyPersistentState(const PersistentState& state) {
     resetBlockBreaking();
     clearTargetSelection();
     applyCameraVisualEffects();
+}
+
+void Player::setDeathSequenceState(bool active, float elapsedSeconds,
+                                   const std::string& message) {
+    deathSequenceActive = active;
+    deathSequenceElapsedSeconds = glm::max(0.0f, elapsedSeconds);
+    deathSequenceMessage = active ? message : std::string{};
+}
+
+void Player::setSpawnpoint(const glm::vec3& position, std::uint32_t universeSeed,
+                           const BiomeSelection& biomeSelection,
+                           const std::vector<WorldLevel>& traversalStack) {
+    spawnpointDefined = true;
+    spawnpointPosition = position;
+    spawnpointUniverseSeed = universeSeed;
+    spawnpointBiomeSelection = biomeSelection;
+    spawnpointTraversalStack = traversalStack;
 }
 
 void Player::triggerDamageFeedback() {

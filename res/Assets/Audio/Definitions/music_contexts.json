@@ -63,6 +63,18 @@
         { "id": "exploration_01", "path": "Music/exploration_01.mp3", "weight": 1.0 },
         { "id": "exploration_02", "path": "Music/exploration_02.mp3", "weight": 1.0 }
       ]
+    },
+    {
+      "id": "state.death_screen",
+      "priority": 100,
+      "required_tags": ["state.death_screen"],
+      "start_delay_seconds": 0.0,
+      "silence_seconds": 0.0,
+      "fade_in_seconds": 5.0,
+      "fade_out_seconds": 5.0,
+      "tracks": [
+        { "id": "death_screen_01", "path": "Music/ruins_01.mp3", "weight": 1.0 }
+      ]
     }
   ]
 }

@@ -8,10 +8,13 @@
 #pragma region Includes
 
 #include "hud_element.hpp"
+#include <cstdint>
 #include <array>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 #include <glm/glm.hpp>
 #include <glad/glad.h>
 #pragma endregion
@@ -92,8 +95,11 @@ private:
     };
 
     struct SharedFontData {
-        std::array<Character, 128> characters{};
-        std::array<bool, 128> characterLoaded{};
+        std::vector<unsigned char> fontBuffer;
+        int fontOffset = 0;
+        float scale = 1.0f;
+        std::unordered_map<std::uint32_t, Character> characters;
+        std::unordered_set<std::uint32_t> missingGlyphs;
     };
 
     std::string text;
@@ -107,7 +113,8 @@ private:
 
     unsigned int vao = 0;
     unsigned int vbo = 0;
-    std::shared_ptr<const SharedFontData> sharedFontData;
+    mutable std::shared_ptr<SharedFontData> sharedFontData;
+    mutable std::vector<std::shared_ptr<SharedFontData>> fallbackFontData;
     glm::vec3 color;
     float opacity = 1.0f;
 
@@ -117,6 +124,11 @@ private:
     // Funcao: prepara 'setupBuffers' no elemento de texto do HUD.
     // Detalhe: centraliza a logica necessaria para configurar dados auxiliares ou buffers usados nas proximas chamadas.
     void setupBuffers();
+    static std::shared_ptr<SharedFontData> getOrLoadFontData(const std::string& fontPath,
+                                                             int fontSize);
+    static std::vector<std::uint32_t> decodeUtf8(const std::string& value);
+    static bool loadGlyph(SharedFontData& fontData, std::uint32_t codepoint);
+    const Character* resolveCharacter(std::uint32_t codepoint) const;
     // Funcao: monta 'makeFontCacheKey' no elemento de texto do HUD.
     // Detalhe: usa 'fontPath', 'fontSize' para derivar e compor um valor pronto para a proxima etapa do pipeline.
     // Retorno: devolve 'std::string' com o texto pronto para exibicao, lookup ou serializacao.

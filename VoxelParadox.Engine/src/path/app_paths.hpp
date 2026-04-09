@@ -26,6 +26,7 @@ const std::filesystem::path& engineRoot();
 
 std::filesystem::path sharedRoot();
 std::filesystem::path assetsRoot();
+std::filesystem::path gameDataRoot();
 std::filesystem::path fontsRoot();
 std::filesystem::path texturesRoot();
 std::filesystem::path hudTexturesRoot();

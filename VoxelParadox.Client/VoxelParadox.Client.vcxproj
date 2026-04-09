@@ -29,7 +29,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup>
     <TargetName>VoxelParadox</TargetName>
-    <VpProjectIncludeDirs>$(VpRootDir)VoxelParadox.Engine\src;$(VpRootDir)VoxelParadox.Client\src;$(VpRootDir)VoxelParadox.Client\src\Core;$(VpRootDir)VoxelParadox.Client\src\Core\config;$(VpRootDir)VoxelParadox.Client\src\Core\support;$(VpRootDir)VoxelParadox.Client\src\Systems;$(VpRootDir)VoxelParadox.Client\src\Entities;$(VpRootDir)VoxelParadox.Client\src\Renderer;$(VpRootDir)VoxelParadox.Client\src\UI;$(VpRootDir)VoxelParadox.Client\src\World</VpProjectIncludeDirs>
+    <VpProjectIncludeDirs>$(VpRootDir)VoxelParadox.Engine\src;$(VpRootDir)VoxelParadox.Client\src;$(VpRootDir)VoxelParadox.Client\src\Core;$(VpRootDir)VoxelParadox.Client\src\Core\config;$(VpRootDir)VoxelParadox.Client\src\Core\input;$(VpRootDir)VoxelParadox.Client\src\Core\support;$(VpRootDir)VoxelParadox.Client\src\Systems;$(VpRootDir)VoxelParadox.Client\src\Entities;$(VpRootDir)VoxelParadox.Client\src\Renderer;$(VpRootDir)VoxelParadox.Client\src\UI;$(VpRootDir)VoxelParadox.Client\src\World</VpProjectIncludeDirs>
     <VpPchHeader>game_pch.hpp</VpPchHeader>
     <LocalDebuggerWorkingDirectory>$(VpRootDir)</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
@@ -48,6 +48,7 @@
       <PrecompiledHeaderFile>game_pch.hpp</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="src\Core\support\crash_handler.cpp" />
+    <ClCompile Include="src\Core\input\input_action_system.cpp" />
     <ClCompile Include="src\Systems\audio\game_audio_controller.cpp" />
     <ClCompile Include="src\Systems\debug\biome_debug_tools.cpp" />
     <ClCompile Include="src\Entities\enemies\enemy_definition.cpp" />
@@ -99,6 +100,9 @@
   <ItemGroup>
     <ClInclude Include="src\Core\config\client_assets.hpp" />
     <ClInclude Include="src\Core\config\client_defaults.hpp" />
+    <ClInclude Include="src\Core\input\input_action_ids.hpp" />
+    <ClInclude Include="src\Core\input\input_action_system.hpp" />
+    <ClInclude Include="src\Core\input\input_binding.hpp" />
     <ClInclude Include="src\Core\support\crash_handler.hpp" />
     <ClInclude Include="src\Systems\audio\game_audio_controller.hpp" />
     <ClInclude Include="src\Systems\debug\biome_debug_tools.hpp" />

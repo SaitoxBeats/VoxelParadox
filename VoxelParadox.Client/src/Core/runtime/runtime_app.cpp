@@ -59,6 +59,12 @@ namespace {
             player.applyPersistentState(worldSession.playerData.playerState);
             player.camera.sensitivity = settings.mouseSensitivity;
         }
+        if (!player.hasSpawnpoint()) {
+            player.setSpawnpoint(resolvedSpawnPosition,
+                                 worldSession.startUniverseSeed,
+                                 worldSession.startUniverseBiomeSelection,
+                                 worldSession.playerData.traversalStack);
+        }
 
         char spawnBuffer[64];
         std::snprintf(spawnBuffer, sizeof(spawnBuffer), "%.2f, %.2f, %.2f",
@@ -197,6 +203,30 @@ namespace VoxelParadox {
 
             Player player = preparePlayer(settingsBundle.applied, resolvedSpawnPosition,
                                           worldSession);
+
+            if (!worldSession.hasPlayerData ||
+                !worldSession.playerData.playerState.hasSpawnpoint) {
+                worldSession.playerData.hasPlayerState = true;
+                worldSession.playerData.playerState = player.capturePersistentState();
+                worldSession.playerData.currentUniverseSeed =
+                    worldStack.currentWorld() ? worldStack.currentWorld()->seed
+                                              : worldSession.startUniverseSeed;
+                worldSession.playerData.currentUniverseBiomeSelection =
+                    worldStack.currentWorld() ? worldStack.currentWorld()->biomeSelection
+                                              : worldSession.startUniverseBiomeSelection;
+
+                std::string spawnpointInitError;
+                if (!WorldSaveService::savePlayerData(worldSession.paths,
+                                                      worldSession.playerData,
+                                                      &spawnpointInitError)) {
+                    if (!spawnpointInitError.empty()) {
+                        RuntimeAppInternal::printBootstrapError(
+                            spawnpointInitError.c_str());
+                    }
+                } else {
+                    worldSession.hasPlayerData = true;
+                }
+            }
 
             // --- 6. Audio Subsystem ---
             RuntimeAppInternal::printBootstrapInfo("Preparing the audio subsystem...");

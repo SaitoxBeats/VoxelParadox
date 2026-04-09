@@ -14,6 +14,8 @@
 // 2. Local Project Modules
 #include "player.hpp"
 #include "audio/game_audio_controller.hpp"
+#include "input/input_action_ids.hpp"
+#include "input/input_action_system.hpp"
 
 #pragma endregion
 
@@ -69,7 +71,9 @@ void Player::updateCameraLook() {
 }
 
 void Player::updateZoom(float dt, bool allowMovementInput) {
-    const bool zoomHeld = allowMovementInput && Input::keyDown(GLFW_KEY_C);
+    const bool zoomHeld =
+        allowMovementInput &&
+        InputMapping::InputActionSystem::instance().isDown(InputActionIds::kZoom);
     const float targetFov = zoomHeld ? zoomedFov : normalFov;
     const float blend = std::min(1.0f, dt * zoomSmoothSpeed);
 
@@ -124,14 +128,18 @@ void Player::notifyInventoryStateChanged() {
 }
 
 void Player::handleHotbarSelectionInput() {
-    static constexpr int hotbarKeys[PlayerHotbar::SLOT_COUNT] = {
-        GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5,
-        GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9,
+    static constexpr const char* hotbarActionIds[PlayerHotbar::SLOT_COUNT] = {
+        InputActionIds::kHotbarSlot1, InputActionIds::kHotbarSlot2,
+        InputActionIds::kHotbarSlot3, InputActionIds::kHotbarSlot4,
+        InputActionIds::kHotbarSlot5, InputActionIds::kHotbarSlot6,
+        InputActionIds::kHotbarSlot7, InputActionIds::kHotbarSlot8,
+        InputActionIds::kHotbarSlot9,
     };
+    auto& inputActions = InputMapping::InputActionSystem::instance();
 
     // Direct slot selection
     for (int index = 0; index < PlayerHotbar::SLOT_COUNT; index++) {
-        if (Input::keyPressed(hotbarKeys[index])) {
+        if (inputActions.wasPressed(hotbarActionIds[index])) {
             const int previousIndex = hotbar.getSelectedIndex();
             hotbar.selectSlot(index);
 
@@ -175,7 +183,7 @@ void Player::handleHotbarSelectionInput() {
 
 bool Player::wantsToCrouch(bool allowMovementInput) const {
     return allowMovementInput &&
-        (Input::keyDown(GLFW_KEY_LEFT_SHIFT) || Input::keyDown(GLFW_KEY_RIGHT_SHIFT));
+        InputMapping::InputActionSystem::instance().isDown(InputActionIds::kCrouch);
 }
 
 void Player::updateStance(FractalWorld* world, bool allowMovementInput, float dt) {
@@ -194,6 +202,8 @@ void Player::updateStance(FractalWorld* world, bool allowMovementInput, float dt
 }
 
 void Player::handleMovement(float dt, bool allowMovementInput) {
+    auto& inputActions = InputMapping::InputActionSystem::instance();
+
     // Determine forward vector
     glm::vec3 forward = camera.getForward();
     forward.y = 0.0f;
@@ -216,10 +226,10 @@ void Player::handleMovement(float dt, bool allowMovementInput) {
     // Process directional input
     glm::vec3 moveInput(0.0f);
     if (allowMovementInput) {
-        if (Input::keyDown(GLFW_KEY_W)) moveInput += forward;
-        if (Input::keyDown(GLFW_KEY_S)) moveInput -= forward;
-        if (Input::keyDown(GLFW_KEY_D)) moveInput += right;
-        if (Input::keyDown(GLFW_KEY_A)) moveInput -= right;
+        if (inputActions.isDown(InputActionIds::kMoveForward)) moveInput += forward;
+        if (inputActions.isDown(InputActionIds::kMoveBackward)) moveInput -= forward;
+        if (inputActions.isDown(InputActionIds::kMoveRight)) moveInput += right;
+        if (inputActions.isDown(InputActionIds::kMoveLeft)) moveInput -= right;
     }
 
     if (glm::dot(moveInput, moveInput) > 0.0001f) {
@@ -229,7 +239,7 @@ void Player::handleMovement(float dt, bool allowMovementInput) {
     // Calculate desired speed
     const bool running =
         allowMovementInput &&
-        (Input::keyDown(GLFW_KEY_LEFT_CONTROL) || Input::keyDown(GLFW_KEY_RIGHT_CONTROL)) &&
+        inputActions.isDown(InputActionIds::kRun) &&
         !crouching;
 
     const float targetSpeed = crouching ? crouchSpeed : (running ? runSpeed : walkSpeed);
@@ -254,8 +264,10 @@ void Player::handleMovement(float dt, bool allowMovementInput) {
     velocity.z = horizontalVelocity.z;
 
     // Process jump
-    const bool jumpPressed = allowMovementInput && Input::keyPressed(GLFW_KEY_SPACE);
-    const bool jumpHeld = allowMovementInput && Input::keyDown(GLFW_KEY_SPACE);
+    const bool jumpPressed =
+        allowMovementInput && inputActions.wasPressed(InputActionIds::kJump);
+    const bool jumpHeld =
+        allowMovementInput && inputActions.isDown(InputActionIds::kJump);
     const double now = ENGINE::GETTIME();
 
     const bool groundJump = grounded && jumpHeld;

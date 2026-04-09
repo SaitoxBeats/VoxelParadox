@@ -32,6 +32,7 @@ public:
   AudioSourceHandle playBlockAction(const std::string& blockId,
                                     BlockSoundAction action,
                                     const SoundPlaybackRequest& request = {});
+  void stopAllActiveSounds();
 
   void setMusicRequest(const MusicPlaybackRequest& request);
   void stopMusic(bool immediate = false);

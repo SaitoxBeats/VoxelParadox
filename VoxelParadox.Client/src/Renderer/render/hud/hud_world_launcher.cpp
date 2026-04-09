@@ -18,6 +18,8 @@
 #include "engine/input.hpp"
 #include "hud.hpp"
 #include "hud_text.hpp"
+#include "input/input_action_ids.hpp"
+#include "input/input_action_system.hpp"
 
 namespace {
 
@@ -372,6 +374,8 @@ void hudWorldLauncher::requestLoadWorld(int index) {
 }
 
 void hudWorldLauncher::updateSelection(float mouseX, float mouseY) {
+    auto& inputActions = InputMapping::InputActionSystem::instance();
+
     hoveredIndex_ = hoveredWorldIndex(mouseX, mouseY);
 
     if (loading_) {
@@ -394,12 +398,12 @@ void hudWorldLauncher::updateSelection(float mouseX, float mouseY) {
 
     // Arrow keys navigation
     if (!textFieldFocused_ && !worlds_.empty()) {
-        if (Input::keyPressed(GLFW_KEY_UP)) {
+        if (inputActions.wasPressed(InputActionIds::kUiUp)) {
             selectedIndex_ = (selectedIndex_ < 0) ? 0 : std::max(0, selectedIndex_ - 1);
             textFieldFocused_ = false;
         }
 
-        if (Input::keyPressed(GLFW_KEY_DOWN)) {
+        if (inputActions.wasPressed(InputActionIds::kUiDown)) {
             selectedIndex_ = (selectedIndex_ < 0) ? 0 : std::min(static_cast<int>(worlds_.size()) - 1, selectedIndex_ + 1);
             textFieldFocused_ = false;
         }
@@ -433,6 +437,8 @@ void hudWorldLauncher::updateSelection(float mouseX, float mouseY) {
 }
 
 void hudWorldLauncher::updateButtons(float mouseX, float mouseY) {
+    auto& inputActions = InputMapping::InputActionSystem::instance();
+
     if (loading_) {
         return;
     }
@@ -465,7 +471,7 @@ void hudWorldLauncher::updateButtons(float mouseX, float mouseY) {
         }
     }
 
-    if (Input::keyPressed(GLFW_KEY_ENTER) || Input::keyPressed(GLFW_KEY_KP_ENTER)) {
+    if (inputActions.wasPressed(InputActionIds::kUiAccept)) {
         if (selectedIndex_ >= 0 && !textFieldFocused_) {
             requestLoadWorld(selectedIndex_);
         }

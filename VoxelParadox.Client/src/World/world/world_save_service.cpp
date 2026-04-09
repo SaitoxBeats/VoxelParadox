@@ -51,6 +51,9 @@ bool isInvalidFolderChar(unsigned char ch) {
 
 }  // namespace
 
+json serializeWorldLevel(const WorldLevel& level);
+bool deserializeWorldLevel(const json& value, WorldLevel& outLevel);
+
 std::shared_ptr<const VoxelGame::BiomePreset> resolvePreset(
     const BiomeSelection& selection) {
     if (!selection.presetId.empty()) {
@@ -266,6 +269,11 @@ bool deserializeHotbarState(const json& value, PlayerHotbar::PersistentState& ou
 }
 
 json serializePlayerState(const Player::PersistentState& state) {
+    json spawnpointTraversalStack = json::array();
+    for (const WorldLevel& level : state.spawnpointTraversalStack) {
+        spawnpointTraversalStack.push_back(serializeWorldLevel(level));
+    }
+
     return json{
         {"cameraPosition", serializeVec3(state.cameraPosition)},
         {"cameraOrientation", serializeQuat(state.cameraOrientation)},
@@ -276,6 +284,12 @@ json serializePlayerState(const Player::PersistentState& state) {
          state.universeCreationCooldownRemainingSeconds},
         {"doubleJumpCooldownRemainingSeconds",
          state.doubleJumpCooldownRemainingSeconds},
+        {"hasSpawnpoint", state.hasSpawnpoint},
+        {"spawnpointPosition", serializeVec3(state.spawnpointPosition)},
+        {"spawnpointUniverseSeed", state.spawnpointUniverseSeed},
+        {"spawnpointBiomeSelection",
+         serializeBiomeSelection(state.spawnpointBiomeSelection)},
+        {"spawnpointTraversalStack", spawnpointTraversalStack},
         {"grounded", state.grounded},
         {"crouching", state.crouching},
         {"currentEyeHeight", state.currentEyeHeight},
@@ -289,6 +303,23 @@ json serializePlayerState(const Player::PersistentState& state) {
         {"lifeFlashTimer", state.lifeFlashTimer},
         {"hotbarState", serializeHotbarState(state.hotbarState)},
     };
+}
+
+int defaultPlayerLifePoints() {
+    static const int kDefaultLifePoints = Player().getMaxLifePoints();
+    return kDefaultLifePoints;
+}
+
+void sanitizeDeathState(Player::PersistentState& state) {
+    if (state.lifePoints > 0) {
+        return;
+    }
+
+    state.lifePoints = defaultPlayerLifePoints();
+    if (state.hasSpawnpoint) {
+        state.cameraPosition = state.spawnpointPosition;
+    }
+    state.velocity = glm::vec3(0.0f);
 }
 
 json serializePortalTrackerState(
@@ -339,6 +370,30 @@ bool deserializePlayerState(const json& value, Player::PersistentState& outState
         outState.doubleJumpCooldownRemainingSeconds =
             value["doubleJumpCooldownRemainingSeconds"].get<double>();
     }
+    if (value.contains("hasSpawnpoint") && value["hasSpawnpoint"].is_boolean()) {
+        outState.hasSpawnpoint = value["hasSpawnpoint"].get<bool>();
+    }
+    if (value.contains("spawnpointPosition")) {
+        deserializeVec3(value["spawnpointPosition"], outState.spawnpointPosition);
+    }
+    if (value.contains("spawnpointUniverseSeed") &&
+        value["spawnpointUniverseSeed"].is_number_integer()) {
+        outState.spawnpointUniverseSeed =
+            value["spawnpointUniverseSeed"].get<std::uint32_t>();
+    }
+    if (value.contains("spawnpointBiomeSelection")) {
+        deserializeBiomeSelection(value["spawnpointBiomeSelection"],
+                                  outState.spawnpointBiomeSelection);
+    }
+    if (value.contains("spawnpointTraversalStack") &&
+        value["spawnpointTraversalStack"].is_array()) {
+        for (const json& entry : value["spawnpointTraversalStack"]) {
+            WorldLevel level{};
+            if (deserializeWorldLevel(entry, level)) {
+                outState.spawnpointTraversalStack.push_back(std::move(level));
+            }
+        }
+    }
     if (value.contains("grounded") && value["grounded"].is_boolean()) {
         outState.grounded = value["grounded"].get<bool>();
     }
@@ -380,6 +435,7 @@ bool deserializePlayerState(const json& value, Player::PersistentState& outState
         deserializeHotbarState(value["hotbarState"], outState.hotbarState);
     }
 
+    sanitizeDeathState(outState);
     return true;
 }
 
@@ -835,29 +891,33 @@ bool loadPlayerData(const WorldPaths& paths, PlayerData& outPlayerData,
 }
 
 bool saveStats(const WorldPaths& paths, double totalPlaytimeSeconds,
-               std::string* outError) {
+               std::uint32_t deathCount, std::string* outError) {
     const json value{
         {"version", kStatsVersion},
         {"playtimeSeconds", std::max(0.0, totalPlaytimeSeconds)},
+        {"deathCount", deathCount},
     };
     return writeJsonFile(paths.statsFilePath, value, outError);
 }
 
 bool loadStats(const WorldPaths& paths, double& outTotalPlaytimeSeconds,
-               std::string* outError) {
+               std::uint32_t& outDeathCount, std::string* outError) {
     json value;
     if (!std::filesystem::exists(paths.statsFilePath)) {
         outTotalPlaytimeSeconds = 0.0;
+        outDeathCount = 0;
         return true;
     }
 
     if (!readJsonFile(paths.statsFilePath, value, outError)) {
         outTotalPlaytimeSeconds = 0.0;
+        outDeathCount = 0;
         return false;
     }
 
     if (!value.is_object()) {
         outTotalPlaytimeSeconds = 0.0;
+        outDeathCount = 0;
         return false;
     }
 
@@ -865,6 +925,11 @@ bool loadStats(const WorldPaths& paths, double& outTotalPlaytimeSeconds,
         outTotalPlaytimeSeconds = std::max(0.0, value["playtimeSeconds"].get<double>());
     } else {
         outTotalPlaytimeSeconds = 0.0;
+    }
+    if (value.contains("deathCount") && value["deathCount"].is_number_integer()) {
+        outDeathCount = value["deathCount"].get<std::uint32_t>();
+    } else {
+        outDeathCount = 0;
     }
     return true;
 }
@@ -883,6 +948,7 @@ bool createWorld(const std::string& displayName,
     session.manifest.activeUniverseBiomeSelection = rootBiomeSelection;
     session.rootPreset = resolvePreset(rootBiomeSelection);
     session.totalPlaytimeSeconds = 0.0;
+    session.deathCount = 0;
     session.startUniverseSeed = session.manifest.rootSeed;
     session.startUniverseBiomeSelection = rootBiomeSelection;
     session.hasPlayerData = false;
@@ -913,7 +979,8 @@ bool createWorld(const std::string& displayName,
     if (!savePlayerData(session.paths, session.playerData, outError)) {
         return false;
     }
-    if (!saveStats(session.paths, session.totalPlaytimeSeconds, outError)) {
+    if (!saveStats(session.paths, session.totalPlaytimeSeconds, session.deathCount,
+                   outError)) {
         return false;
     }
 
@@ -942,8 +1009,10 @@ bool loadPlayerAndWorldSession(const std::filesystem::path& worldDirectory,
             : session.manifest.activeUniverseBiomeSelection;
 
     double totalPlaytimeSeconds = 0.0;
-    loadStats(session.paths, totalPlaytimeSeconds, nullptr);
+    std::uint32_t deathCount = 0;
+    loadStats(session.paths, totalPlaytimeSeconds, deathCount, nullptr);
     session.totalPlaytimeSeconds = totalPlaytimeSeconds;
+    session.deathCount = deathCount;
 
     if (!loadPlayerData(session.paths, session.playerData, nullptr)) {
         session.playerData = {};
@@ -975,9 +1044,13 @@ bool loadWorld(const std::filesystem::path& worldDirectory,
     return loadPlayerAndWorldSession(worldDirectory, outSession, outError);
 }
 
-bool saveSession(const WorldSession& session, const Player& player,
-                 WorldStack& worldStack, double totalPlaytimeSeconds,
-                 std::string* outError) {
+bool saveSessionWithPlayerState(const WorldSession& session,
+                                const Player::PersistentState& playerState,
+                                const glm::vec3& cameraPosition,
+                                const glm::quat& cameraOrientation,
+                                WorldStack& worldStack,
+                                double totalPlaytimeSeconds,
+                                std::string* outError) {
     if (!worldStack.currentWorld()) {
         if (outError) {
             *outError = "No active world is available for saving.";
@@ -991,7 +1064,9 @@ bool saveSession(const WorldSession& session, const Player& player,
 
     PlayerData playerData = session.playerData;
     playerData.hasPlayerState = true;
-    playerData.playerState = player.capturePersistentState();
+    playerData.playerState = playerState;
+    playerData.playerState.cameraPosition = cameraPosition;
+    playerData.playerState.cameraOrientation = cameraOrientation;
     playerData.currentUniverseSeed = worldStack.currentWorld()->seed;
     playerData.currentUniverseBiomeSelection = worldStack.currentWorld()->biomeSelection;
     playerData.traversalStack = worldStack.snapshotTraversalStack();
@@ -999,8 +1074,7 @@ bool saveSession(const WorldSession& session, const Player& player,
         playerData.traversalStack.push_back(makeRootTraversalLevel(manifest));
     }
 
-    worldStack.saveActivePlayerState(player.camera.position,
-                                     player.camera.orientation);
+    worldStack.saveActivePlayerState(cameraPosition, cameraOrientation);
     worldStack.saveCurrentWorldEdits();
 
     if (!saveWorldManifest(session.paths, manifest, outError)) {
@@ -1009,12 +1083,24 @@ bool saveSession(const WorldSession& session, const Player& player,
     if (!savePlayerData(session.paths, playerData, outError)) {
         return false;
     }
-    if (!saveStats(session.paths, totalPlaytimeSeconds, outError)) {
+    if (!saveStats(session.paths, totalPlaytimeSeconds, session.deathCount, outError)) {
         return false;
     }
 
     logSaveEvent("World session saved", session, totalPlaytimeSeconds);
     return true;
+}
+
+bool saveSession(const WorldSession& session, const Player& player,
+                 WorldStack& worldStack, double totalPlaytimeSeconds,
+                 std::string* outError) {
+    return saveSessionWithPlayerState(session,
+                                      player.capturePersistentState(),
+                                      player.camera.position,
+                                      player.camera.orientation,
+                                      worldStack,
+                                      totalPlaytimeSeconds,
+                                      outError);
 }
 
 std::vector<WorldSummary> listWorlds() {
@@ -1038,7 +1124,8 @@ std::vector<WorldSummary> listWorlds() {
             continue;
         }
 
-        loadStats(summary.paths, summary.totalPlaytimeSeconds, nullptr);
+        loadStats(summary.paths, summary.totalPlaytimeSeconds, summary.deathCount,
+                  nullptr);
         summary.lastWriteTime = std::filesystem::last_write_time(
             summary.paths.worldFilePath, ec);
         if (ec) {

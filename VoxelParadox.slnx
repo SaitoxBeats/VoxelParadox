@@ -13,6 +13,9 @@
     <File Path="res/Assets/Audio/Definitions/block_sound_profiles.json" />
     <File Path="res/Assets/Audio/Definitions/music_contexts.json" />
   </Folder>
+  <Folder Name="/res/Assets/Config/">
+    <File Path="res/Assets/Config/controls.lua" />
+  </Folder>
   <Folder Name="/res/Assets/Recipes/">
     <File Path="res/Assets/Recipes/recipe_blocks.json" />
     <File Path="res/Assets/Recipes/recipe_tools.json" />

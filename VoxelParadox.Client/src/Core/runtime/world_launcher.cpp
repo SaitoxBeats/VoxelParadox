@@ -18,6 +18,7 @@
 
 #include "engine/engine.hpp"
 #include "engine/input.hpp"
+#include "input/input_action_system.hpp"
 #include "render/hud/hud.hpp"
 #include "render/hud/hud_world_launcher.hpp"
 
@@ -99,6 +100,11 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
     lastTime = currentTime;
     ENGINE::UPDATE(currentTime, rawDt);
     Input::update();
+    auto& inputActions = InputMapping::InputActionSystem::instance();
+    inputActions.setCaptureMode(false);
+    inputActions.setActiveContexts(
+        {InputMapping::InputContext::UiNavigation,
+         InputMapping::InputContext::Ui});
 
     if (loading && taskFuture.valid() && !hasCompletedTask) {
       const std::future_status status =

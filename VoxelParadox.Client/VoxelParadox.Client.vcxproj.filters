@@ -10,6 +10,9 @@
     <Filter Include="src\Core\config">
       <UniqueIdentifier>{731133B8-E30F-49B0-AE2A-88A81B24ED13}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Core\input">
+      <UniqueIdentifier>{9C36A2A1-87F3-4E83-865A-BE8D8E3C1CF7}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\Core\runtime">
       <UniqueIdentifier>{0BD83A6E-F15A-48F4-8BE3-981CB525B586}</UniqueIdentifier>
     </Filter>
@@ -65,6 +68,9 @@
     </ClCompile>
     <ClCompile Include="src\Core\support\crash_handler.cpp">
       <Filter>src\Core\support</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Core\input\input_action_system.cpp">
+      <Filter>src\Core\input</Filter>
     </ClCompile>
     <ClCompile Include="src\Systems\audio\game_audio_controller.cpp">
       <Filter>src\Systems\audio</Filter>
@@ -214,6 +220,15 @@
     </ClInclude>
     <ClInclude Include="src\Core\config\client_defaults.hpp">
       <Filter>src\Core\config</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\input\input_action_ids.hpp">
+      <Filter>src\Core\input</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\input\input_action_system.hpp">
+      <Filter>src\Core\input</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\input\input_binding.hpp">
+      <Filter>src\Core\input</Filter>
     </ClInclude>
     <ClInclude Include="src\Core\support\crash_handler.hpp">
       <Filter>src\Core\support</Filter>

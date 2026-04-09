@@ -8,6 +8,8 @@
 #include <imgui.h>
 
 #include "enemies/enemy_spawn_system.hpp"
+#include "input/input_action_ids.hpp"
+#include "input/input_action_system.hpp"
 
 namespace RuntimeUI {
 namespace {
@@ -197,6 +199,8 @@ void handleGlobalShortcuts(hudPortalInfo* portalInfo,
                            RuntimeUiState& uiState,
                            GameSettings& appliedSettings,
                            GameSettings& pendingSettings) {
+  auto& inputActions = InputMapping::InputActionSystem::instance();
+
   if (player.transition != PlayerTransition::NONE && player.isInventoryOpen()) {
     player.closeInventoryForTransition();
   }
@@ -209,11 +213,66 @@ void handleGlobalShortcuts(hudPortalInfo* portalInfo,
   }
 #endif
 
+  if (uiState.controlsCaptureOpen) {
+    if (Input::keyPressed(GLFW_KEY_ESCAPE)) {
+      uiState.controlsCaptureOpen = false;
+      uiState.controlsCaptureIgnoreMouseLeft = false;
+      uiState.controlsCaptureActionId.clear();
+      uiState.controlsWarningMessage.clear();
+      return;
+    }
+
+    if (uiState.controlsCaptureIgnoreMouseLeft &&
+        !Input::mouseDown(GLFW_MOUSE_BUTTON_LEFT)) {
+      uiState.controlsCaptureIgnoreMouseLeft = false;
+    }
+
+    InputMapping::InputBinding capturedBinding;
+    if (!inputActions.tryCaptureBinding(capturedBinding,
+                                        uiState.controlsCaptureIgnoreMouseLeft)) {
+      return;
+    }
+
+    const InputMapping::InputActionDefinition* action =
+        inputActions.findAction(uiState.controlsCaptureActionId);
+    if (!action) {
+      uiState.controlsCaptureOpen = false;
+      uiState.controlsCaptureIgnoreMouseLeft = false;
+      uiState.controlsCaptureActionId.clear();
+      return;
+    }
+
+    if (!inputActions.isBindingCompatible(action->id, capturedBinding)) {
+      uiState.controlsWarningMessage =
+          action->inputType == InputMapping::InputBindingType::MouseButton
+              ? "This action requires a mouse button."
+              : "This action requires a keyboard key.";
+      return;
+    }
+
+    InputMapping::ConflictInfo conflict;
+    if (!inputActions.trySetBinding(action->id, capturedBinding,
+                                    pendingSettings.controlOverrides, &conflict)) {
+      uiState.controlsWarningMessage =
+          "Binding conflict with \"" + conflict.actionLabel + "\".";
+      return;
+    }
+
+    uiState.controlsCaptureOpen = false;
+    uiState.controlsCaptureIgnoreMouseLeft = false;
+    uiState.controlsCaptureActionId.clear();
+    uiState.controlsWarningMessage.clear();
+    return;
+  }
+
   if (Input::hasUiFocus()) {
     return;
   }
 
-  if (Input::keyPressed(GLFW_KEY_ESCAPE)) {
+  const bool cancelPressed = inputActions.wasPressed(InputActionIds::kUiCancel);
+  const bool togglePausePressed =
+      inputActions.wasPressed(InputActionIds::kTogglePause);
+  if (cancelPressed || togglePausePressed) {
     if (portalTracker && portalTracker->isMenuOpen()) {
       portalTracker->closeMenu();
       return;
@@ -237,7 +296,8 @@ void handleGlobalShortcuts(hudPortalInfo* portalInfo,
     }
   }
 
-  if (Input::keyPressed(GLFW_KEY_P) && !ENGINE::ISPAUSED() &&
+  if (inputActions.wasPressed(InputActionIds::kTogglePortalTracker) &&
+      !ENGINE::ISPAUSED() &&
       player.transition == PlayerTransition::NONE &&
       !player.isInventoryOpen() &&
       (!portalInfo || !portalInfo->isEditing()) &&
@@ -246,7 +306,8 @@ void handleGlobalShortcuts(hudPortalInfo* portalInfo,
     return;
   }
 
-  if (Input::keyPressed(GLFW_KEY_E) && !ENGINE::ISPAUSED() &&
+  if (inputActions.wasPressed(InputActionIds::kToggleInventory) &&
+      !ENGINE::ISPAUSED() &&
       player.transition == PlayerTransition::NONE &&
       (!portalInfo || !portalInfo->isEditing())) {
     if (player.isInventoryOpen()) {
@@ -256,7 +317,7 @@ void handleGlobalShortcuts(hudPortalInfo* portalInfo,
     }
   }
 
-  if (Input::keyPressed(GLFW_KEY_F1)) {
+  if (inputActions.wasPressed(InputActionIds::kToggleHud)) {
     HUD::toggleVisible();
   }
 
@@ -267,7 +328,8 @@ void handleGlobalShortcuts(hudPortalInfo* portalInfo,
                 Detail::onOffText(uiState.debugTextVisible));
   }
 
-  if (!uiState.settingsMenuOpen && Input::keyPressed(GLFW_KEY_F11)) {
+  if (!uiState.settingsMenuOpen &&
+      inputActions.wasPressed(InputActionIds::kToggleFullscreen)) {
     Detail::toggleFullscreen(uiState, appliedSettings);
     pendingSettings = appliedSettings;
   }

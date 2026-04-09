@@ -3,20 +3,51 @@
 // Fluxo: carrega fonte GLSL, compila programas e cacheia uniforms usados pelo renderer.
 // DependÃªncias principais: OpenGL, GLM e `AppPaths`.
 #pragma once
+
+// 1. Standard Library
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+
+// 2. Third-party Libraries
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <cstdio>
-#include <unordered_map>
 
+// 3. Local Project Modules
 #include "path/app_paths.hpp"
 
 class Shader {
 public:
     GLuint program = 0;
+
+    bool compileFullscreenShadertoy(
+        const char* glslSrc,
+        const std::unordered_map<std::string, std::string>& macroOverrides = {}
+    ) {
+        if (!glslSrc || glslSrc[0] == '\0') {
+            return false;
+        }
+
+        const std::string wrappedFragment =
+            buildFullscreenShadertoyFragment(glslSrc, macroOverrides);
+        return compile(fullscreenQuadVertexSource(), wrappedFragment.c_str());
+    }
+
+    bool compileFullscreenShadertoyFromFile(
+        const char* glslPath,
+        const std::unordered_map<std::string, std::string>& macroOverrides = {}
+    ) {
+        const std::string fragmentSource = readTextFile(glslPath);
+        if (fragmentSource.empty()) {
+            return false;
+        }
+
+        return compileFullscreenShadertoy(fragmentSource.c_str(), macroOverrides);
+    }
 
     bool compile(const char* vertSrc, const char* fragSrc) {
         release();
@@ -70,6 +101,9 @@ public:
     void setVec3(const char* n, const glm::vec3& v) const {
         glUniform3fv(getUniformLocation(n), 1, glm::value_ptr(v));
     }
+    void setVec2(const char* n, const glm::vec2& v) const {
+        glUniform2fv(getUniformLocation(n), 1, glm::value_ptr(v));
+    }
     void setVec4(const char* n, const glm::vec4& v) const {
         glUniform4fv(getUniformLocation(n), 1, glm::value_ptr(v));
     }
@@ -93,6 +127,18 @@ public:
 private:
     mutable std::unordered_map<std::string, GLint> uniformLocations;
 
+    static const char* fullscreenQuadVertexSource() {
+        return R"(
+#version 460 core
+layout(location = 0) in vec3 aPos;
+out vec2 vUv;
+void main() {
+    vUv = aPos.xy * 0.5 + 0.5;
+    gl_Position = vec4(aPos, 1.0);
+}
+)";
+    }
+
     static std::string readTextFile(const char* path) {
         if (!path || path[0] == '\0') {
             return {};
@@ -106,6 +152,113 @@ private:
         std::ostringstream buffer;
         buffer << file.rdbuf();
         return buffer.str();
+    }
+
+    static std::string trimCopy(const std::string& value) {
+        const std::size_t first = value.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) {
+            return {};
+        }
+
+        const std::size_t last = value.find_last_not_of(" \t\r\n");
+        return value.substr(first, last - first + 1);
+    }
+
+    static std::string stripVersionDirective(const std::string& source) {
+        std::istringstream stream(source);
+        std::ostringstream result;
+        std::string line;
+        bool removedVersion = false;
+        bool firstWritten = false;
+
+        while (std::getline(stream, line)) {
+            std::string trimmed = trimCopy(line);
+            if (!removedVersion && trimmed.rfind("#version", 0) == 0) {
+                removedVersion = true;
+                continue;
+            }
+
+            if (firstWritten) {
+                result << '\n';
+            }
+            result << line;
+            firstWritten = true;
+        }
+
+        return result.str();
+    }
+
+    static std::string stripMacroOverrides(
+        const std::string& source,
+        const std::unordered_map<std::string, std::string>& macroOverrides
+    ) {
+        if (macroOverrides.empty()) {
+            return source;
+        }
+
+        std::istringstream stream(source);
+        std::ostringstream result;
+        std::string line;
+        bool firstWritten = false;
+
+        while (std::getline(stream, line)) {
+            const std::string trimmed = trimCopy(line);
+            bool skipLine = false;
+
+            if (trimmed.rfind("#define ", 0) == 0) {
+                std::istringstream defineStream(trimmed);
+                std::string directive;
+                std::string key;
+                defineStream >> directive >> key;
+                skipLine = macroOverrides.find(key) != macroOverrides.end();
+            }
+
+            if (skipLine) {
+                continue;
+            }
+
+            if (firstWritten) {
+                result << '\n';
+            }
+            result << line;
+            firstWritten = true;
+        }
+
+        return result.str();
+    }
+
+    static std::string buildFullscreenShadertoyFragment(
+        const std::string& source,
+        const std::unordered_map<std::string, std::string>& macroOverrides
+    ) {
+        const std::string normalizedSource =
+            stripMacroOverrides(stripVersionDirective(source), macroOverrides);
+
+        std::ostringstream wrapped;
+        wrapped
+            << "#version 460 core\n"
+            << "in vec2 vUv;\n"
+            << "out vec4 FragColor;\n"
+            << "uniform vec2 uResolution;\n"
+            << "uniform float uTime;\n"
+            << "uniform vec4 uMouse;\n"
+            << "uniform float uVignetteExtra;\n"
+            << "#define iResolution vec3(uResolution, 1.0)\n"
+            << "#define iTime uTime\n"
+            << "#define iMouse uMouse\n";
+
+        for (const auto& entry : macroOverrides) {
+            wrapped << "#define " << entry.first << ' ' << entry.second << "\n";
+        }
+
+        wrapped
+            << '\n'
+            << normalizedSource
+            << "\n\nvoid main() {\n"
+            << "    mainImage(FragColor, gl_FragCoord.xy);\n"
+            << "}\n";
+
+        return wrapped.str();
     }
 
     bool checkCompile(GLuint s, const char* type) {

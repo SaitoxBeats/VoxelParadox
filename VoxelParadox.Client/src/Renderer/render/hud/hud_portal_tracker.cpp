@@ -11,6 +11,8 @@
 #include "engine/input.hpp"
 #include "hud.hpp"
 #include "hud_text.hpp"
+#include "input/input_action_ids.hpp"
+#include "input/input_action_system.hpp"
 #include "player/player.hpp"
 #include "world/world_stack.hpp"
 
@@ -275,6 +277,8 @@ bool hudPortalTracker::projectWaypoint(int screenWidth, int screenHeight,
 }
 
 void hudPortalTracker::updateMenu(int screenWidth, int screenHeight) {
+    auto& inputActions = InputMapping::InputActionSystem::instance();
+
     hoveredIndex = -1;
     if (!menuOpen) {
         return;
@@ -306,10 +310,10 @@ void hudPortalTracker::updateMenu(int screenWidth, int screenHeight) {
                                  selectedIndex + 1);
     }
 
-    if (Input::keyPressed(GLFW_KEY_UP)) {
+    if (inputActions.wasPressed(InputActionIds::kUiUp)) {
         selectedIndex = std::max(0, selectedIndex - 1);
     }
-    if (Input::keyPressed(GLFW_KEY_DOWN)) {
+    if (inputActions.wasPressed(InputActionIds::kUiDown)) {
         selectedIndex = std::min(std::max(0, static_cast<int>(entries.size()) - 1),
                                  selectedIndex + 1);
     }
@@ -343,7 +347,7 @@ void hudPortalTracker::updateMenu(int screenWidth, int screenHeight) {
     clampSelection();
 
     const bool pressedEnter =
-        Input::keyPressed(GLFW_KEY_ENTER) || Input::keyPressed(GLFW_KEY_KP_ENTER);
+        inputActions.wasPressed(InputActionIds::kUiAccept);
     const bool clickedRow =
         hoveredIndex >= 0 && Input::mousePressed(GLFW_MOUSE_BUTTON_LEFT);
     if (pressedEnter && !entries.empty()) {

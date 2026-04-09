@@ -22,8 +22,8 @@ class WorldStack;
 namespace WorldSaveService {
 
 inline constexpr std::uint32_t kWorldManifestVersion = 1;
-inline constexpr std::uint32_t kPlayerDataVersion = 2;
-inline constexpr std::uint32_t kStatsVersion = 1;
+inline constexpr std::uint32_t kPlayerDataVersion = 6;
+inline constexpr std::uint32_t kStatsVersion = 2;
 
 inline constexpr const char* kWorldFileName = "world.dat";
 inline constexpr const char* kPlayerDataDirectoryName = "playerdata";
@@ -75,6 +75,7 @@ struct WorldSummary {
     WorldPaths paths;
     WorldManifest manifest{};
     double totalPlaytimeSeconds = 0.0;
+    std::uint32_t deathCount = 0;
     std::filesystem::file_time_type lastWriteTime{};
 };
 
@@ -84,6 +85,7 @@ struct WorldSession {
     PlayerData playerData{};
     bool hasPlayerData = false;
     double totalPlaytimeSeconds = 0.0;
+    std::uint32_t deathCount = 0;
     std::uint32_t startUniverseSeed = 0;
     BiomeSelection startUniverseBiomeSelection{};
     std::shared_ptr<const VoxelGame::BiomePreset> rootPreset{};
@@ -115,13 +117,22 @@ bool loadPlayerData(const WorldPaths& paths, PlayerData& outPlayerData,
                     std::string* outError = nullptr);
 
 bool saveStats(const WorldPaths& paths, double totalPlaytimeSeconds,
+               std::uint32_t deathCount,
                std::string* outError = nullptr);
 bool loadStats(const WorldPaths& paths, double& outTotalPlaytimeSeconds,
+               std::uint32_t& outDeathCount,
                std::string* outError = nullptr);
 
 bool saveSession(const WorldSession& session, const Player& player,
                  WorldStack& worldStack, double totalPlaytimeSeconds,
                  std::string* outError = nullptr);
+bool saveSessionWithPlayerState(const WorldSession& session,
+                                const Player::PersistentState& playerState,
+                                const glm::vec3& cameraPosition,
+                                const glm::quat& cameraOrientation,
+                                WorldStack& worldStack,
+                                double totalPlaytimeSeconds,
+                                std::string* outError = nullptr);
 bool loadPlayerAndWorldSession(const std::filesystem::path& worldDirectory,
                                WorldSession& outSession,
                                std::string* outError = nullptr);

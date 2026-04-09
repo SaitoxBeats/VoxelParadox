@@ -28,9 +28,38 @@ void GameAudioController::applySettings(const ENGINE::AUDIO::AudioSettings& sett
 void GameAudioController::syncFrame(const ENGINE::AUDIO::AudioListenerState& listenerState,
     const GameAudioFrameState& frameState,
     float dtSeconds) {
+    if (frameState.deathScreenActive && !deathScreenActive_) {
+        deathScreenActive_ = true;
+        deathScreenFadeOutStarted_ = false;
+        musicBootstrapped_ = false;
+        forceImmediateMusicRefresh_ = true;
+    }
+
+    if (!frameState.deathScreenActive && deathScreenActive_) {
+        deathScreenActive_ = false;
+        deathScreenFadeOutStarted_ = false;
+        forceImmediateMusicRefresh_ = true;
+    }
+
     // --- 1. Listener & Pause State ---
-    audioManager_.setGameplayPaused(frameState.paused);
+    audioManager_.setGameplayPaused(frameState.paused || frameState.deathScreenActive);
     audioManager_.setListenerState(listenerState);
+
+    if (frameState.deathScreenActive) {
+        ENGINE::AUDIO::MusicPlaybackRequest musicRequest;
+        if (!frameState.deathScreenFadeOutActive) {
+            musicRequest.tags.push_back("state.death_screen");
+            musicRequest.immediate = !musicBootstrapped_ || forceImmediateMusicRefresh_;
+        } else {
+            deathScreenFadeOutStarted_ = true;
+        }
+
+        audioManager_.setMusicRequest(musicRequest);
+        audioManager_.update(dtSeconds);
+        musicBootstrapped_ = true;
+        forceImmediateMusicRefresh_ = false;
+        return;
+    }
 
     // --- 2. Biome & Music Context ---
     const bool useBiomeOverride = hasPendingBiomeOverride_;
@@ -80,14 +109,26 @@ void GameAudioController::syncFrame(const ENGINE::AUDIO::AudioListenerState& lis
 // --- 3. UI Events ---
 
 void GameAudioController::onHotbarSelectionChanged() {
+    if (deathScreenActive_) {
+        return;
+    }
+
     playUiEvent("ui.hotbar.select");
 }
 
 void GameAudioController::onInventoryStateChanged(bool open) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     playUiEvent("ui.menu.click");
 }
 
 void GameAudioController::onPauseMenuToggled(bool open) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     playUiEvent("ui.menu.click");
 }
 
@@ -97,6 +138,10 @@ void GameAudioController::onPauseMenuToggled(bool open) {
 // --- 4. Gameplay Events (Blocks) ---
 
 void GameAudioController::onBlockHit(BlockType blockType, const glm::ivec3& blockPos, bool initialHit) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     audioManager_.playBlockAction(
         getBlockId(blockType),
         ENGINE::AUDIO::BlockSoundAction::Hit,
@@ -105,6 +150,10 @@ void GameAudioController::onBlockHit(BlockType blockType, const glm::ivec3& bloc
 }
 
 void GameAudioController::onBlockBroken(BlockType blockType, const glm::ivec3& blockPos) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     audioManager_.playBlockAction(
         getBlockId(blockType),
         ENGINE::AUDIO::BlockSoundAction::Break,
@@ -113,6 +162,10 @@ void GameAudioController::onBlockBroken(BlockType blockType, const glm::ivec3& b
 }
 
 void GameAudioController::onBlockPlaced(BlockType blockType, const glm::ivec3& blockPos) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     audioManager_.playBlockAction(
         getBlockId(blockType),
         ENGINE::AUDIO::BlockSoundAction::Place,
@@ -126,19 +179,45 @@ void GameAudioController::onBlockPlaced(BlockType blockType, const glm::ivec3& b
 // --- 5. Gameplay Events (Player & Items) ---
 
 void GameAudioController::onItemCollected() {
+    if (deathScreenActive_) {
+        return;
+    }
+
     audioManager_.playEvent("player.item.pickup");
 }
 
 void GameAudioController::onPlayerDamaged() {
+    if (deathScreenActive_) {
+        return;
+    }
+
     audioManager_.playEvent("player.damage.hit");
 }
 
 void GameAudioController::onPlayerDoubleJump() {
+    if (deathScreenActive_) {
+        return;
+    }
+
     audioManager_.playEvent("player.double_jump");
+}
+
+void GameAudioController::onDeathSequenceStarted() {
+    audioManager_.stopAllActiveSounds();
+    // Let syncFrame transition music on the next update instead of tearing
+    // down active streams in the same death-start frame.
+    deathScreenActive_ = true;
+    deathScreenFadeOutStarted_ = false;
+    musicBootstrapped_ = false;
+    forceImmediateMusicRefresh_ = true;
 }
 
 void GameAudioController::onPlayerFootstep(BlockType blockType, const glm::vec3& worldPosition,
     float gain, float pitch) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     ENGINE::AUDIO::SoundPlaybackRequest request = makeWorldRequest(worldPosition);
     request.gain = gain;
     request.pitch = pitch;
@@ -156,6 +235,10 @@ void GameAudioController::onPlayerFootstep(BlockType blockType, const glm::vec3&
 // --- 6. Gameplay Events (World & Entities) ---
 
 void GameAudioController::onEnemyTriggerActivated(const glm::vec3& worldPosition) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     audioManager_.playEvent(
         "enemy.trigger.activate",
         makeWorldRequest(worldPosition)
@@ -163,6 +246,10 @@ void GameAudioController::onEnemyTriggerActivated(const glm::vec3& worldPosition
 }
 
 void GameAudioController::onPortalEntered(const glm::ivec3& blockPos, const std::string& nextBiomePresetId) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     pendingBiomeOverridePresetId_ = nextBiomePresetId;
     hasPendingBiomeOverride_ = true;
     forceImmediateMusicRefresh_ = true;
@@ -171,6 +258,10 @@ void GameAudioController::onPortalEntered(const glm::ivec3& blockPos, const std:
 }
 
 void GameAudioController::onPortalExited(const glm::ivec3& blockPos) {
+    if (deathScreenActive_) {
+        return;
+    }
+
     hasPendingBiomeOverride_ = false;
     pendingBiomeOverridePresetId_.clear();
     forceImmediateMusicRefresh_ = true;
@@ -202,9 +293,11 @@ ENGINE::AUDIO::SoundPlaybackRequest GameAudioController::makeWorldRequest(const 
 }
 
 void GameAudioController::playUiEvent(const char* eventName) {
-    if (eventName) {
-        audioManager_.playEvent(eventName);
+    if (!eventName || deathScreenActive_) {
+        return;
     }
+
+    audioManager_.playEvent(eventName);
 }
 
 #pragma endregion

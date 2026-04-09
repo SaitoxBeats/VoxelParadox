@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdint>
+#include <vector>
 
 // 2. Third-party Libraries
 #include <glm/glm.hpp>
@@ -136,6 +137,11 @@ public:
         bool sandboxModeEnabled = false;
         double universeCreationCooldownRemainingSeconds = 0.0;
         double doubleJumpCooldownRemainingSeconds = 0.0;
+        bool hasSpawnpoint = false;
+        glm::vec3 spawnpointPosition{ 0.0f };
+        std::uint32_t spawnpointUniverseSeed = 0;
+        BiomeSelection spawnpointBiomeSelection{};
+        std::vector<WorldLevel> spawnpointTraversalStack{};
         bool grounded = false;
         bool crouching = false;
         float currentEyeHeight = kDefaultStandingEyeHeight;
@@ -227,6 +233,8 @@ public:
 
     PersistentState capturePersistentState() const;
     void applyPersistentState(const PersistentState& state);
+
+    void setLifePoints(int value) { lifePoints = glm::clamp(value, 1, kMaxLifePoints); };
 #pragma endregion
 
 #pragma region 5. Accessors & State Checks
@@ -237,6 +245,10 @@ public:
     int getLifePoints() const { return lifePoints; }
     int getMaxLifePoints() const { return kMaxLifePoints; }
     bool isAlive() const { return lifePoints > 0; }
+    bool hasSpawnpoint() const { return spawnpointDefined; }
+    bool isDeathSequenceActive() const { return deathSequenceActive; }
+    float getDeathSequenceElapsedSeconds() const { return deathSequenceElapsedSeconds; }
+    const std::string& getDeathSequenceMessage() const { return deathSequenceMessage; }
 
     float getStandingEyeHeight() const { return standingEyeHeight; }
     float getStandingHeight() const { return standingHeight; }
@@ -250,6 +262,17 @@ public:
 
     void applyDamage(int damagePoints);
     glm::vec3 getLifeTextColor() const;
+    void setDeathSequenceState(bool active, float elapsedSeconds,
+                               const std::string& message = {});
+    glm::vec3 getSpawnpointPosition() const { return spawnpointPosition; }
+    std::uint32_t getSpawnpointUniverseSeed() const { return spawnpointUniverseSeed; }
+    const BiomeSelection& getSpawnpointBiomeSelection() const { return spawnpointBiomeSelection; }
+    const std::vector<WorldLevel>& getSpawnpointTraversalStack() const {
+        return spawnpointTraversalStack;
+    }
+    void setSpawnpoint(const glm::vec3& position, std::uint32_t universeSeed,
+                       const BiomeSelection& biomeSelection,
+                       const std::vector<WorldLevel>& traversalStack = {});
 
     float getBreakTimeSeconds(BlockType targetType) const {
         return getToolAdjustedBreakTimeSeconds(
@@ -387,6 +410,9 @@ private:
 
     GameAudioController* audioController = nullptr;
     int lifePoints = kMaxLifePoints;
+    bool deathSequenceActive = false;
+    float deathSequenceElapsedSeconds = 0.0f;
+    std::string deathSequenceMessage{};
     float damageRollTimer = 0.0f;
     float damageRollRadiansCurrent = 0.0f;
     float lifeFlashTimer = 0.0f;
@@ -400,6 +426,11 @@ private:
     float lastFootstepPhase = 0.0f;
     bool sandboxModeEnabled = false;
     double nextUniverseCreationTimeSeconds = 0.0;
+    bool spawnpointDefined = false;
+    glm::vec3 spawnpointPosition{ 0.0f };
+    std::uint32_t spawnpointUniverseSeed = 0;
+    BiomeSelection spawnpointBiomeSelection{};
+    std::vector<WorldLevel> spawnpointTraversalStack{};
 #pragma endregion
 
 #pragma region 9. Internal Math & Portals

@@ -19,6 +19,7 @@
 
 // Client
 #include "client_defaults.hpp"
+#include "input/input_action_system.hpp"
 #include "runtime/runtime_ui.hpp"
 #include "world/world_save_service.hpp"
 #include "world/biome_registry.hpp"
@@ -136,6 +137,12 @@ RuntimeSettingsBundle loadRuntimeSettings(std::string* outLoadError) {
   bundle.availableFonts = GameSettings::availableFonts();
   bundle.availableResolutions = GameSettings::availableDisplayResolutions();
   bundle.applied.sanitize(bundle.availableFonts, bundle.availableResolutions);
+  std::string controlsStatus;
+  InputMapping::InputActionSystem::instance().initialize(&controlsStatus);
+  InputMapping::InputActionSystem::instance().sanitizeOverrides(
+      bundle.applied.controlOverrides);
+  InputMapping::InputActionSystem::instance().applyOverrides(
+      bundle.applied.controlOverrides);
   bundle.pending = bundle.applied;
   RuntimeUI::saveGameSettings(bundle.applied);
   bundle.uiState.lastNonFullscreenMode =
