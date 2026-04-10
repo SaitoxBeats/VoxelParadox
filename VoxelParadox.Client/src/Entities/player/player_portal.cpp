@@ -164,37 +164,23 @@ bool Player::isLookingAtPortal(FractalWorld* world) const {
     return world && hasTarget && world->getBlock(targetBlock) == BlockIds::PORTAL;
 }
 
-bool Player::canCreateNestedWorldNow() const {
-    return sandboxModeEnabled || ENGINE::GETTIME() >= nextUniverseCreationTimeSeconds;
-}
-
-void Player::markNestedWorldCreated() {
-    if (sandboxModeEnabled) {
-        return;
+bool Player::tryCreatePortalForTargetBlock(WorldStack& worldStack) {
+    if (!hasTarget) {
+        return false;
     }
 
-    nextUniverseCreationTimeSeconds =
-        ENGINE::GETTIME() + kUniverseCreationCooldownSeconds;
+    return tryPrepareNestedWorld(worldStack, targetBlock);
 }
 
 bool Player::tryPrepareNestedWorld(
     WorldStack& worldStack, const glm::ivec3& blockPos, std::uint32_t* outChildSeed,
     BiomeSelection* outChildBiome,
     std::shared_ptr<const VoxelGame::BiomePreset>* outChildPreset) {
-    const bool alreadyExists = worldStack.hasNestedWorldAtBlock(blockPos);
-    if (!alreadyExists && !canCreateNestedWorldNow()) {
-        return false;
-    }
-
-    bool created = false;
     if (!worldStack.ensureNestedWorldAtBlock(blockPos, outChildSeed, outChildBiome,
-                                            outChildPreset, &created)) {
+                                            outChildPreset)) {
         return false;
     }
 
-    if (created) {
-        markNestedWorldCreated();
-    }
     return true;
 }
 

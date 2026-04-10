@@ -81,6 +81,7 @@ bool BlockShaderSession::setPreviewBlock(BlockId blockId, double nowSeconds) {
   previewBlockId_ = blockId;
   const BlockDefinition& definition = BlockRegistry::instance().definition(blockId);
   blockShaderPath_ = definition.shaderAssetPath;
+  blockTexturePath_ = definition.textureAssetPath;
   if (!nowSeconds) {
     return true;
   }
@@ -121,6 +122,16 @@ BlockShaderSession::SourceFingerprint BlockShaderSession::readFingerprint() cons
     }
   }
 
+  ec.clear();
+  if (!blockTexturePath_.empty()) {
+    const std::filesystem::path blockTextureAbs = AppPaths::resolve(blockTexturePath_);
+    fingerprint.blockTextureExists = std::filesystem::exists(blockTextureAbs, ec);
+    if (!ec && fingerprint.blockTextureExists) {
+      fingerprint.blockTextureWrite =
+          std::filesystem::last_write_time(blockTextureAbs, ec);
+    }
+  }
+
   return fingerprint;
 }
 
@@ -133,10 +144,11 @@ bool BlockShaderSession::compileCurrentSelection(double nowSeconds,
 
   const std::filesystem::path vertexAbs = AppPaths::resolve(vertexPath_);
   const std::filesystem::path fragmentAbs = AppPaths::resolve(fragmentTemplatePath_);
-  const std::filesystem::path blockShaderAbs =
-      blockShaderPath_.empty() ? std::filesystem::path{} : AppPaths::resolve(blockShaderPath_);
 
   BlockRegistry::mutableInstance().reload();
+  const BlockDefinition& definition = BlockRegistry::instance().definition(previewBlockId_);
+  blockShaderPath_ = definition.shaderAssetPath;
+  blockTexturePath_ = definition.textureAssetPath;
   const BlockShaderSources blockShaderSources =
       BlockRegistry::instance().buildShaderSources();
   if (!blockShaderSources.valid()) {

@@ -368,6 +368,26 @@ bool Player::canOccupyBodyAt(FractalWorld* world, const glm::vec3& feetPosition,
     return true;
 }
 
+bool Player::doesBlockOverlapBody(const glm::ivec3& blockPos,
+                                  const glm::vec3& feetPosition,
+                                  float bodyHeight) const {
+    const glm::vec3 minCorner = makeBodyMinCorner(feetPosition, playerRadius);
+    const glm::vec3 maxCorner =
+        makeBodyMaxCorner(feetPosition, playerRadius, bodyHeight) -
+        glm::vec3(kCollisionEpsilon);
+
+    const glm::vec3 blockMin = glm::vec3(blockPos);
+    const glm::vec3 blockMax = blockMin + glm::vec3(1.0f);
+
+    return overlapsOnAxis(minCorner.x, maxCorner.x, blockMin.x, blockMax.x) &&
+        overlapsOnAxis(minCorner.y, maxCorner.y, blockMin.y, blockMax.y) &&
+        overlapsOnAxis(minCorner.z, maxCorner.z, blockMin.z, blockMax.z);
+}
+
+bool Player::doesBlockOverlapCurrentBody(const glm::ivec3& blockPos) const {
+    return doesBlockOverlapBody(blockPos, getFeetPosition(), getCurrentBodyHeight());
+}
+
 bool Player::hasSupportBelow(FractalWorld* world, const glm::vec3& feetPosition, float inset, bool requireAllSamples) const {
     if (!world) {
         return false;
@@ -401,6 +421,28 @@ bool Player::hasSupportBelow(FractalWorld* world, const glm::vec3& feetPosition,
     }
 
     return requireAllSamples ? true : anySupported;
+}
+
+void Player::updateEmbeddedHeadDamage(FractalWorld* world, float dt) {
+    if (!world || !isAlive()) {
+        headEmbeddedDamageTimer = kHeadEmbeddedDamageIntervalSeconds;
+        return;
+    }
+
+    const glm::ivec3 headBlock =
+        glm::ivec3(glm::floor(camera.position));
+    if (!isSolid(world->getBlock(headBlock))) {
+        headEmbeddedDamageTimer = kHeadEmbeddedDamageIntervalSeconds;
+        return;
+    }
+
+    headEmbeddedDamageTimer -= dt;
+    if (headEmbeddedDamageTimer > 0.0f) {
+        return;
+    }
+
+    applyDamage(kHeadEmbeddedDamagePoints);
+    headEmbeddedDamageTimer = kHeadEmbeddedDamageIntervalSeconds;
 }
 
 void Player::resolveBodyPenetration(FractalWorld* world, glm::vec3& feetPosition, float bodyHeight) {

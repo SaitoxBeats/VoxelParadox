@@ -1,0 +1,29 @@
+{
+  "entries": [
+    {
+      "value": 0,
+      "id": "none",
+      "folder": "none"
+    },
+    {
+      "value": 1,
+      "id": "axe",
+      "folder": "axe"
+    },
+    {
+      "value": 2,
+      "id": "pickaxe",
+      "folder": "pickaxe"
+    },
+    {
+      "value": 3,
+      "id": "portal_tracker",
+      "folder": "portal_tracker"
+    },
+    {
+      "value": 4,
+      "id": "versal",
+      "folder": "versal"
+    }
+  ]
+}

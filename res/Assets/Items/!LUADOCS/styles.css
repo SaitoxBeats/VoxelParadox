@@ -1,0 +1,149 @@
+html {
+    color-scheme: dark;
+}
+
+body {
+    margin: 0;
+    font-family: "Courier New", Courier, monospace;
+    background: #0b0b0b;
+    color: #f2f2f2;
+    line-height: 1.6;
+}
+
+.page {
+    width: min(1100px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 32px 0 64px;
+}
+
+.hero {
+    margin-bottom: 32px;
+}
+
+.eyebrow {
+    margin: 0 0 8px;
+    color: #9a9a9a;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 13px;
+}
+
+h1,
+h2,
+h3 {
+    margin: 0 0 16px;
+    font-weight: 700;
+}
+
+h1 {
+    font-size: 40px;
+    line-height: 1.1;
+}
+
+h2 {
+    font-size: 24px;
+    padding-top: 12px;
+}
+
+h3 {
+    font-size: 18px;
+}
+
+.lead {
+    max-width: 880px;
+    color: #cfcfcf;
+}
+
+.toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    padding: 12px 0 24px;
+    border-top: 1px solid #2b2b2b;
+    border-bottom: 1px solid #2b2b2b;
+    margin-bottom: 32px;
+}
+
+.toc a {
+    color: #f2f2f2;
+    text-decoration: none;
+}
+
+.toc a:hover {
+    text-decoration: underline;
+}
+
+section {
+    margin-bottom: 40px;
+}
+
+p,
+li {
+    color: #d6d6d6;
+}
+
+code {
+    font-family: "Courier New", Courier, monospace;
+    background: #151515;
+    padding: 1px 4px;
+}
+
+pre {
+    margin: 16px 0;
+    padding: 16px;
+    overflow-x: auto;
+    background: #111111;
+    border: 1px solid #2e2e2e;
+}
+
+pre code {
+    padding: 0;
+    background: transparent;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+}
+
+th,
+td {
+    text-align: left;
+    vertical-align: top;
+    border: 1px solid #2f2f2f;
+    padding: 10px 12px;
+}
+
+th {
+    color: #ffffff;
+    background: #131313;
+}
+
+td {
+    background: #0f0f0f;
+}
+
+.example {
+    margin-bottom: 28px;
+}
+
+ul {
+    padding-left: 18px;
+}
+
+@media (max-width: 720px) {
+    .page {
+        width: calc(100% - 28px);
+        padding-top: 24px;
+    }
+
+    h1 {
+        font-size: 30px;
+    }
+
+    .toc {
+        flex-direction: column;
+        gap: 8px;
+    }
+}

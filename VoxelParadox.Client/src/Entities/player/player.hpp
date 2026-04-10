@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 // 2. Third-party Libraries
@@ -38,13 +39,13 @@ enum class PlayerUpdateMode {
 };
 
 class GameAudioController;
+class hudPortalTracker;
 
 class Player {
 public:
 #pragma region 1. Constants & Defaults
     // --- 1. Constants & Defaults ---
 
-    static constexpr double kUniverseCreationCooldownSeconds = 600.0;
     static constexpr float kDefaultWalkSpeed = 4.317f;
     static constexpr float kDefaultRunSpeed = 5.612f;
     static constexpr float kDefaultCrouchSpeed = 1.295f;
@@ -228,7 +229,7 @@ public:
     Player();
 
     // Main frame update entry point.
-    void update(float dt, WorldStack& worldStack,
+    void update(float dt, WorldStack& worldStack, hudPortalTracker* portalTracker,
         PlayerUpdateMode updateMode = PlayerUpdateMode::FullGameplay);
 
     PersistentState capturePersistentState() const;
@@ -364,6 +365,10 @@ public:
         return hotbar.clickStorageSlot(index, clickType);
     }
 
+    bool quickMoveInventoryStorageSlot(int index) {
+        return hotbar.quickMoveStorageSlot(index);
+    }
+
     bool clickCraftSlot(int index, PlayerHotbar::ClickType clickType) {
         return hotbar.clickCraftSlot(index, clickType);
     }
@@ -376,11 +381,30 @@ public:
         return hotbar.addItem(item, amount);
     }
 
+    bool canAcceptInventoryItem(const InventoryItem& item, int amount = 1) const {
+        return hotbar.canAccept(item, amount);
+    }
+
+    int countInventoryItem(const InventoryItem& item) const {
+        return hotbar.countItem(item);
+    }
+
+    bool tryRemoveInventoryItem(const InventoryItem& item, int amount = 1) {
+        return hotbar.removeItem(item, amount);
+    }
+
+    bool tryConsumeSelectedInventoryItem(int amount = 1) {
+        return hotbar.consumeSelected(amount);
+    }
+
     bool tryAddItemToHotbar(const InventoryItem& item, int amount = 1) {
         return tryAddItemToInventory(item, amount);
     }
 
     void clearHotbar() { hotbar.clear(); }
+
+    float getItemUseCooldownRemainingSeconds(ItemId itemId) const;
+    void startItemUseCooldown(ItemId itemId, float cooldownSeconds);
 #pragma endregion
 
 #pragma region 7. Portals & Nesting Logic
@@ -389,6 +413,9 @@ public:
     // Portal preview camera construction is public because rendering/debug code uses it.
     static Camera buildNestedPreviewCamera(const Camera& source,
         const NestedPreviewPortal& portal);
+
+    // Creates a nested portal at the current target using the existing portal rules.
+    bool tryCreatePortalForTargetBlock(WorldStack& worldStack);
 #pragma endregion
 
 private:
@@ -405,6 +432,8 @@ private:
     static constexpr float kDamageRollAmplitudeDegrees = 14.5f;
     static constexpr float kLifeFlashDuration = 0.30f;
     static constexpr int kLifeFlashPulseCount = 3;
+    static constexpr float kHeadEmbeddedDamageIntervalSeconds = 0.35f;
+    static constexpr int kHeadEmbeddedDamagePoints = 1;
     static constexpr int kMaxLifePoints = 20;
     static constexpr glm::vec3 kLifeTextBaseColor{ 0.0f, 0.0f, 0.0f };
 
@@ -416,6 +445,7 @@ private:
     float damageRollTimer = 0.0f;
     float damageRollRadiansCurrent = 0.0f;
     float lifeFlashTimer = 0.0f;
+    float headEmbeddedDamageTimer = kHeadEmbeddedDamageIntervalSeconds;
     bool grounded = false;
     bool crouching = false;
     float currentEyeHeight = kDefaultStandingEyeHeight;
@@ -425,7 +455,7 @@ private:
     float headBobRollRadians = 0.0f;
     float lastFootstepPhase = 0.0f;
     bool sandboxModeEnabled = false;
-    double nextUniverseCreationTimeSeconds = 0.0;
+    std::unordered_map<ItemId, double> itemUseCooldownExpiryTimesSeconds{};
     bool spawnpointDefined = false;
     glm::vec3 spawnpointPosition{ 0.0f };
     std::uint32_t spawnpointUniverseSeed = 0;
@@ -461,8 +491,6 @@ private:
     void setNestedPreviewOverrideFrame(const NestedPreviewFrame& frame);
 
     bool isLookingAtPortal(FractalWorld* world) const;
-    bool canCreateNestedWorldNow() const;
-    void markNestedWorldCreated();
 
     bool tryPrepareNestedWorld(WorldStack& worldStack, const glm::ivec3& blockPos,
         std::uint32_t* outChildSeed = nullptr,
@@ -518,20 +546,26 @@ private:
     void updateStance(FractalWorld* world, bool allowMovementInput, float dt);
 
     bool canOccupyBodyAt(FractalWorld* world, const glm::vec3& feetPosition, float bodyHeight) const;
+    bool doesBlockOverlapBody(const glm::ivec3& blockPos,
+                              const glm::vec3& feetPosition,
+                              float bodyHeight) const;
+    bool doesBlockOverlapCurrentBody(const glm::ivec3& blockPos) const;
     bool hasSupportBelow(FractalWorld* world, const glm::vec3& feetPosition, float inset, bool requireAllSamples) const;
     void resolveBodyPenetration(FractalWorld* world, glm::vec3& feetPosition, float bodyHeight);
+    void updateEmbeddedHeadDamage(FractalWorld* world, float dt);
 #pragma endregion
 
 #pragma region 11. Block Interaction
     // --- 11. Block Interaction ---
 
     // Block interaction and targeting.
-    void handleBlockInteraction(WorldStack& worldStack, float dt);
+    void handleBlockInteraction(WorldStack& worldStack, hudPortalTracker* portalTracker, float dt);
     void updateBlockBreaking(WorldStack& worldStack, float dt);
     void breakTargetBlock(WorldStack& worldStack);
     void placeBlockAtTarget(WorldStack& worldStack);
     void dropSelectedItem(WorldStack& worldStack);
     void spawnEnemyAtTarget(WorldStack& worldStack, EnemyType type);
+    bool tryTargetOverlappingBodyBlock(FractalWorld* world);
     void doRaycast(FractalWorld* world);
 #pragma endregion
 };

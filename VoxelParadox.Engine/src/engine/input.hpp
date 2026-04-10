@@ -110,6 +110,18 @@ public:
         return out;
     }
 
+    static void setClipboardText(const std::string& value) {
+        if (!window) return;
+        glfwSetClipboardString(window, value.c_str());
+    }
+
+    static std::string getClipboardText() {
+        if (!window) return {};
+
+        const char* clipboardText = glfwGetClipboardString(window);
+        return clipboardText ? std::string(clipboardText) : std::string();
+    }
+
     static void setCursorVisible(bool visible) {
         if (!window) return;
         if (cursorVisible == visible) return;

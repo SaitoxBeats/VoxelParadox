@@ -3,6 +3,10 @@
 #include <array>
 #include <cstddef>
 
+// 1. Local Project Modules
+#include "render/item_texture_cache.hpp"
+#include "world/block_registry.hpp"
+
 namespace ShaderEditor {
 namespace {
 
@@ -44,7 +48,11 @@ bool ShaderEditorRenderer::init() {
     return false;
   }
 
-  return ensureCubeGeometry();
+  if (!ensureCubeGeometry()) {
+    return false;
+  }
+
+  return setupBlockAtlasTexture();
 }
 
 void ShaderEditorRenderer::cleanup() {
@@ -58,6 +66,7 @@ void ShaderEditorRenderer::cleanup() {
   }
 
   destroyFramebuffer();
+  cleanupBlockAtlasTexture();
   fallbackShader_.release();
 }
 
@@ -105,10 +114,12 @@ void ShaderEditorRenderer::render(const Shader* activeShader, const Camera& came
   shader.setFloat("uAlpha", 1.0f);
   shader.setFloat("uAoStrength", 1.0f);
   shader.setVec4("uBiomeTint", settings.biomeTint);
+  shader.setInt("uUseLocalMaterialSpace", 1);
   shader.setVec3("uBreakBlockCenter", settings.breakBlockCenter);
   shader.setFloat("uBreakProgress", settings.breakState);
   shader.setVec3("uHighlightBlockCenter", settings.breakBlockCenter);
   shader.setFloat("uHighlightActive", settings.highlightEnabled ? 1.0f : 0.0f);
+  bindBlockAtlasTexture(shader);
 
   glPolygonMode(GL_FRONT_AND_BACK, settings.wireframe ? GL_LINE : GL_FILL);
   glBindVertexArray(cubeVao_);
@@ -117,6 +128,55 @@ void ShaderEditorRenderer::render(const Shader* activeShader, const Camera& came
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+bool ShaderEditorRenderer::setupBlockAtlasTexture() {
+  cleanupBlockAtlasTexture();
+
+  const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
+  blockAtlasTexture_ = loadTexture2DFromFile(atlasAssetPath.c_str(), false);
+
+  if (blockAtlasTexture_ != 0) {
+    return true;
+  }
+
+  static constexpr unsigned char kFallbackWhitePixel[4] = {255, 255, 255, 255};
+
+  glGenTextures(1, &blockAtlasTexture_);
+  glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexImage2D(
+      GL_TEXTURE_2D,
+      0,
+      GL_RGBA,
+      1,
+      1,
+      0,
+      GL_RGBA,
+      GL_UNSIGNED_BYTE,
+      kFallbackWhitePixel
+  );
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  return blockAtlasTexture_ != 0;
+}
+
+void ShaderEditorRenderer::cleanupBlockAtlasTexture() {
+  if (blockAtlasTexture_ == 0) {
+    return;
+  }
+
+  glDeleteTextures(1, &blockAtlasTexture_);
+  blockAtlasTexture_ = 0;
+}
+
+void ShaderEditorRenderer::bindBlockAtlasTexture(const Shader& shader) {
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
+  shader.setInt("uBlockAtlas", 0);
 }
 
 void ShaderEditorRenderer::destroyFramebuffer() {

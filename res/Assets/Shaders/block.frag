@@ -19,6 +19,7 @@ uniform float uAlpha;
 uniform float uAoStrength;
 uniform vec4 uBiomeTint;
 uniform int uUseLocalMaterialSpace;
+uniform sampler2D uBlockAtlas;
 uniform vec3 uBreakBlockCenter;
 uniform float uBreakProgress;
 uniform vec3 uHighlightBlockCenter;
@@ -237,6 +238,11 @@ vec3 applySelectionHighlight(vec3 baseColor, vec3 worldPos, vec3 normal) {
 
 vec3 blockBaseColor(int materialId) {
 /*__BLOCK_BASE_COLOR__*/    return vec3(1.0, 0.0, 1.0);
+}
+
+vec4 sampleBlockAtlas(int materialId, vec2 localUv) {
+/*__BLOCK_ATLAS_SAMPLE__*/
+    return vec4(1.0);
 }
 
 MaterialSample makeSample(vec3 albedo, float roughness, float specular, float emissive) {

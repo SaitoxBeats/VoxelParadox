@@ -66,6 +66,7 @@ public:
     void onPlayerFootstep(BlockId blockType, const glm::vec3& worldPosition,
         float gain, float pitch);
     void onDeathSequenceStarted();
+    void playItemEvent(const std::string& eventName);
 
     // --- Gameplay Events (World/Entities) ---
     void onEnemyTriggerActivated(const glm::vec3& worldPosition);

@@ -41,6 +41,7 @@ private:
   };
 
   Shader fallbackShader_{};
+  GLuint blockAtlasTexture_ = 0;
   GLuint framebuffer_ = 0;
   GLuint colorTexture_ = 0;
   GLuint depthStencilRenderbuffer_ = 0;
@@ -49,6 +50,9 @@ private:
   glm::ivec2 viewportSize_{0};
   BlockId currentBlockType_ = BlockIds::AIR;
 
+  bool setupBlockAtlasTexture();
+  void cleanupBlockAtlasTexture();
+  void bindBlockAtlasTexture(const Shader& shader);
   void destroyFramebuffer();
   bool ensureFramebuffer(const glm::ivec2& size);
   bool ensureCubeGeometry();

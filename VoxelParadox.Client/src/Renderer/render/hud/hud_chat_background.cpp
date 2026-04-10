@@ -116,13 +116,24 @@ void hudChatBackground::draw(Shader& shader, int screenWidth, int screenHeight) 
     }
 
     if (chat->isOpen()) {
+        const glm::ivec4 inputRect = makeBottomStretchRect(screenWidth, screenHeight,
+                                                           kChatBackgroundLeftMargin,
+                                                           kChatInputRightMargin,
+                                                           kChatInputBackgroundBottomMargin,
+                                                           kChatInputBackgroundHeight);
         drawPanel(shader,
-                  makeBottomStretchRect(screenWidth, screenHeight,
-                                        kChatBackgroundLeftMargin,
-                                        kChatInputRightMargin,
-                                        kChatInputBackgroundBottomMargin,
-                                        kChatInputBackgroundHeight),
+                  inputRect,
                   kInputBorderColor,
                   kInputFillColor);
+
+        glm::ivec4 selectionRect(0);
+        if (chat->tryGetInputSelectionRect(selectionRect)) {
+            drawRect(shader, selectionRect, glm::vec4(0.3f, 0.45f, 0.9f, 0.65f));
+        }
+
+        glm::ivec4 caretRect(0);
+        if (chat->tryGetInputCaretRect(caretRect)) {
+            drawRect(shader, caretRect, glm::vec4(1.0f, 0.95f, 0.6f, 0.95f));
+        }
     }
 }

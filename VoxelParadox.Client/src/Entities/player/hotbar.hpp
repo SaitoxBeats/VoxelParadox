@@ -19,6 +19,8 @@ class PlayerHotbar {
 public:
     static constexpr int HOTBAR_SLOT_COUNT = 9;
     static constexpr int EXTRA_SLOT_COUNT = 21;
+    static constexpr int EXTRA_SLOT_ROW_COUNT = 3;
+    static constexpr int EXTRA_SLOT_COLUMN_COUNT = EXTRA_SLOT_COUNT / EXTRA_SLOT_ROW_COUNT;
     static constexpr int SLOT_COUNT = HOTBAR_SLOT_COUNT;
     static constexpr int TOTAL_STORAGE_SLOTS = HOTBAR_SLOT_COUNT + EXTRA_SLOT_COUNT;
     static constexpr int CRAFT_SLOT_COUNT = 3;
@@ -204,6 +206,12 @@ public:
     // Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
     bool addItem(const InventoryItem& item, int amount = 1);
 
+    // Returns how many copies of the requested item currently exist in storage slots.
+    int countItem(const InventoryItem& item) const;
+
+    // Removes a quantity of the requested item from storage slots when possible.
+    bool removeItem(const InventoryItem& item, int amount = 1);
+
     // Funcao: consome 'consumeSelected' na hotbar e no inventario do jogador.
     // Detalhe: usa 'amount' para retirar um pedido ou evento pendente para evitar reprocessamento.
     // Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
@@ -213,6 +221,7 @@ public:
     // Detalhe: usa 'index', 'clickType' para interpretar a interacao recebida e executar as mudancas necessarias.
     // Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
     bool clickStorageSlot(int index, ClickType clickType);
+    bool quickMoveStorageSlot(int index);
 
     // Funcao: processa 'clickCraftSlot' na hotbar e no inventario do jogador.
     // Detalhe: usa 'index', 'clickType' para interpretar a interacao recebida e executar as mudancas necessarias.

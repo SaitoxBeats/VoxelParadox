@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VoxelParadox Item Lua API Docs</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <p class="eyebrow">VoxelParadox</p>
+            <h1>Item Lua API</h1>
+            <p class="lead">
+                Simple reference for the Lua runtime used by item <code>script.lua</code> files.
+                This page documents the current API exposed by the game and shows practical item examples.
+            </p>
+        </header>
+
+        <nav class="toc">
+            <a href="#overview">Overview</a>
+            <a href="#setup">Item Setup</a>
+            <a href="#entrypoint">Entrypoint</a>
+            <a href="#context-fields">Context Fields</a>
+            <a href="#context-functions">Context Functions</a>
+            <a href="#behavior-notes">Behavior Notes</a>
+            <a href="#examples">Examples</a>
+        </nav>
+
+        <main>
+            <section id="overview">
+                <h2>Overview</h2>
+                <p>
+                    A Lua item script is an optional <code>script.lua</code> file placed beside the item's
+                    <code>item.json</code>. The game loads that script when the player uses the item with the right mouse button.
+                </p>
+                <p>
+                    The current runtime exposes a controlled gameplay API. Scripts can inspect player state,
+                    interact with inventory, open some HUD screens, play audio events, inspect the current target,
+                    and print messages to the terminal.
+                </p>
+                <p>
+                    Scripts do <strong>not</strong> get access to save data, files, or arbitrary engine internals.
+                </p>
+            </section>
+
+            <section id="setup">
+                <h2>Item Setup</h2>
+                <p>
+                    A script-driven item still needs to exist in the item registry and have a normal
+                    <code>item.json</code>.
+                </p>
+<pre><code>{
+  "id": "lua_totem",
+  "display_name": "Lua Totem",
+  "categories": [ "utility", "quest" ],
+  "stack_limit": 4,
+  "icon_asset": "Assets/Textures/Items/portal_tracker.png",
+  "on_use": {
+    "cooldown": 0.5,
+    "actions": [
+      {
+        "type": "print_terminal",
+        "message": "[Items] Lua Totem is running its script."
+      }
+    ]
+  },
+  "script": {
+    "enabled": true,
+    "path": "script.lua"
+  },
+  "world_preview": {
+    "use_texture_sprite": true
+  }
+}</code></pre>
+                <p>
+                    In this model, the declarative <code>on_use</code> block runs first, then the Lua script runs after it.
+                </p>
+            </section>
+
+            <section id="entrypoint">
+                <h2>Entrypoint</h2>
+                <p>The script must define a global function named <code>on_use(context)</code>.</p>
+<pre><code>function on_use(context)
+    context.log("[Items][Lua] Script executed.")
+    return true
+end</code></pre>
+                <p>
+                    Return values:
+                </p>
+                <ul>
+                    <li><code>true</code>: the item consumed the right-click use.</li>
+                    <li><code>false</code>: the script did not consume the use.</li>
+                    <li>no return: treated like consumed by default.</li>
+                </ul>
+            </section>
+
+            <section id="context-fields">
+                <h2>Context Fields</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>context.selected_item_id</code></td>
+                            <td>string</td>
+                            <td>Stable id of the currently selected item, such as <code>lua_totem</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.selected_count</code></td>
+                            <td>integer</td>
+                            <td>How many copies of the currently selected item are in the selected hotbar slot.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.has_target</code></td>
+                            <td>boolean</td>
+                            <td>Whether the player currently has a valid block target under the crosshair.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.target_block_id</code></td>
+                            <td>string</td>
+                            <td>Stable block id of the current target. Falls back to <code>air</code> when there is no target.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.current_world_seed</code></td>
+                            <td>integer</td>
+                            <td>Seed of the currently active world.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="context-functions">
+                <h2>Context Functions</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Signature</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>log</code></td>
+                            <td><code>context.log(message)</code></td>
+                            <td>Prints a message to the game terminal.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_life</code></td>
+                            <td><code>context.get_player_life()</code></td>
+                            <td>Returns current player health.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_max_life</code></td>
+                            <td><code>context.get_player_max_life()</code></td>
+                            <td>Returns maximum player health.</td>
+                        </tr>
+                        <tr>
+                            <td><code>is_player_alive</code></td>
+                            <td><code>context.is_player_alive()</code></td>
+                            <td>Returns whether the player is alive.</td>
+                        </tr>
+                        <tr>
+                            <td><code>heal_player</code></td>
+                            <td><code>context.heal_player(amount)</code></td>
+                            <td>Adds health to the player, clamped by the game.</td>
+                        </tr>
+                        <tr>
+                            <td><code>add_item</code></td>
+                            <td><code>context.add_item(item_id, amount)</code></td>
+                            <td>Attempts to add an item or block item to inventory. Returns <code>true</code> on success.</td>
+                        </tr>
+                        <tr>
+                            <td><code>remove_item</code></td>
+                            <td><code>context.remove_item(item_id, amount)</code></td>
+                            <td>Attempts to remove an item or block item from inventory. Returns <code>true</code> on success.</td>
+                        </tr>
+                        <tr>
+                            <td><code>count_item</code></td>
+                            <td><code>context.count_item(item_id)</code></td>
+                            <td>Returns how many copies of an item or block item the player currently has.</td>
+                        </tr>
+                        <tr>
+                            <td><code>consume_selected</code></td>
+                            <td><code>context.consume_selected(amount)</code></td>
+                            <td>Consumes copies of the currently selected item from the selected slot. Returns <code>true</code> on success.</td>
+                        </tr>
+                        <tr>
+                            <td><code>open_portal_tracker</code></td>
+                            <td><code>context.open_portal_tracker()</code></td>
+                            <td>Opens the same portal tracker menu used by the keyboard shortcut.</td>
+                        </tr>
+                        <tr>
+                            <td><code>create_portal_for_target_block</code></td>
+                            <td><code>context.create_portal_for_target_block()</code></td>
+                            <td>Creates a portal on the block currently under the crosshair using the game's normal portal rules. Returns <code>true</code> when the portal exists or was created.</td>
+                        </tr>
+                        <tr>
+                            <td><code>play_audio_event</code></td>
+                            <td><code>context.play_audio_event(event_id)</code></td>
+                            <td>Plays a registered audio event from <code>Assets/Audio/Definitions/audio_events.json</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>has_target</code></td>
+                            <td><code>context.has_target()</code></td>
+                            <td>Function version of the target-state check.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_target_block_id</code></td>
+                            <td><code>context.get_target_block_id()</code></td>
+                            <td>Returns the stable id of the targeted block.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_target_block_position</code></td>
+                            <td><code>context.get_target_block_position()</code></td>
+                            <td>Returns <code>x, y, z</code> integer coordinates of the targeted block.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_target_normal</code></td>
+                            <td><code>context.get_target_normal()</code></td>
+                            <td>Returns the target face normal as <code>x, y, z</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_current_world_seed</code></td>
+                            <td><code>context.get_current_world_seed()</code></td>
+                            <td>Returns the current world seed.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_selected_item_id</code></td>
+                            <td><code>context.get_selected_item_id()</code></td>
+                            <td>Returns the stable id of the selected inventory item.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_selected_count</code></td>
+                            <td><code>context.get_selected_count()</code></td>
+                            <td>Returns the stack count in the selected hotbar slot.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="behavior-notes">
+                <h2>Behavior Notes</h2>
+                <ul>
+                    <li>Scripts run only on right-click item use.</li>
+                    <li>Scripts do not run every frame. There is no tick hook in this version.</li>
+                    <li>If the script has a syntax error or runtime error, the game logs the error and fails safely.</li>
+                    <li>If your item also has declarative <code>on_use</code>, those actions run before Lua.</li>
+                    <li><code>play_audio_event</code> needs a valid audio event id such as <code>ui.menu.click</code> or <code>player.item.pickup</code>.</li>
+                    <li><code>add_item</code>, <code>remove_item</code>, and <code>count_item</code> accept the same textual ids used by chat commands and crafting.</li>
+                    <li><code>create_portal_for_target_block</code> respects the same portal creation cooldown and target rules used by the game.</li>
+                </ul>
+            </section>
+
+            <section id="examples">
+                <h2>Examples</h2>
+
+                <article class="example">
+                    <h3>1. Print a message and inspect world seed</h3>
+<pre><code>function on_use(context)
+    context.log("[Items][Lua] Current world seed: " .. tostring(context.get_current_world_seed()))
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>2. Heal the player only if they are hurt</h3>
+<pre><code>function on_use(context)
+    if context.get_player_life() &lt; context.get_player_max_life() then
+        context.heal_player(3)
+        context.play_audio_event("player.item.pickup")
+        return true
+    end
+
+    context.log("[Items][Lua] Player is already at full health.")
+    return false
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>3. Open the portal tracker from an item</h3>
+<pre><code>function on_use(context)
+    context.open_portal_tracker()
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>4. Give an item reward</h3>
+<pre><code>function on_use(context)
+    local added = context.add_item("curio_shard", 2)
+
+    if added then
+        context.log("[Items][Lua] Granted 2 Curio Shards.")
+        return true
+    end
+
+    context.log("[Items][Lua] Inventory is full.")
+    return false
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>5. Require the player to look at a portal block</h3>
+<pre><code>function on_use(context)
+    if not context.has_target() then
+        context.log("[Items][Lua] No block target.")
+        return false
+    end
+
+    if context.get_target_block_id() ~= "portal" then
+        context.log("[Items][Lua] You must look at a portal block.")
+        return false
+    end
+
+    local x, y, z = context.get_target_block_position()
+    context.log("[Items][Lua] Target portal at " .. x .. ", " .. y .. ", " .. z)
+    context.play_audio_event("portal.enter")
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>6. Consume the selected item directly from Lua</h3>
+<pre><code>function on_use(context)
+    if context.get_selected_count() &lt;= 0 then
+        return false
+    end
+
+    local consumed = context.consume_selected(1)
+    if consumed then
+        context.log("[Items][Lua] Consumed one selected item.")
+        return true
+    end
+
+    return false
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>7. Turn one item into another</h3>
+<pre><code>function on_use(context)
+    if context.count_item("curio_shard") &lt; 3 then
+        context.log("[Items][Lua] You need at least 3 Curio Shards.")
+        return false
+    end
+
+    local removed = context.remove_item("curio_shard", 3)
+    if not removed then
+        return false
+    end
+
+    local added = context.add_item("healing_capsule", 1)
+    if added then
+        context.log("[Items][Lua] Crafted a Healing Capsule.")
+        return true
+    end
+
+    context.log("[Items][Lua] Failed to add the new item.")
+    return false
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>8. Example matching the current Lua Totem</h3>
+<pre><code>function on_use(context)
+    context.log("[Items][Lua] Lua Totem used in world seed " .. tostring(context.get_current_world_seed()))
+    context.play_audio_event("ui.menu.click")
+
+    if context.is_player_alive() and context.get_player_life() &lt; context.get_player_max_life() then
+        context.heal_player(1)
+    end
+
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>9. Create a portal for the block under the crosshair</h3>
+<pre><code>function on_use(context)
+    if not context.has_target() then
+        context.log("[Items][Lua] Look at a block first.")
+        return false
+    end
+
+    if context.create_portal_for_target_block() then
+        context.log("[Items][Lua] Portal created on the targeted block.")
+        context.open_portal_tracker()
+        return true
+    end
+
+    context.log("[Items][Lua] Could not create a portal right now.")
+    return false
+end</code></pre>
+                </article>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

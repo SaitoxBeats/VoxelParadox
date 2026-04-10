@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include <glm/glm.hpp>
+
 #include "core/support/text_input.hpp"
 
 class Player;
@@ -37,8 +39,29 @@ public:
   std::string suggestionLineText(int lineIndex) const;
   int visibleHistoryLineCount() const;
   int visibleSuggestionLineCount() const;
+  bool tryGetInputSelectionRect(glm::ivec4& outRect) const;
+  bool tryGetInputCaretRect(glm::ivec4& outRect) const;
+  bool isMouseInsideInput(float mouseX, float mouseY) const;
+  void beginMouseSelection(float mouseX);
+  void updateMouseSelection(float mouseX);
+  void endMouseSelection();
 
 private:
+  struct ResolvedInputLayout {
+    std::string lineText;
+    std::size_t visibleStart = 0;
+    std::size_t visibleEnd = 0;
+    float caretPixelOffset = 0.0f;
+    float selectionPixelStart = 0.0f;
+    float selectionPixelEnd = 0.0f;
+    float textHeight = 0.0f;
+    int textX = 0;
+    int textY = 0;
+    bool showCaret = false;
+    bool showSelection = false;
+    bool valid = false;
+  };
+
   struct Entry {
     std::string text;
     double timestampSeconds = 0.0;
@@ -61,6 +84,7 @@ private:
   void autocompleteInput();
   std::vector<std::string> autocompleteCandidates() const;
   std::vector<std::string> visibleHistoryLines() const;
+  ResolvedInputLayout resolveInputLayout() const;
   static std::vector<std::string> wrapChatText(const std::string& text,
                                                std::size_t maxCharactersPerLine);
 

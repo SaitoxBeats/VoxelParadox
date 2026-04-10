@@ -5,15 +5,29 @@
 // 1. Standard Library
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <locale>
 #include <sstream>
 #include <string_view>
 #include <unordered_map>
 
 // 2. Third-party Libraries
+#ifndef STB_IMAGE_STATIC
+#define STB_IMAGE_STATIC
+#endif
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+#ifndef STB_IMAGE_WRITE_STATIC
+#define STB_IMAGE_WRITE_STATIC
+#endif
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+
 #include <nlohmann/json.hpp>
 
 // 3. Local Project Modules
@@ -156,6 +170,7 @@ std::string readTextFile(const std::filesystem::path& path) {
 
 std::string formatFloat(float value) {
     std::ostringstream stream;
+    stream.imbue(std::locale::classic());
     stream << std::fixed << std::setprecision(6) << value;
     return stream.str();
 }
@@ -198,6 +213,244 @@ bool tryParseBlockCategory(const std::string& rawValue, BlockCategory& outCatego
 
     outCategory = BlockCategory::NONE;
     return false;
+}
+
+struct BlockTextureAtlasData {
+    std::string textureAssetPath{};
+    glm::ivec2 gridSize{ 1, 1 };
+    std::unordered_map<BlockId, glm::vec4> transformsByBlockId{};
+
+    bool tryResolveTransform(BlockId blockId, glm::vec4& outTransform) const {
+        const auto found = transformsByBlockId.find(blockId);
+        if (found == transformsByBlockId.end()) {
+            return false;
+        }
+
+        outTransform = found->second;
+        return true;
+    }
+};
+
+struct LoadedBlockTexture {
+    BlockId blockId = BlockIds::AIR;
+    std::filesystem::path sourcePath{};
+    int width = 0;
+    int height = 0;
+    std::vector<unsigned char> pixels{};
+};
+
+std::filesystem::path resolveBlockAssetPath(
+    const std::filesystem::path& blockDirectory,
+    const std::string& rawPath
+) {
+    if (rawPath.empty()) {
+        return {};
+    }
+
+    const std::filesystem::path candidate(rawPath);
+    if (candidate.is_absolute()) {
+        return candidate;
+    }
+
+    if (!candidate.empty()) {
+        const std::string firstSegment =
+            normalizeBlockIdValue(candidate.begin()->generic_string());
+        if (firstSegment == "assets" ||
+            firstSegment == "res" ||
+            firstSegment == "resources" ||
+            firstSegment == "world" ||
+            firstSegment == "engine" ||
+            firstSegment == "saves" ||
+            firstSegment == "presets") {
+            return AppPaths::resolve(candidate);
+        }
+    }
+
+    return (blockDirectory / candidate).lexically_normal();
+}
+
+bool fileExists(const std::filesystem::path& path) {
+    std::error_code ec;
+    return !path.empty() &&
+           std::filesystem::exists(path, ec) &&
+           std::filesystem::is_regular_file(path, ec);
+}
+
+std::filesystem::path detectDefaultBlockTexturePath(
+    const std::filesystem::path& blockDirectory
+) {
+    const std::filesystem::path defaultTexturePath = blockDirectory / "texture.png";
+    return fileExists(defaultTexturePath) ? defaultTexturePath : std::filesystem::path{};
+}
+
+bool tryLoadRgbaTexture(
+    const std::filesystem::path& path,
+    LoadedBlockTexture& outTexture
+) {
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    unsigned char* data = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
+    if (!data || width <= 0 || height <= 0) {
+        if (data) {
+            stbi_image_free(data);
+        }
+        return false;
+    }
+
+    outTexture.width = width;
+    outTexture.height = height;
+    outTexture.pixels.assign(data, data + (width * height * 4));
+    stbi_image_free(data);
+    return true;
+}
+
+void blitScaledTextureToAtlas(
+    const LoadedBlockTexture& texture,
+    std::vector<unsigned char>& atlasPixels,
+    int atlasWidth,
+    int atlasHeight,
+    int destX,
+    int destY,
+    int tileWidth,
+    int tileHeight
+) {
+    if (texture.width <= 0 || texture.height <= 0 ||
+        tileWidth <= 0 || tileHeight <= 0 ||
+        atlasWidth <= 0 || atlasHeight <= 0) {
+        return;
+    }
+
+    for (int y = 0; y < tileHeight; ++y) {
+        const int srcY = std::min(texture.height - 1, (y * texture.height) / tileHeight);
+        const int atlasY = destY + y;
+        if (atlasY < 0 || atlasY >= atlasHeight) {
+            continue;
+        }
+
+        for (int x = 0; x < tileWidth; ++x) {
+            const int srcX = std::min(texture.width - 1, (x * texture.width) / tileWidth);
+            const int atlasX = destX + x;
+            if (atlasX < 0 || atlasX >= atlasWidth) {
+                continue;
+            }
+
+            const std::size_t srcIndex =
+                static_cast<std::size_t>((srcY * texture.width + srcX) * 4);
+            const std::size_t dstIndex =
+                static_cast<std::size_t>((atlasY * atlasWidth + atlasX) * 4);
+
+            atlasPixels[dstIndex + 0] = texture.pixels[srcIndex + 0];
+            atlasPixels[dstIndex + 1] = texture.pixels[srcIndex + 1];
+            atlasPixels[dstIndex + 2] = texture.pixels[srcIndex + 2];
+            atlasPixels[dstIndex + 3] = texture.pixels[srcIndex + 3];
+        }
+    }
+}
+
+BlockTextureAtlasData buildGeneratedBlockTextureAtlas(
+    const std::vector<BlockDefinition>& definitions
+) {
+    BlockTextureAtlasData atlas{};
+    atlas.textureAssetPath =
+        AppPaths::workspaceFile("artifacts/generated/block_textures/atlas.png").generic_string();
+
+    std::vector<LoadedBlockTexture> loadedTextures;
+    loadedTextures.reserve(definitions.size());
+
+    int tileWidth = 1;
+    int tileHeight = 1;
+
+    for (const BlockDefinition& definition : definitions) {
+        if (definition.textureAssetPath.empty()) {
+            continue;
+        }
+
+        LoadedBlockTexture loadedTexture{};
+        loadedTexture.blockId = definition.idValue;
+        loadedTexture.sourcePath = definition.textureAssetPath;
+
+        if (!tryLoadRgbaTexture(loadedTexture.sourcePath, loadedTexture)) {
+            std::printf("[Blocks] Failed to load block texture: %s\n",
+                        loadedTexture.sourcePath.string().c_str());
+            continue;
+        }
+
+        tileWidth = std::max(tileWidth, loadedTexture.width);
+        tileHeight = std::max(tileHeight, loadedTexture.height);
+        loadedTextures.push_back(std::move(loadedTexture));
+    }
+
+    const int tileCount = std::max(1, static_cast<int>(loadedTextures.size()) + 1);
+    const int columns =
+        std::max(1, static_cast<int>(std::ceil(std::sqrt(static_cast<double>(tileCount)))));
+    const int rows = std::max(1, (tileCount + columns - 1) / columns);
+
+    atlas.gridSize = glm::ivec2(columns, rows);
+
+    const int atlasWidth = columns * tileWidth;
+    const int atlasHeight = rows * tileHeight;
+    std::vector<unsigned char> atlasPixels(
+        static_cast<std::size_t>(atlasWidth * atlasHeight * 4),
+        0
+    );
+
+    for (int y = 0; y < tileHeight; ++y) {
+        for (int x = 0; x < tileWidth; ++x) {
+            const std::size_t dstIndex =
+                static_cast<std::size_t>((y * atlasWidth + x) * 4);
+            atlasPixels[dstIndex + 0] = 255;
+            atlasPixels[dstIndex + 1] = 255;
+            atlasPixels[dstIndex + 2] = 255;
+            atlasPixels[dstIndex + 3] = 255;
+        }
+    }
+
+    for (std::size_t index = 0; index < loadedTextures.size(); ++index) {
+        const int tileIndex = static_cast<int>(index) + 1;
+        const int tileX = tileIndex % columns;
+        const int tileY = tileIndex / columns;
+
+        blitScaledTextureToAtlas(
+            loadedTextures[index],
+            atlasPixels,
+            atlasWidth,
+            atlasHeight,
+            tileX * tileWidth,
+            tileY * tileHeight,
+            tileWidth,
+            tileHeight
+        );
+
+        const glm::vec2 scale(
+            1.0f / static_cast<float>(columns),
+            1.0f / static_cast<float>(rows)
+        );
+        const glm::vec2 offset(
+            static_cast<float>(tileX) * scale.x,
+            1.0f - (static_cast<float>(tileY + 1) * scale.y)
+        );
+
+        atlas.transformsByBlockId[loadedTextures[index].blockId] =
+            glm::vec4(scale, offset);
+    }
+
+    const std::filesystem::path atlasPath = atlas.textureAssetPath;
+    std::error_code ec;
+    std::filesystem::create_directories(atlasPath.parent_path(), ec);
+    ec.clear();
+
+    if (!stbi_write_png(atlasPath.string().c_str(),
+                        atlasWidth,
+                        atlasHeight,
+                        4,
+                        atlasPixels.data(),
+                        atlasWidth * 4)) {
+        std::printf("[Blocks] Failed to write generated block atlas: %s\n",
+                    atlasPath.string().c_str());
+    }
+
+    return atlas;
 }
 
 const char* defaultShaderFor(std::string_view stableId) {
@@ -587,9 +840,26 @@ void overlayDefinitionFromJson(
     }
 
     if (const json& renderValue = root.value("render", json{}); renderValue.is_object()) {
+        definition.textureAssetPath.clear();
+        definition.textureTileId.clear();
+
         glm::vec3 baseColor = definition.baseColor;
         if (tryReadVec3(renderValue.value("base_color", json{}), baseColor)) {
             definition.baseColor = baseColor;
+        }
+
+        const std::string textureAsset =
+            renderValue.value("texture", renderValue.value("texture_asset", std::string{}));
+        if (!textureAsset.empty()) {
+            const std::filesystem::path resolvedTexturePath =
+                resolveBlockAssetPath(blockDirectory, textureAsset);
+            if (fileExists(resolvedTexturePath)) {
+                definition.textureAssetPath = resolvedTexturePath.generic_string();
+                definition.textureTileId = definition.id;
+            } else {
+                std::printf("[Blocks] Failed to find texture %s for %s.\n",
+                            resolvedTexturePath.string().c_str(), definition.id.c_str());
+            }
         }
 
         definition.customModelAssetPath =
@@ -611,8 +881,17 @@ void overlayDefinitionFromJson(
         const std::string shaderAsset = renderValue.value("shader", std::string{});
         if (!shaderAsset.empty()) {
             const std::filesystem::path shaderPath =
-                blockDirectory / std::filesystem::path(shaderAsset);
-            definition.shaderAssetPath = shaderPath.lexically_normal().generic_string();
+                resolveBlockAssetPath(blockDirectory, shaderAsset);
+            definition.shaderAssetPath = shaderPath.generic_string();
+        }
+    }
+
+    if (definition.textureAssetPath.empty()) {
+        const std::filesystem::path defaultTexturePath =
+            detectDefaultBlockTexturePath(blockDirectory);
+        if (!defaultTexturePath.empty()) {
+            definition.textureAssetPath = defaultTexturePath.generic_string();
+            definition.textureTileId = definition.id;
         }
     }
 
@@ -702,6 +981,7 @@ BlockRegistry::BlockRegistry()
 void BlockRegistry::reload() {
     definitions_ = makeFallbackDefinitions();
     topDecorationDefinitions_.clear();
+    textureAtlasAssetPath_.clear();
 
     const auto idMap = makeFallbackIdMap(definitions_);
     const std::filesystem::path blocksRoot = AppPaths::resolve(ClientAssets::kBlocksDirectory);
@@ -711,6 +991,17 @@ void BlockRegistry::reload() {
         const std::filesystem::path blockDirectory =
             blocksRoot / (entry ? entry->folderName : definition.id);
         overlayDefinitionFromJson(definition, blockDirectory, idMap);
+    }
+
+    const BlockTextureAtlasData atlas = buildGeneratedBlockTextureAtlas(definitions_);
+    textureAtlasAssetPath_ = atlas.textureAssetPath;
+
+    for (BlockDefinition& definition : definitions_) {
+        definition.hasTextureTile =
+            atlas.tryResolveTransform(definition.idValue, definition.atlasUvTransform);
+        if (definition.hasTextureTile && definition.textureTileId.empty()) {
+            definition.textureTileId = definition.id;
+        }
         if (definition.topDecoration.enabled) {
             topDecorationDefinitions_.push_back(&definition);
         }
@@ -731,6 +1022,10 @@ const std::vector<BlockDefinition>& BlockRegistry::definitions() const {
 
 const std::vector<const BlockDefinition*>& BlockRegistry::topDecorationDefinitions() const {
     return topDecorationDefinitions_;
+}
+
+const std::string& BlockRegistry::textureAtlasAssetPath() const {
+    return textureAtlasAssetPath_;
 }
 
 bool BlockRegistry::tryParseId(const std::string& rawValue, BlockId& outBlockId) const {
@@ -762,14 +1057,28 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
     }
 
     std::ostringstream baseColorBuilder;
+    std::ostringstream atlasSampleBuilder;
     std::ostringstream declarationsBuilder;
     std::ostringstream dispatchBuilder;
+    std::ostringstream fallbackDeclarationsBuilder;
+    std::ostringstream fallbackDispatchBuilder;
 
     for (const BlockDefinition& definition : definitions_) {
         baseColorBuilder
             << "    if (materialId == " << definition.materialId << ") {\n"
             << "        return " << formatVec3(definition.baseColor) << ";\n"
             << "    }\n";
+
+        if (definition.hasTextureTile) {
+            atlasSampleBuilder
+                << "    if (materialId == " << definition.materialId << ") {\n"
+                << "        vec2 atlasUv = vec2(" << formatFloat(definition.atlasUvTransform.z)
+                << ", " << formatFloat(definition.atlasUvTransform.w) << ") + "
+                << "localUv * vec2(" << formatFloat(definition.atlasUvTransform.x) << ", "
+                << formatFloat(definition.atlasUvTransform.y) << ");\n"
+                << "        return texture(uBlockAtlas, atlasUv);\n"
+                << "    }\n";
+        }
 
         declarationsBuilder
             << "MaterialSample sampleBlockMaterial_" << definition.id
@@ -778,6 +1087,10 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
             << "    vec2 uv = faceUv(worldPos, faceNormal);\n"
             << "    vec2 localUv = fract(uv + vec2(0.001));\n"
             << "    vec2 centeredUv = localUv - 0.5;\n"
+            << "    vec4 atlasTexel = sampleBlockAtlas(" << definition.materialId
+            << ", localUv);\n"
+            << "    vec3 atlasColor = atlasTexel.rgb;\n"
+            << "    float atlasAlpha = atlasTexel.a;\n"
             << "    vec3 cell = floor(worldPos - faceNormal * 0.5 + vec3(0.001));\n"
             << "    float cellHash = hash31(cell + vec3(float(" << definition.materialId
             << ") * 1.6180339, 2.13, 4.37));\n"
@@ -789,17 +1102,51 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
             << "        return sampleBlockMaterial_" << definition.id
             << "(worldPos, worldNormal, faceNormal, viewDir);\n"
             << "    }\n";
+
+        fallbackDeclarationsBuilder
+            << "MaterialSample sampleBlockMaterial_" << definition.id
+            << "(vec3 worldPos, vec3 worldNormal, vec3 faceNormal, vec3 viewDir) {\n"
+            << "    vec3 base = blockBaseColor(" << definition.materialId << ");\n"
+            << "    vec2 uv = faceUv(worldPos, faceNormal);\n"
+            << "    vec2 localUv = fract(uv + vec2(0.001));\n"
+            << "    vec4 atlasTexel = sampleBlockAtlas(" << definition.materialId
+            << ", localUv);\n"
+            << "    vec3 albedo = base * atlasTexel.rgb;\n"
+            << "    return makeSample(clamp(albedo, vec3(0.0), vec3(1.4)), 0.78, 0.10, 0.0);\n"
+            << "}\n\n";
+
+        fallbackDispatchBuilder
+            << "    if (materialId == " << definition.materialId << ") {\n"
+            << "        return sampleBlockMaterial_" << definition.id
+            << "(worldPos, worldNormal, faceNormal, viewDir);\n"
+            << "    }\n";
     }
 
-    sources.fragmentSource = replaceToken(
-        replaceToken(
-            replaceToken(fragmentTemplate,
-                         "/*__BLOCK_BASE_COLOR__*/",
-                         baseColorBuilder.str()),
-            "/*__BLOCK_SHADER_DECLARATIONS__*/",
-            declarationsBuilder.str()),
-        "/*__BLOCK_SHADER_DISPATCH__*/",
-        dispatchBuilder.str());
+    const auto buildFragment = [&](const std::string& declarationSource,
+                                   const std::string& dispatchSource) {
+        return replaceToken(
+            replaceToken(
+                replaceToken(
+                    replaceToken(
+                        fragmentTemplate,
+                        "/*__BLOCK_BASE_COLOR__*/",
+                        baseColorBuilder.str()
+                    ),
+                    "/*__BLOCK_ATLAS_SAMPLE__*/",
+                    atlasSampleBuilder.str()
+                ),
+                "/*__BLOCK_SHADER_DECLARATIONS__*/",
+                declarationSource
+            ),
+            "/*__BLOCK_SHADER_DISPATCH__*/",
+            dispatchSource
+        );
+    };
+
+    sources.fragmentSource =
+        buildFragment(declarationsBuilder.str(), dispatchBuilder.str());
+    sources.fallbackFragmentSource =
+        buildFragment(fallbackDeclarationsBuilder.str(), fallbackDispatchBuilder.str());
 
     return sources;
 }

@@ -54,6 +54,7 @@
     <ClCompile Include="src\editor\biome_maker_app.cpp" />
     <ClCompile Include="src\editor\editor_renderer.cpp" />
     <ClCompile Include="src\editor\preview_world_controller.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\item_texture_cache.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\editor\biome_maker_app.hpp" />

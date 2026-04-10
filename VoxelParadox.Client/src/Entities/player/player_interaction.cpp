@@ -17,6 +17,7 @@
 #include "gameplay/gameplay_status.hpp"
 #include "input/input_action_ids.hpp"
 #include "input/input_action_system.hpp"
+#include "items/item_use_context.hpp"
 
 #pragma endregion
 
@@ -61,6 +62,25 @@ namespace {
         return tMax >= 0.0f && tMin <= maxDistance;
     }
 
+    glm::ivec3 targetNormalFromViewDirection(const glm::vec3& direction) {
+        const glm::vec3 absoluteDirection = glm::abs(direction);
+        glm::ivec3 normal(0);
+
+        if (absoluteDirection.x >= absoluteDirection.y &&
+            absoluteDirection.x >= absoluteDirection.z) {
+            normal.x = direction.x >= 0.0f ? -1 : 1;
+            return normal;
+        }
+
+        if (absoluteDirection.y >= absoluteDirection.z) {
+            normal.y = direction.y >= 0.0f ? -1 : 1;
+            return normal;
+        }
+
+        normal.z = direction.z >= 0.0f ? -1 : 1;
+        return normal;
+    }
+
 #pragma endregion
 
 }  // namespace
@@ -68,7 +88,8 @@ namespace {
 #pragma region 2. Block Interaction Input
 // --- 2. Block Interaction Input ---
 
-void Player::handleBlockInteraction(WorldStack& worldStack, float dt) {
+void Player::handleBlockInteraction(WorldStack& worldStack, hudPortalTracker* portalTracker,
+                                    float dt) {
     auto& inputActions = InputMapping::InputActionSystem::instance();
 
     // --- 1. Get Initial State ---
@@ -76,12 +97,18 @@ void Player::handleBlockInteraction(WorldStack& worldStack, float dt) {
 
     const BlockId targetType = (world && hasTarget) ? world->getBlock(targetBlock) : BlockIds::AIR;
 
-    const bool portalActionTarget = hasTarget &&
+    const bool portalKeyboardTarget = hasTarget &&
         !usesCustomBlockModel(targetType) &&
-        (targetType == BlockIds::PORTAL || isSolid(targetType));
+        targetType == BlockIds::PORTAL;
+
+    const bool sandboxPortalCreationTarget = hasTarget &&
+        sandboxModeEnabled &&
+        !usesCustomBlockModel(targetType) &&
+        isSolid(targetType);
 
     // --- 2. Process Input Actions ---
-    if (inputActions.wasPressed(InputActionIds::kPreviewPortal) && portalActionTarget) {
+    if (inputActions.wasPressed(InputActionIds::kPreviewPortal) &&
+        (portalKeyboardTarget || sandboxPortalCreationTarget)) {
         if (tryPrepareNestedWorld(worldStack, targetBlock)) {
             beginNestedPreviewFadeIn(targetBlock, targetNormal);
         }
@@ -94,12 +121,41 @@ void Player::handleBlockInteraction(WorldStack& worldStack, float dt) {
         resetBlockBreaking();
     }
 
-    if (inputActions.wasPressed(InputActionIds::kPlaceBlock) && hasTarget) {
-        resetBlockBreaking();
-        placeBlockAtTarget(worldStack);
+    if (inputActions.wasPressed(InputActionIds::kPlaceBlock)) {
+        const InventoryItem& selectedItem = hotbar.getSelectedItem();
+
+        if (selectedItem.isItem()) {
+            const ItemDefinition& selectedItemDefinition = getItemDefinition(selectedItem.itemId);
+
+            if (selectedItemDefinition.behavior) {
+                ItemUseContext useContext{};
+                useContext.player = this;
+                useContext.worldStack = &worldStack;
+                useContext.world = world;
+                useContext.audioController = audioController;
+                useContext.portalTracker = portalTracker;
+                useContext.hasTarget = hasTarget;
+                useContext.targetBlock = targetBlock;
+                useContext.targetNormal = targetNormal;
+                useContext.targetBlockType = targetType;
+                useContext.selectedItem = selectedItem;
+                useContext.selectedCount = hotbar.getSelectedCount();
+
+                if (selectedItemDefinition.behavior->onUse(selectedItemDefinition, useContext)) {
+                    resetBlockBreaking();
+                    return;
+                }
+            }
+        }
+
+        if (hasTarget) {
+            resetBlockBreaking();
+            placeBlockAtTarget(worldStack);
+        }
     }
 
-    if (inputActions.wasPressed(InputActionIds::kEnterPortal) && portalActionTarget) {
+    if (inputActions.wasPressed(InputActionIds::kEnterPortal) &&
+        (portalKeyboardTarget || sandboxPortalCreationTarget)) {
         resetBlockBreaking();
         beginNestedEntryTransition(worldStack);
     }
@@ -280,6 +336,10 @@ void Player::placeBlockAtTarget(WorldStack& worldStack) {
         return;
     }
 
+    if (isSolid(selectedItem.blockType) && doesBlockOverlapCurrentBody(placePos)) {
+        return;
+    }
+
     // --- 2. Special Placement Logic ---
     const BlockDefinition& selectedBlockDefinition =
         getBlockDefinition(selectedItem.blockType);
@@ -386,6 +446,10 @@ void Player::doRaycast(FractalWorld* world) {
     // --- 1. Initialization ---
     clearTargetOnly();
 
+    if (tryTargetOverlappingBodyBlock(world)) {
+        return;
+    }
+
     const glm::vec3 origin = camera.position;
     const glm::vec3 dir = camera.getForward();
 
@@ -458,6 +522,52 @@ void Player::doRaycast(FractalWorld* world) {
         targetNormal[axis] = -step[axis];
         return;
     }
+}
+
+bool Player::tryTargetOverlappingBodyBlock(FractalWorld* world) {
+    if (!world) {
+        return false;
+    }
+
+    const glm::ivec3 headBlock = glm::ivec3(glm::floor(camera.position));
+    const BlockId headBlockType = world->getBlock(headBlock);
+    if (canTargetBlock(headBlockType) &&
+        doesBlockOverlapCurrentBody(headBlock)) {
+        hasTarget = true;
+        targetBlock = headBlock;
+        targetNormal = targetNormalFromViewDirection(camera.getForward());
+        return true;
+    }
+
+    const glm::vec3 feetPosition = getFeetPosition();
+    const float bodyHeight = getCurrentBodyHeight();
+    const glm::vec3 minCorner =
+        feetPosition + glm::vec3(-playerRadius, 0.0f, -playerRadius);
+    const glm::vec3 maxCorner =
+        feetPosition + glm::vec3(playerRadius, bodyHeight, playerRadius);
+
+    const glm::ivec3 minBlock = glm::ivec3(glm::floor(minCorner));
+    const glm::ivec3 maxBlock = glm::ivec3(glm::floor(maxCorner));
+
+    for (int by = maxBlock.y; by >= minBlock.y; --by) {
+        for (int bx = minBlock.x; bx <= maxBlock.x; ++bx) {
+            for (int bz = minBlock.z; bz <= maxBlock.z; ++bz) {
+                const glm::ivec3 blockPos(bx, by, bz);
+                const BlockId blockType = world->getBlock(blockPos);
+                if (!canTargetBlock(blockType) ||
+                    !doesBlockOverlapBody(blockPos, feetPosition, bodyHeight)) {
+                    continue;
+                }
+
+                hasTarget = true;
+                targetBlock = blockPos;
+                targetNormal = targetNormalFromViewDirection(camera.getForward());
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 #pragma endregion

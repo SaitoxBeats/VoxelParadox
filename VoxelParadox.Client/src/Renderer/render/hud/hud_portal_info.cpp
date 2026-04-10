@@ -77,9 +77,11 @@ namespace {
         return currentName.empty() ? "Type a universe name" : currentName;
     }
 
-    // Function: Executes 'ctrlDown' to check modifier state.
-    bool ctrlDown() {
-        return Input::keyDown(GLFW_KEY_LEFT_CONTROL) || Input::keyDown(GLFW_KEY_RIGHT_CONTROL);
+    bool pointInRect(float x, float y, const glm::ivec2& pos, const glm::vec2& size) {
+        return x >= static_cast<float>(pos.x) &&
+            y >= static_cast<float>(pos.y) &&
+            x <= static_cast<float>(pos.x + size.x) &&
+            y <= static_cast<float>(pos.y + size.y);
     }
 
     // Function: Renders 'drawRect' for visual elements in the portal info panel.
@@ -220,6 +222,24 @@ void hudPortalInfo::eraseForward() {
     editingInput.eraseForward();
 }
 
+void hudPortalInfo::placeCaretFromMouse(float mouseX) {
+    const float localX =
+        std::max(0.0f, mouseX - static_cast<float>(inputPanelPos.x + kInputPadding));
+
+    editingInput.placeCaretFromMouse(localX, [this](std::size_t index) {
+        return inputText->measureText(editingInput.text.substr(0, index)).x;
+    });
+}
+
+void hudPortalInfo::updateMouseSelection(float mouseX) {
+    const float localX =
+        std::max(0.0f, mouseX - static_cast<float>(inputPanelPos.x + kInputPadding));
+
+    editingInput.updateMouseSelection(localX, [this](std::size_t index) {
+        return inputText->measureText(editingInput.text.substr(0, index)).x;
+    });
+}
+
 bool hudPortalInfo::consumeHeldKey(int key, double now, double& nextRepeatTime) {
     return TextInputState::consumeHeldKey(key, now, nextRepeatTime,
         kKeyRepeatDelay, kKeyRepeatInterval);
@@ -229,6 +249,8 @@ bool hudPortalInfo::consumeHeldKey(int key, double now, double& nextRepeatTime) 
 
 void hudPortalInfo::update(int screenWidth, int screenHeight) {
     // --- 1. Reset Frame State ---
+    const glm::ivec2 previousInputPanelPos = inputPanelPos;
+    const glm::vec2 previousInputPanelSize = inputPanelSize;
     visible = false;
     inputPanelSize = glm::vec2(0.0f);
     drawCaret = false;
@@ -266,28 +288,33 @@ void hudPortalInfo::update(int screenWidth, int screenHeight) {
     // --- 3. Text Input Processing ---
     if (editing) {
         const double now = ENGINE::GETTIME();
+        float mouseX = 0.0f;
+        float mouseY = 0.0f;
+        Input::getMousePosFramebuffer(mouseX, mouseY, screenWidth, screenHeight);
 
-        if (ctrlDown() && Input::keyPressed(GLFW_KEY_A)) {
-            selectAll();
+        if (Input::mousePressed(GLFW_MOUSE_BUTTON_LEFT) &&
+            pointInRect(mouseX, mouseY, previousInputPanelPos, previousInputPanelSize)) {
+            editingInput.beginMouseSelection(
+                std::max(0.0f, mouseX -
+                                   static_cast<float>(previousInputPanelPos.x + kInputPadding)),
+                [this](std::size_t index) {
+                    return inputText->measureText(editingInput.text.substr(0, index)).x;
+                }
+            );
         }
 
-        if (consumeHeldKey(GLFW_KEY_LEFT, now, editingInput.nextLeftRepeatTime)) {
-            moveCaretLeft();
+        if (editingInput.mouseSelecting) {
+            if (Input::mouseDown(GLFW_MOUSE_BUTTON_LEFT)) {
+                inputPanelPos = previousInputPanelPos;
+                inputPanelSize = previousInputPanelSize;
+                updateMouseSelection(mouseX);
+            }
+            else {
+                editingInput.endMouseSelection();
+            }
         }
 
-        if (consumeHeldKey(GLFW_KEY_RIGHT, now, editingInput.nextRightRepeatTime)) {
-            moveCaretRight();
-        }
-
-        if (consumeHeldKey(GLFW_KEY_BACKSPACE, now, editingInput.nextBackspaceRepeatTime)) {
-            eraseBackward();
-        }
-
-        if (consumeHeldKey(GLFW_KEY_DELETE, now, editingInput.nextDeleteRepeatTime)) {
-            eraseForward();
-        }
-
-        insertText(Input::consumeTypedChars());
+        editingInput.handleKeyboardEditing(now, kMaxUniverseNameLength);
 
         if (Input::keyPressed(GLFW_KEY_ENTER) || Input::keyPressed(GLFW_KEY_KP_ENTER)) {
             endEditing(true);

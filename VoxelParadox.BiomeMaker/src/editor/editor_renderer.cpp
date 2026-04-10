@@ -1,8 +1,11 @@
 #include "editor_renderer.hpp"
 
+// 1. Standard Library
 #include <algorithm>
 
+// 2. Local Project Modules
 #include "engine/engine.hpp"
+#include "render/item_texture_cache.hpp"
 #include "world/block_registry.hpp"
 
 namespace BiomeMaker {
@@ -10,9 +13,18 @@ namespace BiomeMaker {
 bool EditorRenderer::init() {
   const BlockShaderSources blockShaderSources =
       BlockRegistry::instance().buildShaderSources();
-  return blockShaderSources.valid() &&
-         blockShader_.compile(blockShaderSources.vertexSource.c_str(),
-                              blockShaderSources.fragmentSource.c_str());
+  const bool compiled =
+      blockShaderSources.valid() &&
+      blockShader_.compile(
+          blockShaderSources.vertexSource.c_str(),
+          blockShaderSources.fragmentSource.c_str()
+      );
+
+  if (!compiled) {
+    return false;
+  }
+
+  return setupBlockAtlasTexture();
 }
 
 void EditorRenderer::destroyFramebuffer() {
@@ -34,6 +46,7 @@ void EditorRenderer::destroyFramebuffer() {
 
 void EditorRenderer::cleanup() {
   destroyFramebuffer();
+  cleanupBlockAtlasTexture();
   blockShader_.release();
 }
 
@@ -81,8 +94,12 @@ void EditorRenderer::renderToViewport(PreviewWorldController& world, const Camer
   blockShader_.setFloat("uAlpha", 1.0f);
   blockShader_.setFloat("uAoStrength", 1.0f);
   blockShader_.setVec4("uBiomeTint", glm::vec4(1.0f));
+  blockShader_.setInt("uUseLocalMaterialSpace", 0);
   blockShader_.setVec3("uBreakBlockCenter", glm::vec3(0.0f));
   blockShader_.setFloat("uBreakProgress", 0.0f);
+  blockShader_.setVec3("uHighlightBlockCenter", glm::vec3(0.0f));
+  blockShader_.setFloat("uHighlightActive", 0.0f);
+  bindBlockAtlasTexture();
 
   world.render(camera.position, viewProjection);
 
@@ -121,6 +138,55 @@ bool EditorRenderer::ensureFramebuffer(const glm::ivec2& size) {
       glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   return complete;
+}
+
+bool EditorRenderer::setupBlockAtlasTexture() {
+  cleanupBlockAtlasTexture();
+
+  const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
+  blockAtlasTexture_ = loadTexture2DFromFile(atlasAssetPath.c_str(), false);
+
+  if (blockAtlasTexture_ != 0) {
+    return true;
+  }
+
+  static constexpr unsigned char kFallbackWhitePixel[4] = {255, 255, 255, 255};
+
+  glGenTextures(1, &blockAtlasTexture_);
+  glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexImage2D(
+      GL_TEXTURE_2D,
+      0,
+      GL_RGBA,
+      1,
+      1,
+      0,
+      GL_RGBA,
+      GL_UNSIGNED_BYTE,
+      kFallbackWhitePixel
+  );
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  return blockAtlasTexture_ != 0;
+}
+
+void EditorRenderer::cleanupBlockAtlasTexture() {
+  if (blockAtlasTexture_ == 0) {
+    return;
+  }
+
+  glDeleteTextures(1, &blockAtlasTexture_);
+  blockAtlasTexture_ = 0;
+}
+
+void EditorRenderer::bindBlockAtlasTexture() {
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
+  blockShader_.setInt("uBlockAtlas", 0);
 }
 
 glm::vec4 EditorRenderer::getFogColor(int depth) const {

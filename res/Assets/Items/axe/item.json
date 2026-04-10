@@ -1,0 +1,20 @@
+{
+  "id": "axe",
+  "display_name": "Axe",
+  "categories": [
+    "tool"
+  ],
+  "stack_limit": 1,
+  "icon_asset": "Assets/Textures/Items/axe.png",
+  "behavior": "tool",
+  "tool": {
+    "effective_tags": [
+      "mineable_with_axe"
+    ],
+    "efficiency": 3.0
+  },
+  "world_preview": {
+    "use_texture_sprite": true
+  }
+}
+

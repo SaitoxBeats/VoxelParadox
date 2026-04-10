@@ -76,7 +76,7 @@ namespace {
             playerUpdateMode = PlayerUpdateMode::SimulationOnly;
         }
 
-        player.update(dt, worldStack, playerUpdateMode);
+        player.update(dt, worldStack, portalTracker, playerUpdateMode);
         worldStack.update(player.camera.position, player.camera.getForward(), dt);
         worldStack.updateEnemies(player, audioController, dt);
 
@@ -439,6 +439,10 @@ namespace RuntimeAppInternal {
             RuntimeUI::updateSaveToast(settingsBundle.uiState, rawDt);
             RuntimeUI::syncSaveToastState(settingsBundle.uiState);
             RuntimeUI::syncCursorVisibility(player, portalTracker);
+
+            if (gameChat.isOpen()) {
+                Input::setCursorVisible(true);
+            }
 
             if (deathSequenceActive) {
                 Input::setCursorVisible(false);

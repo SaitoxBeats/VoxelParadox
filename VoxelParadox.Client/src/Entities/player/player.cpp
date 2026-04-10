@@ -31,11 +31,26 @@ Player::Player() {
 }
 
 double Player::getUniverseCreationCooldownRemainingSeconds() const {
-    if (sandboxModeEnabled) {
-        return 0.0;
+    return 0.0;
+}
+
+float Player::getItemUseCooldownRemainingSeconds(ItemId itemId) const {
+    const auto cooldownIt = itemUseCooldownExpiryTimesSeconds.find(itemId);
+    if (cooldownIt == itemUseCooldownExpiryTimesSeconds.end()) {
+        return 0.0f;
     }
 
-    return glm::max(0.0, nextUniverseCreationTimeSeconds - ENGINE::GETTIME());
+    return static_cast<float>(glm::max(0.0, cooldownIt->second - ENGINE::GETTIME()));
+}
+
+void Player::startItemUseCooldown(ItemId itemId, float cooldownSeconds) {
+    if (cooldownSeconds <= 0.0f) {
+        itemUseCooldownExpiryTimesSeconds.erase(itemId);
+        return;
+    }
+
+    itemUseCooldownExpiryTimesSeconds[itemId] =
+        ENGINE::GETTIME() + static_cast<double>(cooldownSeconds);
 }
 
 void Player::applyDamage(int damagePoints) {
@@ -73,8 +88,7 @@ Player::PersistentState Player::capturePersistentState() const {
     state.velocity = velocity;
     state.lifePoints = lifePoints;
     state.sandboxModeEnabled = sandboxModeEnabled;
-    state.universeCreationCooldownRemainingSeconds =
-        getUniverseCreationCooldownRemainingSeconds();
+    state.universeCreationCooldownRemainingSeconds = 0.0;
     state.doubleJumpCooldownRemainingSeconds =
         glm::max(0.0, nextDoubleJumpTimeSeconds - ENGINE::GETTIME());
     state.hasSpawnpoint = spawnpointDefined;
@@ -103,10 +117,9 @@ void Player::applyPersistentState(const PersistentState& state) {
     velocity = state.velocity;
     lifePoints = glm::clamp(state.lifePoints, 0, kMaxLifePoints);
     sandboxModeEnabled = state.sandboxModeEnabled;
-    nextUniverseCreationTimeSeconds =
-        ENGINE::GETTIME() + glm::max(0.0, state.universeCreationCooldownRemainingSeconds);
     nextDoubleJumpTimeSeconds =
         ENGINE::GETTIME() + glm::max(0.0, state.doubleJumpCooldownRemainingSeconds);
+    itemUseCooldownExpiryTimesSeconds.clear();
     spawnpointDefined = state.hasSpawnpoint;
     spawnpointPosition = state.spawnpointPosition;
     spawnpointUniverseSeed = state.spawnpointUniverseSeed;
@@ -125,6 +138,7 @@ void Player::applyPersistentState(const PersistentState& state) {
     damageRollTimer = glm::max(0.0f, state.damageRollTimer);
     damageRollRadiansCurrent = state.damageRollRadiansCurrent;
     lifeFlashTimer = glm::max(0.0f, state.lifeFlashTimer);
+    headEmbeddedDamageTimer = kHeadEmbeddedDamageIntervalSeconds;
     hotbar.applyPersistentState(state.hotbarState);
     transition = PlayerTransition::NONE;
     transitionTimer = 0.0f;
@@ -338,7 +352,8 @@ Camera Player::buildNestedPreviewCamera(const Camera& source,
     return previewCamera;
 }
 
-void Player::update(float dt, WorldStack& worldStack, PlayerUpdateMode updateMode) {
+void Player::update(float dt, WorldStack& worldStack, hudPortalTracker* portalTracker,
+                    PlayerUpdateMode updateMode) {
     updateDamageFeedback(dt);
 
     // Portal transitions own the full frame while they are active.
@@ -370,7 +385,10 @@ void Player::update(float dt, WorldStack& worldStack, PlayerUpdateMode updateMod
         dropSelectedItem(worldStack);
     }
 
+    FractalWorld* world = worldStack.currentWorld();
+
     if (allowGameplayInteractions && isInventoryOpen()) {
+        updateEmbeddedHeadDamage(world, dt);
         updateHeadBob(dt, nullptr, false);
         applyCameraVisualEffects();
         resetBlockBreaking();
@@ -383,10 +401,11 @@ void Player::update(float dt, WorldStack& worldStack, PlayerUpdateMode updateMod
 
 	updateZoom(dt, allowMovementInput);
 
-    FractalWorld* world = worldStack.currentWorld();
     if (allowSimulation) {
         simulateMovement(dt, world, allowMovementInput);
     }
+
+    updateEmbeddedHeadDamage(world, dt);
 
     updateHeadBob(dt, world, allowMovementInput);
     applyCameraVisualEffects();
@@ -399,7 +418,7 @@ void Player::update(float dt, WorldStack& worldStack, PlayerUpdateMode updateMod
 
     if (allowGameplayInteractions) {
         updateNestedPreview(worldStack, world, dt);
-        handleBlockInteraction(worldStack, dt);
+        handleBlockInteraction(worldStack, portalTracker, dt);
     } else {
         clearTargetSelection();
         clearNestedPreview();

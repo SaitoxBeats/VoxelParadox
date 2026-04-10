@@ -423,11 +423,12 @@ void hudWorldLauncher::placeCaretFromMouse(float mouseX) {
         });
 }
 
-void hudWorldLauncher::updateTextInput() {
+void hudWorldLauncher::updateTextInput(float mouseX) {
     if (!textFieldFocused_ || loading_) {
         Input::consumeTypedChars();
         if (!textFieldFocused_) {
             worldNameInput_.resetRepeats();
+            worldNameInput_.endMouseSelection();
             drawCaret_ = false;
             drawSelection_ = false;
         }
@@ -436,30 +437,27 @@ void hudWorldLauncher::updateTextInput() {
 
     const double now = ENGINE::GETTIME();
 
-    if ((Input::keyDown(GLFW_KEY_LEFT_CONTROL) || Input::keyDown(GLFW_KEY_RIGHT_CONTROL)) && Input::keyPressed(GLFW_KEY_A)) {
-        selectAll();
+    if (worldNameInput_.mouseSelecting) {
+        if (Input::mouseDown(GLFW_MOUSE_BUTTON_LEFT)) {
+            const float localX = std::max(
+                0.0f,
+                mouseX - static_cast<float>(layout_.inputRect.x + kInputPadding)
+            );
+
+            worldNameInput_.updateMouseSelection(localX, [this](std::size_t index) {
+                return inputText_->measureText(worldNameInput_.text.substr(0, index)).x;
+            });
+        }
+        else {
+            worldNameInput_.endMouseSelection();
+        }
     }
 
-    if (consumeHeldKey(GLFW_KEY_LEFT, now, worldNameInput_.nextLeftRepeatTime)) {
-        moveCaretLeft();
-    }
+    const std::string previousText = worldNameInput_.text;
+    worldNameInput_.handleKeyboardEditing(now, kMaxWorldNameLength);
 
-    if (consumeHeldKey(GLFW_KEY_RIGHT, now, worldNameInput_.nextRightRepeatTime)) {
-        moveCaretRight();
-    }
-
-    if (consumeHeldKey(GLFW_KEY_BACKSPACE, now, worldNameInput_.nextBackspaceRepeatTime)) {
-        eraseBackward();
-    }
-
-    if (consumeHeldKey(GLFW_KEY_DELETE, now, worldNameInput_.nextDeleteRepeatTime)) {
-        eraseForward();
-    }
-
-    const std::string typedChars = Input::consumeTypedChars();
-    if (!typedChars.empty()) {
+    if (worldNameInput_.text != previousText) {
         selectedIndex_ = -1;
-        insertText(typedChars);
     }
 }
 
@@ -476,46 +474,38 @@ void hudWorldLauncher::placeModalCaretFromMouse(float mouseX) {
     });
 }
 
-void hudWorldLauncher::updateModalTextInput() {
+void hudWorldLauncher::updateModalTextInput(float mouseX) {
     modalDrawCaret_ = false;
     modalDrawSelection_ = false;
 
     if (modalType_ != ModalType::RenameWorld || loading_) {
         Input::consumeTypedChars();
         modalWorldNameInput_.resetRepeats();
+        modalWorldNameInput_.endMouseSelection();
         return;
     }
 
     const double now = ENGINE::GETTIME();
 
-    if ((Input::keyDown(GLFW_KEY_LEFT_CONTROL) ||
-         Input::keyDown(GLFW_KEY_RIGHT_CONTROL)) &&
-        Input::keyPressed(GLFW_KEY_A)) {
-        modalWorldNameInput_.selectAll();
+    if (modalWorldNameInput_.mouseSelecting) {
+        if (Input::mouseDown(GLFW_MOUSE_BUTTON_LEFT)) {
+            const float localX = std::max(
+                0.0f,
+                mouseX - static_cast<float>(modalLayout_.inputRect.x + kInputPadding)
+            );
+
+            modalWorldNameInput_.updateMouseSelection(localX, [this](std::size_t index) {
+                return modalInputText_->measureText(
+                    modalWorldNameInput_.text.substr(0, index)
+                ).x;
+            });
+        }
+        else {
+            modalWorldNameInput_.endMouseSelection();
+        }
     }
 
-    if (consumeHeldKey(GLFW_KEY_LEFT, now, modalWorldNameInput_.nextLeftRepeatTime)) {
-        modalWorldNameInput_.moveCaretLeft();
-    }
-
-    if (consumeHeldKey(GLFW_KEY_RIGHT, now, modalWorldNameInput_.nextRightRepeatTime)) {
-        modalWorldNameInput_.moveCaretRight();
-    }
-
-    if (consumeHeldKey(GLFW_KEY_BACKSPACE, now,
-                       modalWorldNameInput_.nextBackspaceRepeatTime)) {
-        modalWorldNameInput_.eraseBackward();
-    }
-
-    if (consumeHeldKey(GLFW_KEY_DELETE, now,
-                       modalWorldNameInput_.nextDeleteRepeatTime)) {
-        modalWorldNameInput_.eraseForward();
-    }
-
-    const std::string typedChars = Input::consumeTypedChars();
-    if (!typedChars.empty()) {
-        modalWorldNameInput_.insertText(typedChars, kMaxWorldNameLength);
-    }
+    modalWorldNameInput_.handleKeyboardEditing(now, kMaxWorldNameLength);
 }
 
 // --- 7. World Actions And Selection ---
@@ -678,11 +668,17 @@ void hudWorldLauncher::updateButtons(float mouseX, float mouseY) {
         if (pointInRect(mouseX, mouseY, layout_.inputRect)) {
             textFieldFocused_ = true;
             selectedIndex_ = -1;
-            placeCaretFromMouse(mouseX);
+            worldNameInput_.beginMouseSelection(
+                std::max(0.0f, mouseX - static_cast<float>(layout_.inputRect.x + kInputPadding)),
+                [this](std::size_t index) {
+                    return inputText_->measureText(worldNameInput_.text.substr(0, index)).x;
+                }
+            );
             return;
         }
 
         textFieldFocused_ = false;
+        worldNameInput_.endMouseSelection();
 
         if (pointInRect(mouseX, mouseY, layout_.actionButtonRect)) {
             if (selectedIndex_ >= 0) {
@@ -742,7 +738,17 @@ void hudWorldLauncher::updateModalButtons(float mouseX, float mouseY) {
 
     if (Input::mousePressed(GLFW_MOUSE_BUTTON_LEFT)) {
         if (renameModal && pointInRect(mouseX, mouseY, modalLayout_.inputRect)) {
-            placeModalCaretFromMouse(mouseX);
+            modalWorldNameInput_.beginMouseSelection(
+                std::max(
+                    0.0f,
+                    mouseX - static_cast<float>(modalLayout_.inputRect.x + kInputPadding)
+                ),
+                [this](std::size_t index) {
+                    return modalInputText_->measureText(
+                        modalWorldNameInput_.text.substr(0, index)
+                    ).x;
+                }
+            );
             return;
         }
     }
@@ -785,12 +791,12 @@ void hudWorldLauncher::update(int screenWidth, int screenHeight) {
 
     if (hasModal()) {
         updateModalLayout(screenWidth, screenHeight);
-        updateModalTextInput();
+        updateModalTextInput(mouseX);
         updateModalButtons(mouseX, mouseY);
         return;
     }
 
-    updateTextInput();
+    updateTextInput(mouseX);
     updateSelection(mouseX, mouseY);
     updateButtons(mouseX, mouseY);
 }

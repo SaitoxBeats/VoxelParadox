@@ -4,8 +4,39 @@
 // Dependencias principais: os headers, tipos STL e bibliotecas externas incluidos logo abaixo.
 
 #pragma region Includes
+// 1. Standard
+#include <limits>
+
+// 2. Project
 #include "hotbar.hpp"
 #pragma endregion
+
+namespace {
+
+struct QuickMoveGridPoint {
+    int x = 0;
+    int y = 0;
+};
+
+QuickMoveGridPoint resolveQuickMoveGridPoint(int storageIndex) {
+    if (storageIndex < PlayerHotbar::HOTBAR_SLOT_COUNT) {
+        return { storageIndex, PlayerHotbar::EXTRA_SLOT_ROW_COUNT };
+    }
+
+    const int inventoryIndex = storageIndex - PlayerHotbar::HOTBAR_SLOT_COUNT;
+    return {
+        1 + (inventoryIndex % PlayerHotbar::EXTRA_SLOT_COLUMN_COUNT),
+        inventoryIndex / PlayerHotbar::EXTRA_SLOT_COLUMN_COUNT
+    };
+}
+
+int quickMoveDistanceSquared(const QuickMoveGridPoint& a, const QuickMoveGridPoint& b) {
+    const int deltaX = a.x - b.x;
+    const int deltaY = a.y - b.y;
+    return deltaX * deltaX + deltaY * deltaY;
+}
+
+} // namespace
 
 #pragma region HotbarLifecycle
 void PlayerHotbar::clear() {
@@ -102,6 +133,48 @@ bool PlayerHotbar::addItem(const InventoryItem& item, int amount) {
     return remaining == 0;
 }
 
+int PlayerHotbar::countItem(const InventoryItem& item) const {
+    if (!canStore(item)) {
+        return 0;
+    }
+
+    int count = 0;
+    for (const Slot& slot : storageSlots) {
+        if (slot.empty() || slot.item != item) {
+            continue;
+        }
+
+        count += slot.count;
+    }
+
+    return count;
+}
+
+bool PlayerHotbar::removeItem(const InventoryItem& item, int amount) {
+    if (!canStore(item) || amount <= 0 || countItem(item) < amount) {
+        return false;
+    }
+
+    int remaining = amount;
+    for (auto slotIt = storageSlots.rbegin(); slotIt != storageSlots.rend(); ++slotIt) {
+        Slot& slot = *slotIt;
+        if (remaining <= 0) {
+            break;
+        }
+
+        if (slot.empty() || slot.item != item) {
+            continue;
+        }
+
+        const int removeAmount = std::min(slot.count, remaining);
+        slot.count -= removeAmount;
+        remaining -= removeAmount;
+        sanitize(slot);
+    }
+
+    return remaining == 0;
+}
+
 // Funcao: consome 'consumeSelected' na hotbar e no inventario do jogador.
 // Detalhe: usa 'amount' para retirar um pedido ou evento pendente para evitar reprocessamento.
 // Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
@@ -135,6 +208,49 @@ bool PlayerHotbar::clickStorageSlot(int index, ClickType clickType) {
     return clickType == ClickType::LEFT
                ? handleLeftClick(slot, getSlotInteractionCapacity(slot))
                : handleRightClick(slot, getSlotInteractionCapacity(slot));
+}
+
+bool PlayerHotbar::quickMoveStorageSlot(int index) {
+    if (index < 0 || index >= TOTAL_STORAGE_SLOTS) {
+        return false;
+    }
+
+    Slot& sourceSlot = storageSlots[static_cast<size_t>(index)];
+    sanitize(sourceSlot);
+    if (sourceSlot.empty()) {
+        return false;
+    }
+
+    const bool sourceIsHotbar = index < HOTBAR_SLOT_COUNT;
+    const int targetBegin = sourceIsHotbar ? HOTBAR_SLOT_COUNT : 0;
+    const int targetEnd = sourceIsHotbar ? TOTAL_STORAGE_SLOTS : HOTBAR_SLOT_COUNT;
+
+    const QuickMoveGridPoint sourcePoint = resolveQuickMoveGridPoint(index);
+    int bestTargetIndex = -1;
+    int bestDistanceSquared = std::numeric_limits<int>::max();
+
+    for (int targetIndex = targetBegin; targetIndex < targetEnd; targetIndex++) {
+        Slot& targetSlot = storageSlots[static_cast<size_t>(targetIndex)];
+        sanitize(targetSlot);
+        if (!targetSlot.empty()) {
+            continue;
+        }
+
+        const int distanceSquared =
+            quickMoveDistanceSquared(sourcePoint, resolveQuickMoveGridPoint(targetIndex));
+        if (distanceSquared < bestDistanceSquared) {
+            bestDistanceSquared = distanceSquared;
+            bestTargetIndex = targetIndex;
+        }
+    }
+
+    if (bestTargetIndex < 0) {
+        return false;
+    }
+
+    storageSlots[static_cast<size_t>(bestTargetIndex)] = sourceSlot;
+    sourceSlot = Slot{};
+    return true;
 }
 
 // Funcao: processa 'clickCraftSlot' na hotbar e no inventario do jogador.

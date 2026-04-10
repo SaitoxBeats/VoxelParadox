@@ -212,6 +212,14 @@ void GameAudioController::onDeathSequenceStarted() {
     forceImmediateMusicRefresh_ = true;
 }
 
+void GameAudioController::playItemEvent(const std::string& eventName) {
+    if (eventName.empty() || deathScreenActive_) {
+        return;
+    }
+
+    audioManager_.playEvent(eventName);
+}
+
 void GameAudioController::onPlayerFootstep(BlockId blockType, const glm::vec3& worldPosition,
     float gain, float pitch) {
     if (deathScreenActive_) {

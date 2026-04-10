@@ -52,8 +52,8 @@ inline ResolvedInventoryMenuLayout resolveInventoryMenuLayout(const InventoryMen
                                                               int screenHeight) {
     ResolvedInventoryMenuLayout resolved{};
 
-    constexpr int inventoryColumns = 7;
-    constexpr int inventoryRows = 3;
+    constexpr int inventoryColumns = PlayerHotbar::EXTRA_SLOT_COLUMN_COUNT;
+    constexpr int inventoryRows = PlayerHotbar::EXTRA_SLOT_ROW_COUNT;
 
     const int hotbarWidth =
         layout.slotSize.x * PlayerHotbar::HOTBAR_SLOT_COUNT +

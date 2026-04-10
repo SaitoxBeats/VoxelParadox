@@ -107,6 +107,8 @@ private:
     // Funcao: edita 'eraseForward' no painel de informacoes do portal.
     // Detalhe: centraliza a logica necessaria para alterar o conteudo controlado por esta rotina preservando o estado restante.
     void eraseForward();
+    void placeCaretFromMouse(float mouseX);
+    void updateMouseSelection(float mouseX);
     // Funcao: consome 'consumeHeldKey' no painel de informacoes do portal.
     // Detalhe: usa 'key', 'now', 'nextRepeatTime' para retirar um pedido ou evento pendente para evitar reprocessamento.
     // Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.

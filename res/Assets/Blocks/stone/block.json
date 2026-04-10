@@ -20,7 +20,8 @@
   },
   "render": {
     "base_color": [0.45, 0.42, 0.5],
-    "shader": "shader.glsl"
+    "shader": "shader.glsl",
+    "texture_tile": "stone"
   },
   "placement": {
     "support_mode": "solid",

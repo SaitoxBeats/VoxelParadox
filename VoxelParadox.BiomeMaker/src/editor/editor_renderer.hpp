@@ -28,11 +28,15 @@ public:
 
 private:
   Shader blockShader_;
+  GLuint blockAtlasTexture_ = 0;
   GLuint framebuffer_ = 0;
   GLuint colorTexture_ = 0;
   GLuint depthStencilRenderbuffer_ = 0;
   glm::ivec2 viewportSize_{0};
 
+  bool setupBlockAtlasTexture();
+  void cleanupBlockAtlasTexture();
+  void bindBlockAtlasTexture();
   void destroyFramebuffer();
   bool ensureFramebuffer(const glm::ivec2& size);
   glm::vec4 getFogColor(int depth) const;

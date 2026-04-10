@@ -20,7 +20,8 @@
   },
   "render": {
     "base_color": [0.58, 0.92, 0.78],
-    "shader": "shader.glsl"
+    "shader": "shader.glsl",
+    "texture_tile": "membrane_weave"
   },
   "placement": {
     "support_mode": "solid",

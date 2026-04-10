@@ -46,20 +46,24 @@ private:
     bool vertexExists = false;
     bool fragmentExists = false;
     bool blockShaderExists = false;
+    bool blockTextureExists = false;
     std::filesystem::file_time_type registryWrite{};
     std::filesystem::file_time_type vertexWrite{};
     std::filesystem::file_time_type fragmentWrite{};
     std::filesystem::file_time_type blockShaderWrite{};
+    std::filesystem::file_time_type blockTextureWrite{};
 
     bool operator==(const SourceFingerprint& other) const {
       return registryExists == other.registryExists &&
              vertexExists == other.vertexExists &&
              fragmentExists == other.fragmentExists &&
              blockShaderExists == other.blockShaderExists &&
+             blockTextureExists == other.blockTextureExists &&
              (!registryExists || registryWrite == other.registryWrite) &&
              (!vertexExists || vertexWrite == other.vertexWrite) &&
              (!fragmentExists || fragmentWrite == other.fragmentWrite) &&
-             (!blockShaderExists || blockShaderWrite == other.blockShaderWrite);
+             (!blockShaderExists || blockShaderWrite == other.blockShaderWrite) &&
+             (!blockTextureExists || blockTextureWrite == other.blockTextureWrite);
     }
 
     bool operator!=(const SourceFingerprint& other) const {
@@ -74,6 +78,7 @@ private:
   std::filesystem::path fragmentTemplatePath_{"Assets/Shaders/block.frag"};
   std::filesystem::path vertexPath_{"Assets/Shaders/block.vert"};
   std::filesystem::path blockShaderPath_{};
+  std::filesystem::path blockTexturePath_{};
   BlockId previewBlockId_ = BlockIds::STONE;
 
   Shader shader_{};

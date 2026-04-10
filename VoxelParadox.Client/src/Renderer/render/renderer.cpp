@@ -25,6 +25,7 @@
 #include "client_defaults.hpp"
 #include "dust_particle_config.hpp"
 #include "hud/hud.hpp"
+#include "item_texture_cache.hpp"
 #include "renderer.hpp"
 #include "renderer_internal.hpp"
 #include "world/block_registry.hpp"
@@ -567,7 +568,12 @@ bool Renderer::init() {
             std::printf("[Blocks] Failed to compile assembled block shader. Using fallback.\n");
         }
 
-        if (!blockShader.compile(BLOCK_VERT, BLOCK_FRAG)) {
+        if (!blockShaderSources.vertexSource.empty() &&
+            !blockShaderSources.fallbackFragmentSource.empty() &&
+            blockShader.compile(blockShaderSources.vertexSource.c_str(),
+                                blockShaderSources.fallbackFragmentSource.c_str())) {
+            std::printf("[Blocks] Compiled atlas-aware fallback block shader.\n");
+        } else if (!blockShader.compile(BLOCK_VERT, BLOCK_FRAG)) {
             return false;
         }
     }
@@ -617,6 +623,10 @@ bool Renderer::init() {
         return false;
     }
 
+    if (!setupBlockAtlasTexture()) {
+        return false;
+    }
+
     return true;
 }
 
@@ -643,6 +653,7 @@ void Renderer::cleanup() {
     RendererInternal::deleteVertexArrayAndBuffer(screenQuadVAO, screenQuadVBO);
     RendererInternal::deleteVertexArrayAndBuffer(itemSpriteVAO, itemSpriteVBO);
     RendererInternal::deleteVertexArrayAndBuffer(dustParticleVAO, dustParticleVBO);
+    cleanupBlockAtlasTexture();
     cleanupEntityAssets();
     cleanupBlockModelAssets();
 
@@ -670,6 +681,50 @@ void Renderer::cleanup() {
 
     dustTransition = {};
     heldItemTransition = {};
+}
+
+bool Renderer::setupBlockAtlasTexture() {
+    cleanupBlockAtlasTexture();
+
+    const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
+    blockAtlasTexture_ =
+        loadTexture2DFromFile(atlasAssetPath.c_str(), false);
+
+    if (blockAtlasTexture_ != 0) {
+        return true;
+    }
+
+    std::printf("[Blocks] Failed to load block atlas texture: %s. Using generated fallback.\n",
+                atlasAssetPath.c_str());
+
+    static constexpr unsigned char kFallbackWhitePixel[4] = {
+        255, 255, 255, 255
+    };
+
+    glGenTextures(1, &blockAtlasTexture_);
+    glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 kFallbackWhitePixel);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return blockAtlasTexture_ != 0;
+}
+
+void Renderer::cleanupBlockAtlasTexture() {
+    if (blockAtlasTexture_ != 0) {
+        glDeleteTextures(1, &blockAtlasTexture_);
+        blockAtlasTexture_ = 0;
+    }
+}
+
+void Renderer::bindBlockAtlasTexture() {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
+    blockShader.setInt("uBlockAtlas", 0);
 }
 #pragma endregion
 
@@ -809,6 +864,7 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
     blockShader.setFloat("uAoStrength", 1.0f);
     blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(world, depth));
     blockShader.setInt("uUseLocalMaterialSpace", 0);
+    bindBlockAtlasTexture();
 
     setBreakEffectUniforms(breakBlockCenter, breakProgress);
     setHighlightEffectUniforms(highlightBlockCenter, highlightActive);

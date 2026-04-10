@@ -180,6 +180,7 @@ private:
     GLuint itemSpriteVBO = 0;
     GLuint dustParticleVAO = 0;
     GLuint dustParticleVBO = 0;
+    GLuint blockAtlasTexture_ = 0;
 
     std::size_t dustParticleCapacity = 0;
     DustTransitionState dustTransition{};
@@ -188,7 +189,7 @@ private:
     LoadedEntityModel guyModel_{};
     std::unordered_map<int, LoadedObjBlockModel> customBlockModels_{};
 
-    std::unordered_map<int, GLuint> itemTextureCache{};
+    std::unordered_map<ItemId, GLuint> itemTextureCache{};
     std::vector<DustParticleVertex> dustParticleScratch{};
     SceneRenderTarget sceneRenderTarget_{};
     float renderScale_ = 1.0f;
@@ -213,15 +214,18 @@ private:
 
     void setupBreakBlockCube();
     void setupItemSpriteQuad();
-    GLuint getItemTexture(ItemType type);
+    GLuint getItemTexture(ItemId itemId);
+    bool setupBlockAtlasTexture();
+    void cleanupBlockAtlasTexture();
+    void bindBlockAtlasTexture();
 
-    void renderItemSprite(ItemType type, const glm::mat4& vp, const glm::mat4& model,
+    void renderItemSprite(ItemId itemId, const glm::mat4& vp, const glm::mat4& model,
         float alpha, bool depthTest);
 
     void renderHeldItem(const Player& player, const FractalWorld* world, const glm::mat4& vp,
         int depth, float time, float visibility);
 
-    void renderHeldSpriteItem(const Player& player, ItemType heldType, const glm::mat4& vp,
+    void renderHeldSpriteItem(const Player& player, ItemId heldItemId, const glm::mat4& vp,
         float time, float visibility, float verticalOffset);
 
     void renderHeldCustomBlockModel(const Player& player, const FractalWorld* world,

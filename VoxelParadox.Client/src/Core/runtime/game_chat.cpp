@@ -58,6 +58,27 @@ namespace {
     constexpr std::size_t kChatMaxCharactersPerLine = 46;
     constexpr float kChatInputRightMargin = 12.0f;
     constexpr float kChatInputHorizontalPadding = 12.0f;
+    constexpr float kChatInputBackgroundLeftMargin = 12.0f;
+    constexpr float kChatInputBackgroundBottomMargin = 14.0f;
+    constexpr float kChatInputBackgroundHeight = 42.0f;
+    constexpr float kChatSelectionHeightPadding = 2.0f;
+
+    glm::ivec4 makeChatInputRect(int screenWidth, int screenHeight) {
+        const int x = static_cast<int>(kChatInputBackgroundLeftMargin);
+        const int y = static_cast<int>(screenHeight - kChatInputBackgroundBottomMargin -
+                                       kChatInputBackgroundHeight);
+        const int width = std::max(
+            0,
+            screenWidth - x - static_cast<int>(kChatInputRightMargin)
+        );
+
+        return glm::ivec4(
+            x,
+            y,
+            width,
+            static_cast<int>(kChatInputBackgroundHeight)
+        );
+    }
 
     template <typename T>
     T* addGroupedHudElement(T* element, const char* groupName, int layer = 0) {
@@ -231,7 +252,9 @@ void GameChat::open() {
 
     open_ = true;
     inputState_.resetRepeats();
+    inputState_.endMouseSelection();
     Input::enableTextInput(true);
+    Input::setCursorVisible(true);
 }
 
 void GameChat::close() {
@@ -242,7 +265,9 @@ void GameChat::close() {
     open_ = false;
     inputState_.setText({});
     inputState_.resetRepeats();
+    inputState_.endMouseSelection();
     Input::enableTextInput(false);
+    Input::setCursorVisible(false);
 }
 
 bool GameChat::handleFrameInput(GameChatCommandContext& commandContext, bool allowOpenChat) {
@@ -257,28 +282,41 @@ bool GameChat::handleFrameInput(GameChatCommandContext& commandContext, bool all
     }
 
     const double now = ENGINE::GETTIME();
-    inputState_.insertText(Input::consumeTypedChars());
+    if (Input::mousePressed(GLFW_MOUSE_BUTTON_LEFT)) {
+        float mouseX = 0.0f;
+        float mouseY = 0.0f;
+        const glm::vec2 viewportSize = ENGINE::GETVIEWPORTSIZE();
+        Input::getMousePosFramebuffer(
+            mouseX,
+            mouseY,
+            static_cast<int>(viewportSize.x),
+            static_cast<int>(viewportSize.y)
+        );
 
-    if (Input::keyDown(GLFW_KEY_LEFT_CONTROL) && Input::keyPressed(GLFW_KEY_A)) {
-        inputState_.selectAll();
-        return true;
+        if (isMouseInsideInput(mouseX, mouseY)) {
+            beginMouseSelection(mouseX);
+        }
     }
 
-    if (TextInputState::consumeHeldKey(GLFW_KEY_LEFT, now, inputState_.nextLeftRepeatTime)) {
-        inputState_.moveCaretLeft();
+    if (inputState_.mouseSelecting) {
+        if (Input::mouseDown(GLFW_MOUSE_BUTTON_LEFT)) {
+            float mouseX = 0.0f;
+            float mouseY = 0.0f;
+            const glm::vec2 viewportSize = ENGINE::GETVIEWPORTSIZE();
+            Input::getMousePosFramebuffer(
+                mouseX,
+                mouseY,
+                static_cast<int>(viewportSize.x),
+                static_cast<int>(viewportSize.y)
+            );
+            updateMouseSelection(mouseX);
+        }
+        else {
+            endMouseSelection();
+        }
     }
 
-    if (TextInputState::consumeHeldKey(GLFW_KEY_RIGHT, now, inputState_.nextRightRepeatTime)) {
-        inputState_.moveCaretRight();
-    }
-
-    if (TextInputState::consumeHeldKey(GLFW_KEY_BACKSPACE, now, inputState_.nextBackspaceRepeatTime)) {
-        inputState_.eraseBackward();
-    }
-
-    if (TextInputState::consumeHeldKey(GLFW_KEY_DELETE, now, inputState_.nextDeleteRepeatTime)) {
-        inputState_.eraseForward();
-    }
+    inputState_.handleKeyboardEditing(now);
 
     if (Input::keyPressed(GLFW_KEY_TAB)) {
         autocompleteInput();
@@ -409,61 +447,7 @@ std::string GameChat::inputLineText() const {
         return {};
     }
 
-    const std::size_t caretIndex = std::min(inputState_.caretIndex, inputState_.text.size());
-    const int blinkPhase = static_cast<int>(ENGINE::GETTIME() * 2.0);
-    const bool showCaret = (blinkPhase % 2) == 0;
-
-    if (!inputLineElement_) {
-        std::string fallbackLine = "> ";
-        fallbackLine += inputState_.text.substr(0, caretIndex);
-        if (showCaret) {
-            fallbackLine += '_';
-        }
-        fallbackLine += inputState_.text.substr(caretIndex);
-        return fallbackLine;
-    }
-
-    const float viewportWidth = ENGINE::GETVIEWPORTSIZE().x;
-    const float availableWidth = std::max(
-        0.0f,
-        viewportWidth - kChatLeftMargin - kChatInputRightMargin - kChatInputHorizontalPadding * 2.0f
-    );
-
-    const std::string prefix = "> ";
-    std::size_t visibleStart = 0;
-    std::size_t visibleEnd = inputState_.text.size();
-
-    while (visibleStart < caretIndex) {
-        const std::string candidate =
-            prefix + inputState_.text.substr(visibleStart, caretIndex - visibleStart);
-        if (inputLineElement_->measureText(candidate).x <= availableWidth) {
-            break;
-        }
-        ++visibleStart;
-    }
-
-    while (visibleEnd > caretIndex) {
-        std::string candidate = prefix + inputState_.text.substr(visibleStart, visibleEnd - visibleStart);
-        if (showCaret) {
-            candidate.insert(prefix.size() + (caretIndex - visibleStart), 1, '_');
-        }
-
-        if (inputLineElement_->measureText(candidate).x <= availableWidth) {
-            break;
-        }
-        --visibleEnd;
-    }
-
-    std::string line = prefix;
-    line += inputState_.text.substr(visibleStart, caretIndex - visibleStart);
-
-    if (showCaret) {
-        line += '_';
-    }
-
-    line += inputState_.text.substr(caretIndex, visibleEnd - caretIndex);
-
-    return line;
+    return resolveInputLayout().lineText;
 }
 
 std::string GameChat::suggestionLineText(int lineIndex) const {
@@ -504,6 +488,212 @@ bool GameChat::shouldShowHistory() const {
 
 bool GameChat::shouldShowSuggestions() const {
     return open_ && !autocompleteCandidates().empty();
+}
+
+GameChat::ResolvedInputLayout GameChat::resolveInputLayout() const {
+    ResolvedInputLayout layout;
+
+    if (!open_) {
+        return layout;
+    }
+
+    layout.showCaret = (static_cast<int>(ENGINE::GETTIME() * 2.0) % 2) == 0;
+    layout.visibleStart = 0;
+    layout.visibleEnd = inputState_.text.size();
+    layout.lineText = "> " + inputState_.text;
+
+    if (!inputLineElement_) {
+        return layout;
+    }
+
+    const std::size_t caretIndex = std::min(inputState_.caretIndex, inputState_.text.size());
+    const glm::vec2 viewportSize = ENGINE::GETVIEWPORTSIZE();
+    const float viewportWidth = viewportSize.x;
+    const float availableWidth = std::max(
+        0.0f,
+        viewportWidth - kChatLeftMargin - kChatInputRightMargin -
+            kChatInputHorizontalPadding * 2.0f
+    );
+    const std::string prefix = "> ";
+
+    while (layout.visibleStart < caretIndex) {
+        const std::string candidate =
+            prefix + inputState_.text.substr(
+                         layout.visibleStart,
+                         caretIndex - layout.visibleStart
+                     );
+        if (inputLineElement_->measureText(candidate).x <= availableWidth) {
+            break;
+        }
+        ++layout.visibleStart;
+    }
+
+    while (layout.visibleEnd > caretIndex) {
+        const std::string candidate =
+            prefix + inputState_.text.substr(
+                         layout.visibleStart,
+                         layout.visibleEnd - layout.visibleStart
+                     );
+        if (inputLineElement_->measureText(candidate).x <= availableWidth) {
+            break;
+        }
+        --layout.visibleEnd;
+    }
+
+    layout.lineText =
+        prefix + inputState_.text.substr(
+                     layout.visibleStart,
+                     layout.visibleEnd - layout.visibleStart
+                 );
+    const glm::vec2 lineSize = inputLineElement_->measureText(layout.lineText);
+    const glm::vec2 linePosition = resolveHUDPosition(
+        makeHUDLayout(HUDAnchor::BOTTOM_LEFT, glm::vec2(kChatLeftMargin, -kChatInputBottomMargin)),
+        static_cast<int>(viewportSize.x),
+        static_cast<int>(viewportSize.y),
+        lineSize
+    );
+    layout.textX = static_cast<int>(std::round(linePosition.x));
+    layout.textY = static_cast<int>(std::round(linePosition.y));
+    layout.textHeight = lineSize.y;
+    layout.caretPixelOffset = inputLineElement_->measureText(
+        prefix + inputState_.text.substr(layout.visibleStart, caretIndex - layout.visibleStart)
+    ).x;
+
+    if (inputState_.hasSelection()) {
+        const std::size_t visibleSelectionStart = std::max(
+            inputState_.selectionFirst(),
+            layout.visibleStart
+        );
+        const std::size_t visibleSelectionEnd = std::min(
+            inputState_.selectionLast(),
+            layout.visibleEnd
+        );
+
+        if (visibleSelectionStart < visibleSelectionEnd) {
+            layout.selectionPixelStart = inputLineElement_->measureText(
+                prefix + inputState_.text.substr(
+                             layout.visibleStart,
+                             visibleSelectionStart - layout.visibleStart
+                         )
+            ).x;
+            layout.selectionPixelEnd = inputLineElement_->measureText(
+                prefix + inputState_.text.substr(
+                             layout.visibleStart,
+                             visibleSelectionEnd - layout.visibleStart
+                         )
+            ).x;
+            layout.showSelection =
+                layout.selectionPixelEnd > layout.selectionPixelStart;
+        }
+    }
+
+    layout.valid = true;
+    return layout;
+}
+
+bool GameChat::tryGetInputSelectionRect(glm::ivec4& outRect) const {
+    const ResolvedInputLayout layout = resolveInputLayout();
+    if (!layout.valid || !layout.showSelection) {
+        return false;
+    }
+
+    outRect = glm::ivec4(
+        layout.textX + static_cast<int>(std::round(layout.selectionPixelStart)),
+        layout.textY - static_cast<int>(kChatSelectionHeightPadding),
+        static_cast<int>(std::round(layout.selectionPixelEnd - layout.selectionPixelStart)),
+        static_cast<int>(std::round(layout.textHeight + kChatSelectionHeightPadding * 2.0f))
+    );
+    return outRect.z > 0 && outRect.w > 0;
+}
+
+bool GameChat::tryGetInputCaretRect(glm::ivec4& outRect) const {
+    const ResolvedInputLayout layout = resolveInputLayout();
+    if (!layout.valid || !layout.showCaret) {
+        return false;
+    }
+
+    outRect = glm::ivec4(
+        layout.textX + static_cast<int>(std::round(layout.caretPixelOffset)),
+        layout.textY - static_cast<int>(kChatSelectionHeightPadding),
+        2,
+        static_cast<int>(std::round(layout.textHeight + kChatSelectionHeightPadding * 2.0f))
+    );
+    return outRect.w > 0;
+}
+
+bool GameChat::isMouseInsideInput(float mouseX, float mouseY) const {
+    const glm::vec2 viewportSize = ENGINE::GETVIEWPORTSIZE();
+    const glm::ivec4 inputRect = makeChatInputRect(
+        static_cast<int>(viewportSize.x),
+        static_cast<int>(viewportSize.y)
+    );
+
+    return mouseX >= static_cast<float>(inputRect.x) &&
+           mouseY >= static_cast<float>(inputRect.y) &&
+           mouseX <= static_cast<float>(inputRect.x + inputRect.z) &&
+           mouseY <= static_cast<float>(inputRect.y + inputRect.w);
+}
+
+void GameChat::beginMouseSelection(float mouseX) {
+    const ResolvedInputLayout layout = resolveInputLayout();
+    if (!layout.valid || !inputLineElement_) {
+        return;
+    }
+
+    const float prefixWidth = inputLineElement_->measureText("> ").x;
+    const float localX = std::max(0.0f, mouseX - static_cast<float>(layout.textX) - prefixWidth);
+    const std::size_t visibleCount = layout.visibleEnd - layout.visibleStart;
+    std::size_t bestIndex = 0;
+    float bestDistance = std::numeric_limits<float>::max();
+
+    for (std::size_t index = 0; index <= visibleCount; ++index) {
+        const float caretX = inputLineElement_->measureText(
+            inputState_.text.substr(layout.visibleStart, index)
+        ).x;
+        const float distance = std::fabs(localX - caretX);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = index;
+        }
+    }
+
+    inputState_.mouseSelectionAnchor = layout.visibleStart + bestIndex;
+    inputState_.mouseSelecting = true;
+    inputState_.moveCaretTo(inputState_.mouseSelectionAnchor);
+}
+
+void GameChat::updateMouseSelection(float mouseX) {
+    const ResolvedInputLayout layout = resolveInputLayout();
+    if (!layout.valid || !inputLineElement_) {
+        return;
+    }
+
+    const float prefixWidth = inputLineElement_->measureText("> ").x;
+    const float localX = std::max(0.0f, mouseX - static_cast<float>(layout.textX) - prefixWidth);
+    const std::size_t visibleCount = layout.visibleEnd - layout.visibleStart;
+    std::size_t bestIndex = 0;
+    float bestDistance = std::numeric_limits<float>::max();
+
+    for (std::size_t index = 0; index <= visibleCount; ++index) {
+        const float caretX = inputLineElement_->measureText(
+            inputState_.text.substr(layout.visibleStart, index)
+        ).x;
+        const float distance = std::fabs(localX - caretX);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = index;
+        }
+    }
+
+    inputState_.moveCaretTo(
+        layout.visibleStart + bestIndex,
+        true,
+        inputState_.mouseSelectionAnchor
+    );
+}
+
+void GameChat::endMouseSelection() {
+    inputState_.endMouseSelection();
 }
 
 #pragma endregion

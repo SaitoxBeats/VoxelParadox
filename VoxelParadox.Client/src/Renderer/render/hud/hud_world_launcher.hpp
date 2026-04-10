@@ -121,9 +121,9 @@ private:
     hudText* modalCancelButtonText_ = nullptr;
 
     void updateLayout(int screenWidth, int screenHeight);
-    void updateTextInput();
+    void updateTextInput(float mouseX);
     void updateModalLayout(int screenWidth, int screenHeight);
-    void updateModalTextInput();
+    void updateModalTextInput(float mouseX);
     void updateSelection(float mouseX, float mouseY);
     void updateButtons(float mouseX, float mouseY);
     void updateModalButtons(float mouseX, float mouseY);

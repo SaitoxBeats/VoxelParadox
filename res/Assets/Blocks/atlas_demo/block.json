@@ -1,7 +1,7 @@
 {
-  "id": "neon_drift",
-  "display_name": "Neon Drift",
-  "categories": ["decoration"],
+  "id": "atlas_demo",
+  "display_name": "Atlas Demo",
+  "categories": ["terrain", "decoration"],
   "replaceable": false,
   "placeable": true,
   "targetable": true,
@@ -10,16 +10,16 @@
     "solid": true,
     "transparent": false,
     "interactable": false,
-    "emits_light": true,
+    "emits_light": false,
     "has_entity": false,
     "tags": 2,
-    "hardness": 1.0
+    "hardness": 3.0
   },
   "data": {
     "can_drop_item": true
   },
   "render": {
-    "base_color": [0.18, 0.04, 0.28],
+    "base_color": [0.92, 0.68, 0.22],
     "shader": "shader.glsl"
   },
   "placement": {

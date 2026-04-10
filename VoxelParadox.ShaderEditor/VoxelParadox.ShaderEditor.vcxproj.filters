@@ -27,6 +27,9 @@
     <ClCompile Include="src\editor\shader_editor_renderer.cpp">
       <Filter>Editor</Filter>
     </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\item_texture_cache.cpp">
+      <Filter>Support</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\editor\block_shader_session.hpp">

@@ -1,0 +1,15 @@
+{
+  "id": "portal_tracker",
+  "display_name": "Portal Tracker",
+  "categories": [ "utility" ],
+  "stack_limit": 1,
+  "icon_asset": "Assets/Textures/Items/portal_tracker.png",
+  "on_use": {
+    "actions": [
+      {
+        "type": "open_portal_tracker"
+      }
+    ]
+  },
+  "world_preview": { "use_texture_sprite": true }
+}

@@ -1075,7 +1075,7 @@ namespace RuntimeUI::Detail {
 
         HUD::add(attachToHUDGroup(
             new hudInventoryMenu(&player, InventoryMenuVisualPart::COUNTS),
-            RuntimeHudIds::kInventoryMenu, 1
+            RuntimeHudIds::kInventoryMenu, 3
         ));
 
         HUD::add(attachToHUDGroup(
@@ -1090,7 +1090,7 @@ namespace RuntimeUI::Detail {
 
         HUD::add(attachToHUDGroup(
             new hudInventoryMenu(&player, InventoryMenuVisualPart::TOOLTIP),
-            RuntimeHudIds::kInventoryMenu, 3
+            RuntimeHudIds::kInventoryMenu, 4
         ));
 
         HUD::add(attachToHUDGroup(
@@ -1100,7 +1100,7 @@ namespace RuntimeUI::Detail {
                 &worldStack,
                 InventoryMenuPreviewPart::TOOLTIP
             ),
-            RuntimeHudIds::kInventoryMenu, 4
+            RuntimeHudIds::kInventoryMenu, 5
         ));
     }
 

@@ -336,14 +336,26 @@ void hudInventoryMenu::handleClick(PlayerHotbar::ClickType clickType) {
         return;
     }
 
+    const bool shiftDown =
+        Input::keyDown(GLFW_KEY_LEFT_SHIFT) || Input::keyDown(GLFW_KEY_RIGHT_SHIFT);
+
     switch (hoveredSlot.kind) {
     case InventoryMenuHoveredSlotKind::HOTBAR:
-        player->clickInventoryStorageSlot(hoveredSlot.index, clickType);
+        if (shiftDown) {
+            player->quickMoveInventoryStorageSlot(hoveredSlot.index);
+        } else {
+            player->clickInventoryStorageSlot(hoveredSlot.index, clickType);
+        }
         break;
-    case InventoryMenuHoveredSlotKind::INVENTORY:
-        player->clickInventoryStorageSlot(PlayerHotbar::HOTBAR_SLOT_COUNT + hoveredSlot.index,
-                                          clickType);
+    case InventoryMenuHoveredSlotKind::INVENTORY: {
+        const int storageIndex = PlayerHotbar::HOTBAR_SLOT_COUNT + hoveredSlot.index;
+        if (shiftDown) {
+            player->quickMoveInventoryStorageSlot(storageIndex);
+        } else {
+            player->clickInventoryStorageSlot(storageIndex, clickType);
+        }
         break;
+    }
     case InventoryMenuHoveredSlotKind::CRAFT_INPUT:
         player->clickCraftSlot(hoveredSlot.index, clickType);
         break;

@@ -49,11 +49,7 @@ inline int resolveHotbarBarHeight(const HotbarHUDLayout& layout) {
 }
 
 inline int resolveHotbarLifeBarWidth(const HotbarHUDLayout& layout) {
-    const int clampedLifeBarWidthSlots =
-        glm::clamp(layout.lifeBarWidthSlots, 1, PlayerHotbar::SLOT_COUNT + 11);
-
-    return layout.slotSize.x * clampedLifeBarWidthSlots +
-        layout.slotSpacing * (clampedLifeBarWidthSlots - 1);
+    return resolveHotbarBarWidth(layout);
 }
 
 inline glm::ivec2 resolveHotbarLifeBarSize(const HotbarHUDLayout& layout) {

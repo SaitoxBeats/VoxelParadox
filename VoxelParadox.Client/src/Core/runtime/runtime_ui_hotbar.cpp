@@ -74,18 +74,7 @@ std::string formatPortalCooldownText(const Player& player) {
         return "Portal: SANDBOX";
     }
 
-    const double remainingSeconds = player.getUniverseCreationCooldownRemainingSeconds();
-    if (remainingSeconds <= 0.0) {
-        return "Portal: READY";
-    }
-
-    const int totalSeconds = static_cast<int>(std::ceil(remainingSeconds));
-    const int minutes = totalSeconds / 60;
-    const int seconds = totalSeconds % 60;
-
-    char buffer[48];
-    std::snprintf(buffer, sizeof(buffer), "Portal: %02d:%02d", minutes, seconds);
-    return buffer;
+    return "Portal: ITEM ONLY";
 }
 
 }  // namespace
@@ -163,11 +152,6 @@ void addHotbarHUD(Player& player, Renderer& renderer, WorldStack& worldStack) {
 
                 if (player.isSandboxModeEnabled()) {
                     watchText.setColor(style.portalSandboxTextColor);
-                    return;
-                }
-
-                if (player.getUniverseCreationCooldownRemainingSeconds() <= 0.0) {
-                    watchText.setColor(style.portalReadyTextColor);
                     return;
                 }
 

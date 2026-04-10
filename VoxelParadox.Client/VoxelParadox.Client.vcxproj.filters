@@ -99,6 +99,21 @@
     <ClCompile Include="src\Entities\enemies\enemy_system.cpp">
       <Filter>src\Entities\enemies</Filter>
     </ClCompile>
+    <ClCompile Include="src\Entities\items\item_behavior.cpp">
+      <Filter>src\Entities\items</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Entities\items\item_action_runtime.cpp">
+      <Filter>src\Entities\items</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Entities\items\item_catalog.cpp">
+      <Filter>src\Entities\items</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Entities\items\item_registry.cpp">
+      <Filter>src\Entities\items</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Entities\items\item_script_runtime.cpp">
+      <Filter>src\Entities\items</Filter>
+    </ClCompile>
     <ClCompile Include="src\Renderer\entities\fbx_entity_model.cpp">
       <Filter>src\Renderer\entities</Filter>
     </ClCompile>
@@ -287,7 +302,25 @@
     <ClInclude Include="src\Core\support\game_pch.hpp">
       <Filter>src\Core\support</Filter>
     </ClInclude>
+    <ClInclude Include="src\Entities\items\item_behavior.hpp">
+      <Filter>src\Entities\items</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\items\item_action_runtime.hpp">
+      <Filter>src\Entities\items</Filter>
+    </ClInclude>
     <ClInclude Include="src\Entities\items\item_catalog.hpp">
+      <Filter>src\Entities\items</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\items\item_registry.hpp">
+      <Filter>src\Entities\items</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\items\item_script_runtime.hpp">
+      <Filter>src\Entities\items</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\items\item_types.hpp">
+      <Filter>src\Entities\items</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\items\item_use_context.hpp">
       <Filter>src\Entities\items</Filter>
     </ClInclude>
     <ClInclude Include="src\Entities\player\crafting.hpp">
@@ -490,6 +523,9 @@
     </ClInclude>
     <ClInclude Include="src\World\world\block_types.hpp">
       <Filter>src\World</Filter>
+    </ClInclude>
+    <ClInclude Include="item_use_context.hpp">
+      <Filter>src\Entities\items</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

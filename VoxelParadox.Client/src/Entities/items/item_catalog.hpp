@@ -1,275 +1,94 @@
-// item_catalog.hpp
-// Unity mental model: Global static definitions for items, tools, and inventory types.
-// Contains type enumerations, data structures, and static helper functions.
+// File: VoxelParadox.Client/src/Entities/items/item_catalog.hpp
+// Purpose: exposes the stable item helper API used across gameplay, rendering, and save/load.
+// Flow: delegates item lookups to the data-driven item catalog and registry while preserving the old call surface.
 
 #pragma once
 
-#pragma region Includes
-
 // 1. Standard Library
-#include <algorithm>
-#include <cstdint>
+#include <cstddef>
 #include <string>
+#include <string_view>
+#include <vector>
 
 // 2. Local Project Modules
-#include "client_assets.hpp"
+#include "items/item_registry.hpp"
 #include "world/block.hpp"
 
-#pragma endregion
-
-#pragma region 1. Core Enumerations
-// --- 1. Core Enumerations ---
-
-enum class ItemType : std::uint8_t {
-    NONE = 0,
-    AXE,
-    PICKAXE,
-    COUNT
+struct ItemCatalogEntry {
+    ItemId value = 0;
+    std::string stableId{};
+    std::string folderName{};
 };
 
-enum class InventoryItemKind : std::uint8_t {
-    NONE = 0,
-    BLOCK,
-    ITEM
+namespace ItemCatalog {
+
+const std::vector<ItemCatalogEntry>& entries();
+const ItemCatalogEntry* findByValue(ItemId itemId);
+const ItemCatalogEntry* findByStableId(std::string_view stableId);
+bool tryResolve(std::string_view stableId, ItemId& outItemId);
+ItemId require(std::string_view stableId);
+std::size_t count();
+
+} // namespace ItemCatalog
+
+struct NamedItemIdRef {
+    const char* stableId = "";
+
+    operator ItemId() const;
 };
 
-#pragma endregion
-
-#pragma region 2. Core Data Structures
-// --- 2. Core Data Structures ---
-
-struct Tool {
-    std::uint32_t effectiveTags = BLOCK_TAG_NONE;
-    float efficiency = 1.0f;
+struct ItemCountRef {
+    operator ItemId() const;
 };
 
-struct InventoryItem {
-    InventoryItemKind kind = InventoryItemKind::NONE;
-    BlockId blockType = BlockIds::AIR;
-    ItemType itemType = ItemType::NONE;
+namespace ItemIds {
 
-    bool empty() const {
-        return kind == InventoryItemKind::NONE;
-    }
+inline constexpr NamedItemIdRef NONE{ "none" };
+inline constexpr NamedItemIdRef AXE{ "axe" };
+inline constexpr NamedItemIdRef PICKAXE{ "pickaxe" };
+inline constexpr ItemCountRef COUNT{};
 
-    bool isBlock() const {
-        return kind == InventoryItemKind::BLOCK && blockType != BlockIds::AIR;
-    }
+} // namespace ItemIds
 
-    bool isItem() const {
-        return kind == InventoryItemKind::ITEM && itemType != ItemType::NONE;
-    }
-};
-
-inline bool operator==(const InventoryItem& lhs, const InventoryItem& rhs) {
-    return lhs.kind == rhs.kind &&
-        lhs.blockType == rhs.blockType &&
-        lhs.itemType == rhs.itemType;
+inline const ItemDefinition& getItemDefinition(ItemId itemId) {
+    return ItemRegistry::instance().definition(itemId);
 }
 
-inline bool operator!=(const InventoryItem& lhs, const InventoryItem& rhs) {
-    return !(lhs == rhs);
-}
+InventoryItem makeInventoryBlock(BlockId blockType);
+InventoryItem makeInventoryItem(ItemId itemId);
 
-#pragma endregion
+std::string normalizeItemId(std::string value);
 
-#pragma region 3. Constructors & Factories
-// --- 3. Constructors & Factories ---
+const char* getItemId(ItemId itemId);
+const char* getItemDisplayName(ItemId itemId);
+std::uint32_t getItemCategories(ItemId itemId);
+bool hasItemCategory(ItemId itemId, ItemCategory category);
+const char* getItemCategoryDisplayName(ItemCategory category);
+std::string getItemCategoryDisplayName(std::uint32_t categoryMask);
+std::string getItemCategoryDisplayName(ItemId itemId);
 
-inline InventoryItem makeInventoryBlock(BlockId blockType) {
-    if (blockType == BlockIds::AIR || blockType == BlockIds::COUNT) {
-        return {};
-    }
-    return { InventoryItemKind::BLOCK, blockType, ItemType::NONE };
-}
+const char* getInventoryItemId(const InventoryItem& item);
+const char* getInventoryItemDisplayName(const InventoryItem& item);
+std::string getInventoryItemCategoryDisplayName(const InventoryItem& item);
 
-inline InventoryItem makeInventoryItem(ItemType itemType) {
-    if (itemType == ItemType::NONE || itemType == ItemType::COUNT) {
-        return {};
-    }
-    return { InventoryItemKind::ITEM, BlockIds::AIR, itemType };
-}
+bool tryParseItemId(const std::string& rawValue, ItemId& outItemId);
+bool tryParseInventoryItem(const std::string& rawValue, InventoryItem& outItem);
 
-#pragma endregion
-
-#pragma region 4. Parsing & Formatting
-// --- 4. Parsing & Formatting ---
-
-inline std::string normalizeItemId(std::string value) {
-    return normalizeBlockId(value);
-}
-
-inline const char* getItemId(ItemType type) {
-    switch (type) {
-    case ItemType::NONE:    return "none";
-    case ItemType::AXE:     return "axe";
-    case ItemType::PICKAXE: return "pickaxe";
-    case ItemType::COUNT:
-    default:                return "unknown";
-    }
-}
-
-inline const char* getItemDisplayName(ItemType type) {
-    switch (type) {
-    case ItemType::AXE:     return "Axe";
-    case ItemType::PICKAXE: return "Pickaxe";
-    case ItemType::NONE:    return "None";
-    case ItemType::COUNT:
-    default:                return "Unknown";
-    }
-}
-
-inline const char* getInventoryItemId(const InventoryItem& item) {
-    if (item.isBlock()) {
-        return getBlockId(item.blockType);
-    }
-    if (item.isItem()) {
-        return getItemId(item.itemType);
-    }
-    return "none";
-}
-
-inline const char* getInventoryItemDisplayName(const InventoryItem& item) {
-    if (item.isBlock()) {
-        return getBlockDisplayName(item.blockType);
-    }
-    if (item.isItem()) {
-        return getItemDisplayName(item.itemType);
-    }
-    return "None";
-}
-
-inline std::string getInventoryItemCategoryDisplayName(const InventoryItem& item) {
-    if (item.isBlock()) {
-        return getBlockCategoryDisplayName(item.blockType);
-    }
-    return {};
-}
-
-inline bool tryParseItemType(const std::string& rawValue, ItemType& outType) {
-    const std::string value = normalizeItemId(rawValue);
-
-    for (int index = 0; index < static_cast<int>(ItemType::COUNT); index++) {
-        const ItemType type = static_cast<ItemType>(index);
-        if (value == getItemId(type)) {
-            outType = type;
-            return true;
-        }
-    }
-
-    outType = ItemType::NONE;
-    return false;
-}
-
-inline bool tryParseInventoryItem(const std::string& rawValue, InventoryItem& outItem) {
-    BlockId parsedBlock = BlockIds::AIR;
-
-    if (tryParseBlockType(rawValue, parsedBlock) && parsedBlock != BlockIds::AIR) {
-        outItem = makeInventoryBlock(parsedBlock);
-        return true;
-    }
-
-    ItemType parsedItem = ItemType::NONE;
-
-    if (tryParseItemType(rawValue, parsedItem) && parsedItem != ItemType::NONE) {
-        outItem = makeInventoryItem(parsedItem);
-        return true;
-    }
-
-    outItem = {};
-    return false;
-}
-
-#pragma endregion
-
-#pragma region 5. Tool Behaviors & Mechanics
-// --- 5. Tool Behaviors & Mechanics ---
-
-inline bool isToolItem(ItemType type) {
-    return type == ItemType::AXE || type == ItemType::PICKAXE;
-}
-
-inline bool isToolItem(const InventoryItem& item) {
-    return item.isItem() && isToolItem(item.itemType);
-}
-
-inline Tool getTool(ItemType type) {
-    switch (type) {
-    case ItemType::AXE:     return { BLOCK_TAG_MINEABLE_WITH_AXE, 3.0f };
-    case ItemType::PICKAXE: return { BLOCK_TAG_MINEABLE_WITH_PICKAXE, 3.0f };
-    case ItemType::NONE:
-    case ItemType::COUNT:
-    default:                return {};
-    }
-}
-
-inline Tool getTool(const InventoryItem& item) {
-    return item.isItem() ? getTool(item.itemType) : Tool{};
-}
-
-inline bool isToolEffectiveForBlock(const InventoryItem& toolItem, BlockId targetType) {
-    const Tool tool = getTool(toolItem);
-
-    return tool.effectiveTags != BLOCK_TAG_NONE &&
-        hasBlockTag(targetType, tool.effectiveTags);
-}
-
-inline float getToolAdjustedBreakTimeSeconds(const InventoryItem& toolItem,
+bool isToolItem(ItemId itemId);
+bool isToolItem(const InventoryItem& item);
+ToolDefinition getTool(ItemId itemId);
+ToolDefinition getTool(const InventoryItem& item);
+bool isToolEffectiveForBlock(const InventoryItem& toolItem, BlockId targetType);
+float getToolAdjustedBreakTimeSeconds(
+    const InventoryItem& toolItem,
     BlockId targetType,
-    float baseBreakTimeSeconds) {
-    if (baseBreakTimeSeconds <= 0.0f) {
-        return baseBreakTimeSeconds;
-    }
+    float baseBreakTimeSeconds
+);
+bool shouldDropBlockItemForTool(const InventoryItem& toolItem, BlockId brokenType);
 
-    const Tool tool = getTool(toolItem);
-    const bool isEffective = tool.effectiveTags != BLOCK_TAG_NONE &&
-        hasBlockTag(targetType, tool.effectiveTags);
+bool isPlaceableInventoryItem(const InventoryItem& item);
+int getItemStackLimit(ItemId itemId);
+int getInventoryItemStackLimit(const InventoryItem& item);
+const char* getItemTexturePath(ItemId itemId);
+bool usesItemTexturePreview(const InventoryItem& item);
 
-    const float efficiency = isEffective ? std::max(tool.efficiency, 1.0f) : 1.0f;
-
-    return baseBreakTimeSeconds / efficiency;
-}
-
-inline bool shouldDropBlockItemForTool(const InventoryItem& toolItem, BlockId brokenType) {
-    if (canBlockDropItem(brokenType)) {
-        return true;
-    }
-
-    return brokenType == BlockIds::STONE &&
-        toolItem.isItem() &&
-        toolItem.itemType == ItemType::PICKAXE;
-}
-
-#pragma endregion
-
-#pragma region 6. Inventory Limits & Properties
-// --- 6. Inventory Limits & Properties ---
-
-inline bool isPlaceableInventoryItem(const InventoryItem& item) {
-    return item.isBlock() && isPlaceableBlockType(item.blockType);
-}
-
-inline int getItemStackLimit(ItemType type) {
-    return isToolItem(type) ? 1 : 64;
-}
-
-inline int getInventoryItemStackLimit(const InventoryItem& item) {
-    if (item.isItem()) {
-        return getItemStackLimit(item.itemType);
-    }
-    return 64;
-}
-
-inline const char* getItemTexturePath(ItemType type) {
-    switch (type) {
-    case ItemType::AXE:     return ClientAssets::kAxeTexture;
-    case ItemType::PICKAXE: return ClientAssets::kPickaxeTexture;
-    default:                return nullptr;
-    }
-}
-
-inline bool usesItemTexturePreview(const InventoryItem& item) {
-    return item.isItem() && getItemTexturePath(item.itemType) != nullptr;
-}
-
-#pragma endregion

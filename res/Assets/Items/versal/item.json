@@ -1,0 +1,23 @@
+{
+  "id": "versal",
+  "display_name": "Versal",
+  "categories": [ "utility" ],
+  "stack_limit": 4,
+  "icon_asset": "Assets/Textures/Items/versal.png",
+  "on_use": {
+    "cooldown": 0.2,
+    "actions": [
+      {
+        "type": "play_sound",
+        "event": "portal.enter"
+      }
+    ]
+  },
+  "script": {
+    "enabled": true,
+    "path": "script.lua"
+  },
+  "world_preview": {
+    "use_texture_sprite": true
+  }
+}

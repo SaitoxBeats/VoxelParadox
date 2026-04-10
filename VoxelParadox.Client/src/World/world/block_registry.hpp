@@ -56,6 +56,10 @@ struct BlockDefinition {
     int materialId = 0;
     std::string shaderAssetPath{};
     std::string shaderSource{};
+    std::string textureAssetPath{};
+    std::string textureTileId{};
+    bool hasTextureTile = false;
+    glm::vec4 atlasUvTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
     std::string customModelAssetPath{};
     BlockTopDecorationRule topDecoration{};
 };
@@ -63,6 +67,7 @@ struct BlockDefinition {
 struct BlockShaderSources {
     std::string vertexSource{};
     std::string fragmentSource{};
+    std::string fallbackFragmentSource{};
     std::string error{};
 
     bool valid() const {
@@ -78,6 +83,7 @@ public:
     const BlockDefinition& definition(BlockId blockId) const;
     const std::vector<BlockDefinition>& definitions() const;
     const std::vector<const BlockDefinition*>& topDecorationDefinitions() const;
+    const std::string& textureAtlasAssetPath() const;
 
     bool tryParseId(const std::string& rawValue, BlockId& outBlockId) const;
     BlockShaderSources buildShaderSources() const;
@@ -88,4 +94,5 @@ private:
 
     std::vector<BlockDefinition> definitions_{};
     std::vector<const BlockDefinition*> topDecorationDefinitions_{};
+    std::string textureAtlasAssetPath_{};
 };

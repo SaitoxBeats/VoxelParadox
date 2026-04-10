@@ -36,7 +36,7 @@ glm::ivec4 expandRect(const glm::ivec4& rect, int amount) {
 hudHotbar::hudHotbar(const Player* player, HotbarVisualPart part)
     : player(player),
       part(part),
-      countText("", 0, 0, glm::vec2(0.9f), 14) {
+      countText("", 0, 0, glm::vec2(0.9f), 20) {
     countText.setColor(HUDHotbarPreview::config.style.countTextColor);
 }
 

@@ -1,0 +1,20 @@
+{
+  "id": "pickaxe",
+  "display_name": "Pickaxe",
+  "categories": [
+    "tool"
+  ],
+  "stack_limit": 1,
+  "icon_asset": "Assets/Textures/Items/pickaxe.png",
+  "behavior": "tool",
+  "tool": {
+    "effective_tags": [
+      "mineable_with_pickaxe"
+    ],
+    "efficiency": 3.0
+  },
+  "world_preview": {
+    "use_texture_sprite": true
+  }
+}
+

@@ -71,6 +71,11 @@
     <ClCompile Include="src\Entities\enemies\enemy_definition.cpp" />
     <ClCompile Include="src\Entities\enemies\enemy_spawn_system.cpp" />
     <ClCompile Include="src\Entities\enemies\enemy_system.cpp" />
+    <ClCompile Include="src\Entities\items\item_behavior.cpp" />
+    <ClCompile Include="src\Entities\items\item_action_runtime.cpp" />
+    <ClCompile Include="src\Entities\items\item_catalog.cpp" />
+    <ClCompile Include="src\Entities\items\item_registry.cpp" />
+    <ClCompile Include="src\Entities\items\item_script_runtime.cpp" />
     <ClCompile Include="src\Renderer\entities\fbx_entity_model.cpp" />
     <ClCompile Include="src\Entities\player\crafting.cpp" />
     <ClCompile Include="src\Entities\player\hotbar.cpp" />
@@ -135,7 +140,13 @@
     <ClInclude Include="src\Entities\enemies\enemy_types.hpp" />
     <ClInclude Include="src\Renderer\entities\fbx_entity_model.hpp" />
     <ClInclude Include="src\Core\support\game_pch.hpp" />
+    <ClInclude Include="src\Entities\items\item_behavior.hpp" />
+    <ClInclude Include="src\Entities\items\item_action_runtime.hpp" />
     <ClInclude Include="src\Entities\items\item_catalog.hpp" />
+    <ClInclude Include="src\Entities\items\item_registry.hpp" />
+    <ClInclude Include="src\Entities\items\item_script_runtime.hpp" />
+    <ClInclude Include="src\Entities\items\item_types.hpp" />
+    <ClInclude Include="src\Entities\items\item_use_context.hpp" />
     <ClInclude Include="src\Entities\player\crafting.hpp" />
     <ClInclude Include="src\Entities\player\hotbar.hpp" />
     <ClInclude Include="src\Entities\player\player.hpp" />

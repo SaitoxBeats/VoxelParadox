@@ -97,7 +97,7 @@ void Renderer::renderItemPreviewInRect(const glm::ivec4& slotRectTopLeft, int sc
         RendererInternal::renderHUD3DPreviewInRect(
             previewRect, request,
             [&](const glm::mat4& previewVP, const glm::vec3&, const HUD3DPreviewStyle&) {
-                renderItemSprite(item.itemType,
+                renderItemSprite(item.itemId,
                                  previewVP,
                                  buildPreviewItemModel(config, time, spinning, scaleMultiplier),
                                  1.0f, false);
@@ -200,6 +200,7 @@ void Renderer::renderItemPreviewInRect(const glm::ivec4& slotRectTopLeft, int sc
             blockShader.setFloat("uAoStrength", 1.0f);
             blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(world, depth));
             blockShader.setInt("uUseLocalMaterialSpace", 1);
+            bindBlockAtlasTexture();
             setBreakEffectUniforms(glm::vec3(0.0f), 0.0f);
             setHighlightEffectUniforms(glm::vec3(0.0f), 0.0f);
 
@@ -349,18 +350,17 @@ void Renderer::setupItemSpriteQuad() {
     glBindVertexArray(0);
 }
 
-GLuint Renderer::getItemTexture(ItemType type) {
-    if (getItemTexturePath(type) == nullptr) {
+GLuint Renderer::getItemTexture(ItemId itemId) {
+    if (getItemTexturePath(itemId) == nullptr) {
         return 0;
     }
 
-    const int key = static_cast<int>(type);
-    const auto found = itemTextureCache.find(key);
+    const auto found = itemTextureCache.find(itemId);
     if (found != itemTextureCache.end()) {
         return found->second;
     }
 
-    const char* path = getItemTexturePath(type);
+    const char* path = getItemTexturePath(itemId);
     if (!path) {
         return 0;
     }
@@ -370,13 +370,13 @@ GLuint Renderer::getItemTexture(ItemType type) {
         return 0;
     }
 
-    itemTextureCache[key] = texture;
+    itemTextureCache[itemId] = texture;
     return texture;
 }
 
-void Renderer::renderItemSprite(ItemType type, const glm::mat4& vp, const glm::mat4& model,
+void Renderer::renderItemSprite(ItemId itemId, const glm::mat4& vp, const glm::mat4& model,
                                 float alpha, bool depthTest) {
-    const GLuint texture = getItemTexture(type);
+    const GLuint texture = getItemTexture(itemId);
     if (texture == 0) {
         return;
     }
@@ -424,7 +424,7 @@ void Renderer::renderHeldItem(const Player& player, const FractalWorld* world,
         heldItemTransition.swapAnimating ? heldItemTransition.swapVerticalOffset : 0.0f;
 
     if (usesItemTexturePreview(heldItem)) {
-        renderHeldSpriteItem(player, heldItem.itemType, vp, time, visibility, verticalOffset);
+        renderHeldSpriteItem(player, heldItem.itemId, vp, time, visibility, verticalOffset);
         return;
     }
 
@@ -440,7 +440,7 @@ void Renderer::renderHeldItem(const Player& player, const FractalWorld* world,
     }
 }
 
-void Renderer::renderHeldSpriteItem(const Player& player, ItemType heldType,
+void Renderer::renderHeldSpriteItem(const Player& player, ItemId heldItemId,
                                     const glm::mat4& vp, float time, float visibility,
                                     float verticalOffset) {
     const glm::vec3 forward = glm::normalize(player.camera.getForward());
@@ -474,7 +474,7 @@ void Renderer::renderHeldSpriteItem(const Player& player, ItemType heldType,
     model = glm::scale(model,
                        glm::vec3(heldItemConfig.spriteScale, heldItemConfig.spriteScale, 1.0f));
 
-    renderItemSprite(heldType, vp, model, shownAmount, false);
+    renderItemSprite(heldItemId, vp, model, shownAmount, false);
 }
 
 void Renderer::renderHeldCustomBlockModel(const Player& player, const FractalWorld* world,
@@ -600,6 +600,7 @@ void Renderer::renderHeldBlock(const Player& player, const FractalWorld* world,
     blockShader.setFloat("uAoStrength", 1.0f);
     blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(world, depth));
     blockShader.setInt("uUseLocalMaterialSpace", 1);
+    bindBlockAtlasTexture();
     setBreakEffectUniforms(glm::vec3(0.0f), 0.0f);
     setHighlightEffectUniforms(glm::vec3(0.0f), 0.0f);
 
@@ -837,6 +838,7 @@ void Renderer::renderDroppedItems(const FractalWorld& world, const glm::mat4& vp
         blockShader.setFloat("uAoStrength", 1.0f);
         blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(&world, depth));
         blockShader.setInt("uUseLocalMaterialSpace", 1);
+        bindBlockAtlasTexture();
         setBreakEffectUniforms(glm::vec3(0.0f), 0.0f);
         setHighlightEffectUniforms(glm::vec3(0.0f), 0.0f);
         glDisable(GL_BLEND);
@@ -922,7 +924,7 @@ void Renderer::renderDroppedItems(const FractalWorld& world, const glm::mat4& vp
         }
 
         glBindVertexArray(0);
-        renderItemSprite(item.item.itemType,
+        renderItemSprite(item.item.itemId,
                          vp,
                          buildDroppedSpriteModel(item.position, cameraPos, time,
                                                  item.spinPhase),
