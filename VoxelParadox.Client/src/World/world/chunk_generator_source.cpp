@@ -75,8 +75,8 @@ float thresholdMargin(float signal, float threshold, bool invert) {
   return invert ? (threshold - signal) : (signal - threshold);
 }
 
-bool containsBlockType(const std::vector<BlockType>& blockTypes,
-                       BlockType candidate) {
+bool containsBlockType(const std::vector<BlockId>& blockTypes,
+                       BlockId candidate) {
   return std::find(blockTypes.begin(), blockTypes.end(), candidate) !=
          blockTypes.end();
 }
@@ -182,7 +182,7 @@ PresetModuleGeneratorSource::PresetModuleGeneratorSource(
           loadVoxStructure(
               file, module.importVoxFiles.colorMapping,
               module.importVoxFiles.colorMapping == VoxColorMapping::DEFAULT
-                  ? std::optional<BlockType>(module.importVoxFiles.defaultVoxel)
+                  ? std::optional<BlockId>(module.importVoxFiles.defaultVoxel)
                   : std::nullopt);
       if (!structure) {
         continue;
@@ -310,19 +310,19 @@ glm::ivec3 PresetModuleGeneratorSource::rotatedVoxSizeY(const glm::ivec3& size,
 
 // Funcao: executa 'writeLayerBlock' na geracao procedural baseada em presets.
 // Detalhe: usa 'target', 'value', 'blendMode' para encapsular esta etapa especifica do subsistema.
-void PresetModuleGeneratorSource::writeLayerBlock(BlockType& target, BlockType value,
+void PresetModuleGeneratorSource::writeLayerBlock(BlockId& target, BlockId value,
                                                   LayerBlendMode blendMode) {
   switch (blendMode) {
   case LayerBlendMode::OVERWRITE_ALL:
     target = value;
     break;
   case LayerBlendMode::PLACE_SOLIDS:
-    if (value != BlockType::AIR) {
+    if (value != BlockIds::AIR) {
       target = value;
     }
     break;
   case LayerBlendMode::PLACE_ON_AIR:
-    if (value != BlockType::AIR && target == BlockType::AIR) {
+    if (value != BlockIds::AIR && target == BlockIds::AIR) {
       target = value;
     }
     break;
@@ -378,7 +378,7 @@ void PresetModuleGeneratorSource::fillAir(Chunk& chunk) const {
   for (int x = 0; x < Chunk::SIZE; x++) {
     for (int y = 0; y < Chunk::SIZE; y++) {
       for (int z = 0; z < Chunk::SIZE; z++) {
-        chunk.blocks[x][y][z] = BlockType::AIR;
+        chunk.blocks[x][y][z] = BlockIds::AIR;
       }
     }
   }
@@ -458,7 +458,7 @@ void PresetModuleGeneratorSource::generateChunk(Chunk& chunk) const {
   }
 
   carveSpawnBubble(chunk);
-  applyMembraneWireLayer(chunk);
+  applyTopDecorationBlocks(chunk);
   chunk.generated = true;
 }
 
@@ -517,12 +517,12 @@ void PresetModuleGeneratorSource::applyPerlinTerrainLayer(
                       module.perlinTerrain.density.densityOctaves,
                       module.perlinTerrain.density.densityPersistence);
 
-        const BlockType value =
+        const BlockId value =
             densityValue > module.perlinTerrain.density.densityThreshold
                 ? pickPerlinBlockType(module.perlinTerrain, wx0 + x, wy0 + y,
                                       wz0 + z, densityValue)
-                : BlockType::AIR;
-        if (value == BlockType::AIR) {
+                : BlockIds::AIR;
+        if (value == BlockIds::AIR) {
           continue;
         }
         writeLayerBlock(chunk.blocks[x][y][z], value, module.blendMode);
@@ -606,7 +606,7 @@ void PresetModuleGeneratorSource::applyGridPatternLayer(
             continue;
           }
 
-          BlockType value = grid.palette.primary;
+          BlockId value = grid.palette.primary;
           if (axisMatches >= 3) {
             value = grid.palette.accent;
           } else if (axisMatches == 2) {
@@ -670,7 +670,7 @@ void PresetModuleGeneratorSource::applyGridPatternLayer(
           continue;
         }
 
-        BlockType value = grid.palette.primary;
+        BlockId value = grid.palette.primary;
         if (axisMatches >= 3) {
           value = grid.palette.accent;
         } else if (axisMatches == 2) {
@@ -793,7 +793,7 @@ void PresetModuleGeneratorSource::applyMengerSpongeLayer(
             continue;
           }
 
-          BlockType value =
+          BlockId value =
               secondarySignal > 0.45f ? sponge.palette.secondary
                                       : sponge.palette.primary;
           if (useAccentNoise) {
@@ -876,7 +876,7 @@ void PresetModuleGeneratorSource::applyMengerSpongeLayer(
           continue;
         }
 
-        BlockType value =
+        BlockId value =
             secondarySignal > 0.45f ? sponge.palette.secondary
                                     : sponge.palette.primary;
         if (useAccentNoise) {
@@ -1058,7 +1058,7 @@ void PresetModuleGeneratorSource::applyCaveSystemLayer(
         const float secondaryNoise =
             seededFbm(point.x * 0.018f, point.y * 0.018f, point.z * 0.018f,
                       secondaryOffset, 3, 0.55f);
-        BlockType value =
+        BlockId value =
             (nearestFeatureDistanceSq < secondaryRadiusSq ||
              secondaryNoise > 0.22f)
                 ? caves.palette.secondary
@@ -1148,7 +1148,7 @@ void PresetModuleGeneratorSource::applyCellularNoiseLayer(
                             2, 0.50f)
                 : -1.0f;
 
-        const BlockType value = pickVolumeNoiseBlock(
+        const BlockId value = pickVolumeNoiseBlock(
             noiseSettings, signalMargin, secondaryNoise, accentNoise);
         writeLayerBlock(chunk.blocks[x][y][z], value, module.blendMode);
       }
@@ -1224,7 +1224,7 @@ void PresetModuleGeneratorSource::applyFractalNoiseLayer(
                             2, 0.50f)
                 : -1.0f;
 
-        const BlockType value = pickVolumeNoiseBlock(
+        const BlockId value = pickVolumeNoiseBlock(
             noiseSettings, signalMargin, secondaryNoise, accentNoise);
         writeLayerBlock(chunk.blocks[x][y][z], value, module.blendMode);
       }
@@ -1300,7 +1300,7 @@ void PresetModuleGeneratorSource::applyRidgedNoiseLayer(
                             2, 0.50f)
                 : -1.0f;
 
-        const BlockType value = pickVolumeNoiseBlock(
+        const BlockId value = pickVolumeNoiseBlock(
             noiseSettings, signalMargin, secondaryNoise, accentNoise);
         writeLayerBlock(chunk.blocks[x][y][z], value, module.blendMode);
       }
@@ -1404,7 +1404,7 @@ void PresetModuleGeneratorSource::applyDomainWarpedNoiseLayer(
                             accentOffset, 2, 0.50f)
                 : -1.0f;
 
-        const BlockType value = pickVolumeNoiseBlock(
+        const BlockId value = pickVolumeNoiseBlock(
             noiseSettings, signalMargin, secondaryNoise, accentNoise);
         writeLayerBlock(chunk.blocks[x][y][z], value, module.blendMode);
       }
@@ -1443,7 +1443,7 @@ void PresetModuleGeneratorSource::applyTreeGeneratorLayer(
   const int cellMaxZ = floorDiv(chunkMax.z + horizontalReach + jitter, cellSize);
 
   std::unordered_map<ChunkCacheKey, Chunk, ChunkCacheKeyHasher> baseChunkCache;
-  const auto sampleBaseBlockAt = [&](const glm::ivec3& worldPos) -> BlockType {
+  const auto sampleBaseBlockAt = [&](const glm::ivec3& worldPos) -> BlockId {
     const ChunkCacheKey key{floorDiv(worldPos.x, Chunk::SIZE),
                             floorDiv(worldPos.y, Chunk::SIZE),
                             floorDiv(worldPos.z, Chunk::SIZE)};
@@ -1461,7 +1461,7 @@ void PresetModuleGeneratorSource::applyTreeGeneratorLayer(
     return iterator->second.blocks[localX][localY][localZ];
   };
 
-  const auto stampWorldBlock = [&](const glm::ivec3& worldPos, BlockType value) {
+  const auto stampWorldBlock = [&](const glm::ivec3& worldPos, BlockId value) {
     if (worldPos.x < chunkMin.x || worldPos.x > chunkMax.x || worldPos.y < chunkMin.y ||
         worldPos.y > chunkMax.y || worldPos.z < chunkMin.z || worldPos.z > chunkMax.z) {
       return;
@@ -1486,7 +1486,7 @@ void PresetModuleGeneratorSource::applyTreeGeneratorLayer(
       const int clearanceHeight = verticalReach + 1;
       int foundBaseY = std::numeric_limits<int>::min();
       for (int y = baseMaxY; y >= baseMinY; --y) {
-        const BlockType supportBlock =
+        const BlockId supportBlock =
             sampleBaseBlockAt(glm::ivec3(trunkBase.x, y - 1, trunkBase.z));
         if (!containsBlockType(tree.spawnOnBlocks, supportBlock)) {
           continue;
@@ -1494,7 +1494,7 @@ void PresetModuleGeneratorSource::applyTreeGeneratorLayer(
 
         bool hasClearance = true;
         for (int dy = 0; dy < clearanceHeight; ++dy) {
-          const BlockType occupiedBlock =
+          const BlockId occupiedBlock =
               sampleBaseBlockAt(glm::ivec3(trunkBase.x, y + dy, trunkBase.z));
           if (!isReplaceableBlock(occupiedBlock)) {
             hasClearance = false;
@@ -1662,7 +1662,7 @@ void PresetModuleGeneratorSource::applyImportVoxLayer(
             loadVoxStructure(
                 file, module.colorMapping,
                 module.colorMapping == VoxColorMapping::DEFAULT
-                    ? std::optional<BlockType>(module.defaultVoxel)
+                    ? std::optional<BlockId>(module.defaultVoxel)
                     : std::nullopt);
         if (!structure) {
           continue;
@@ -1728,11 +1728,11 @@ void PresetModuleGeneratorSource::stampStructureIntoChunk(
 
 // Funcao: executa 'pickPerlinBlockType' na geracao procedural baseada em presets.
 // Detalhe: usa 'module', 'wx', 'wy', 'wz', 'densityValue' para encapsular esta etapa especifica do subsistema.
-// Retorno: devolve 'BlockType' com o resultado composto por esta chamada.
+// Retorno: devolve 'BlockId' com o resultado composto por esta chamada.
 #pragma endregion
 
 #pragma region PerlinMaterialSelection
-BlockType PresetModuleGeneratorSource::pickPerlinBlockType(
+BlockId PresetModuleGeneratorSource::pickPerlinBlockType(
     const PerlinTerrainModule& module, int wx, int wy, int wz,
     float densityValue) const {
   const float surfaceDepth =
@@ -1805,10 +1805,10 @@ BlockType PresetModuleGeneratorSource::pickPerlinBlockType(
   return module.palette.core;
 }
 
-BlockType PresetModuleGeneratorSource::pickVolumeNoiseBlock(
+BlockId PresetModuleGeneratorSource::pickVolumeNoiseBlock(
     const VolumeNoiseModuleSettings& settings, float signalMargin,
     float secondaryNoise, float accentNoise) const {
-  BlockType value = settings.palette.primary;
+  BlockId value = settings.palette.primary;
 
   if (signalMargin > 0.24f ||
       (settings.secondaryNoiseScale > 0.0f &&
@@ -1853,40 +1853,60 @@ void PresetModuleGeneratorSource::carveSpawnBubble(Chunk& chunk) {
         };
 
         if (inBubble(spawnA, radiusA) || inBubble(spawnB, radiusB)) {
-          chunk.blocks[x][y][z] = BlockType::AIR;
+          chunk.blocks[x][y][z] = BlockIds::AIR;
         }
       }
     }
   }
 }
 
-void PresetModuleGeneratorSource::applyMembraneWireLayer(Chunk& chunk) const {
-  constexpr float kMembraneWireSpawnChance = 0.11f;
-  const std::uint32_t decorationSeed = seed() ^ hashString("membrane_wire");
+void PresetModuleGeneratorSource::applyTopDecorationBlocks(Chunk& chunk) const {
+  const auto& topDecorationDefinitions =
+      BlockRegistry::instance().topDecorationDefinitions();
+  if (topDecorationDefinitions.empty()) {
+    return;
+  }
+
   const int wx0 = chunk.chunkPos.x * Chunk::SIZE;
   const int wy0 = chunk.chunkPos.y * Chunk::SIZE;
   const int wz0 = chunk.chunkPos.z * Chunk::SIZE;
 
-  for (int x = 0; x < Chunk::SIZE; ++x) {
-    for (int y = 0; y < Chunk::SIZE - 1; ++y) {
-      for (int z = 0; z < Chunk::SIZE; ++z) {
-        if (chunk.blocks[x][y][z] != BlockType::MEMBRANE) {
-          continue;
-        }
-        if (chunk.blocks[x][y + 1][z] != BlockType::AIR) {
-          continue;
-        }
+  for (const BlockDefinition* definition : topDecorationDefinitions) {
+    if (!definition || !definition->topDecoration.enabled) {
+      continue;
+    }
 
-        const int wx = wx0 + x;
-        const int wy = wy0 + y + 1;
-        const int wz = wz0 + z;
-        const float spawnRoll =
-            hash01(hash3i(wx, wy, wz, decorationSeed));
-        if (spawnRoll > kMembraneWireSpawnChance) {
-          continue;
-        }
+    const BlockTopDecorationRule& topDecoration = definition->topDecoration;
+    const std::uint32_t decorationSeed =
+        seed() ^ hashString(topDecoration.seedKey.empty()
+                                ? definition->id
+                                : topDecoration.seedKey);
 
-        chunk.blocks[x][y + 1][z] = BlockType::MEMBRANE_WIRE;
+    const int offsetY = topDecoration.verticalOffset;
+    if (offsetY <= 0 || offsetY >= Chunk::SIZE) {
+      continue;
+    }
+
+    for (int x = 0; x < Chunk::SIZE; ++x) {
+      for (int y = 0; y < Chunk::SIZE - offsetY; ++y) {
+        for (int z = 0; z < Chunk::SIZE; ++z) {
+          if (chunk.blocks[x][y][z] != topDecoration.anchorBlockId) {
+            continue;
+          }
+          if (chunk.blocks[x][y + offsetY][z] != topDecoration.requiredAboveBlockId) {
+            continue;
+          }
+
+          const int wx = wx0 + x;
+          const int wy = wy0 + y + offsetY;
+          const int wz = wz0 + z;
+          const float spawnRoll = hash01(hash3i(wx, wy, wz, decorationSeed));
+          if (spawnRoll > topDecoration.spawnChance) {
+            continue;
+          }
+
+          chunk.blocks[x][y + offsetY][z] = definition->idValue;
+        }
       }
     }
   }
@@ -1896,7 +1916,7 @@ void PresetModuleGeneratorSource::applyMembraneWireLayer(Chunk& chunk) const {
 // Detalhe: centraliza a logica necessaria para produzir um identificador deterministico usado em cache, lookup ou seed.
 // Retorno: devolve 'std::uint64_t' com o valor numerico calculado para a proxima decisao do pipeline.
 std::uint64_t hashChunkBlocks(
-    const BlockType blocks[Chunk::SIZE][Chunk::SIZE][Chunk::SIZE]) {
+    const BlockId blocks[Chunk::SIZE][Chunk::SIZE][Chunk::SIZE]) {
   constexpr std::uint64_t kOffset = 1469598103934665603ull;
   constexpr std::uint64_t kPrime = 1099511628211ull;
 

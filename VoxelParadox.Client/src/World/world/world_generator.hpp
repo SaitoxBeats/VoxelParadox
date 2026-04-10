@@ -41,7 +41,7 @@ public:
             for (int x = 0; x < Chunk::SIZE; x++)
             for (int y = 0; y < Chunk::SIZE; y++)
             for (int z = 0; z < Chunk::SIZE; z++) {
-                chunk.blocks[x][y][z] = BlockType::AIR;
+                chunk.blocks[x][y][z] = BlockIds::AIR;
             }
             chunk.generated = true;
             return;

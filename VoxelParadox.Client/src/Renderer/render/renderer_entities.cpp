@@ -9,7 +9,6 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "client_assets.hpp"
 #include "enemies/enemy_definition.hpp"
 #include "enemies/enemy_runtime_helpers.hpp"
 #include "item_texture_cache.hpp"
@@ -207,15 +206,30 @@ bool Renderer::setupEntityAssets() {
 }
 
 bool Renderer::setupBlockModelAssets() {
-    std::string modelError;
-    ObjBlockModelAsset membraneWireAsset{};
-    if (!loadObjBlockModel(ClientAssets::kMembraneWireModelAsset, membraneWireAsset,
-                           modelError)) {
-        std::printf("[BlockModel] %s\n", modelError.c_str());
-        return false;
+    customBlockModels_.clear();
+
+    const auto& definitions = BlockRegistry::instance().definitions();
+    for (const BlockDefinition& definition : definitions) {
+        if (definition.customModelAssetPath.empty()) {
+            continue;
+        }
+
+        std::string modelError;
+        ObjBlockModelAsset modelAsset{};
+        if (!loadObjBlockModel(definition.customModelAssetPath, modelAsset, modelError)) {
+            std::printf("[BlockModel] %s\n", modelError.c_str());
+            return false;
+        }
+
+        LoadedObjBlockModel loadedModel{};
+        if (!setupObjBlockModel(loadedModel, modelAsset)) {
+            return false;
+        }
+
+        customBlockModels_[static_cast<int>(definition.idValue)] = std::move(loadedModel);
     }
 
-    return setupObjBlockModel(membraneWireModel_, membraneWireAsset);
+    return true;
 }
 
 void Renderer::cleanupEntityAssets() {
@@ -231,27 +245,32 @@ void Renderer::cleanupEntityAssets() {
 }
 
 void Renderer::cleanupBlockModelAssets() {
-    for (LoadedObjBlockModel::Part& part : membraneWireModel_.parts) {
-        RendererInternal::deleteVertexArrayAndBuffer(part.vao, part.vbo);
+    for (auto& [typeKey, model] : customBlockModels_) {
+        (void)typeKey;
+        for (LoadedObjBlockModel::Part& part : model.parts) {
+            RendererInternal::deleteVertexArrayAndBuffer(part.vao, part.vbo);
+        }
+        model.parts.clear();
+        if (model.texture != 0) {
+            glDeleteTextures(1, &model.texture);
+            model.texture = 0;
+        }
+        model.asset = ObjBlockModelAsset{};
     }
-    membraneWireModel_.parts.clear();
-    if (membraneWireModel_.texture != 0) {
-        glDeleteTextures(1, &membraneWireModel_.texture);
-        membraneWireModel_.texture = 0;
-    }
-    membraneWireModel_.asset = ObjBlockModelAsset{};
+
+    customBlockModels_.clear();
 }
 
-const Renderer::LoadedObjBlockModel* Renderer::getLoadedCustomBlockModel(BlockType type) const {
-    switch (type) {
-        case BlockType::MEMBRANE_WIRE:
-            return membraneWireModel_.ready() ? &membraneWireModel_ : nullptr;
-        default:
-            return nullptr;
+const Renderer::LoadedObjBlockModel* Renderer::getLoadedCustomBlockModel(BlockId type) const {
+    const auto found = customBlockModels_.find(static_cast<int>(type));
+    if (found == customBlockModels_.end()) {
+        return nullptr;
     }
+
+    return found->second.ready() ? &found->second : nullptr;
 }
 
-float Renderer::getCustomBlockModelFitScale(BlockType type) const {
+float Renderer::getCustomBlockModelFitScale(BlockId type) const {
     const LoadedObjBlockModel* model = getLoadedCustomBlockModel(type);
     return model ? model->asset.fitScale : 1.0f;
 }
@@ -340,7 +359,7 @@ void Renderer::renderTargetSelectionWireframe(const FractalWorld& world,
         return;
     }
 
-    const BlockType targetType = world.getBlock(player.targetBlock);
+    const BlockId targetType = world.getBlock(player.targetBlock);
     if (!canTargetBlock(targetType)) {
         return;
     }

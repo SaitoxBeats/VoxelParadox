@@ -14,6 +14,7 @@
 
 #include "engine/engine.hpp"
 #include "engine/input.hpp"
+#include "items/item_catalog.hpp"
 #include "player/player.hpp"
 #include "world/world_stack.hpp"
 #include "render/inventory_menu_layout.hpp"
@@ -77,10 +78,137 @@ struct InventoryTooltipInfo {
     bool visible = false;
     InventoryItem item{};
     std::string name;
+    std::string category;
+};
+
+struct InventoryTooltipGeometry {
     glm::ivec4 popupRect{0};
     glm::ivec4 previewRect{0};
-    glm::ivec2 textPos{0};
+    glm::ivec2 namePos{0};
+    glm::ivec2 categoryPos{0};
 };
+
+InventoryTooltipInfo resolveInventoryTooltip(const Player* player,
+                                            const InventoryMenuHoveredSlot& hovered) {
+    InventoryTooltipInfo tooltip{};
+    if (!player || !hovered.valid()) {
+        return tooltip;
+    }
+
+    if (hovered.kind == InventoryMenuHoveredSlotKind::CRAFT_RESULT) {
+        const CraftingRecipeResult result = player->getCraftingResult();
+        if (!result.empty()) {
+            tooltip.visible = true;
+            tooltip.item = result.item;
+            tooltip.name = getInventoryItemDisplayName(result.item);
+            tooltip.category = getInventoryItemCategoryDisplayName(result.item);
+        }
+        return tooltip;
+    }
+
+    const PlayerHotbar::Slot* hoveredSlotData = nullptr;
+    switch (hovered.kind) {
+    case InventoryMenuHoveredSlotKind::HOTBAR:
+        hoveredSlotData = &player->getHotbar().getHotbarSlot(hovered.index);
+        break;
+    case InventoryMenuHoveredSlotKind::INVENTORY:
+        hoveredSlotData = &player->getExtraInventorySlot(hovered.index);
+        break;
+    case InventoryMenuHoveredSlotKind::CRAFT_INPUT:
+        hoveredSlotData = &player->getCraftSlot(hovered.index);
+        break;
+    case InventoryMenuHoveredSlotKind::CRAFT_RESULT:
+    case InventoryMenuHoveredSlotKind::NONE:
+    default:
+        break;
+    }
+
+    if (hoveredSlotData && !hoveredSlotData->empty()) {
+        tooltip.visible = true;
+        tooltip.item = hoveredSlotData->item;
+        tooltip.name = getInventoryItemDisplayName(hoveredSlotData->item);
+        tooltip.category = getInventoryItemCategoryDisplayName(hoveredSlotData->item);
+    }
+
+    return tooltip;
+}
+
+InventoryTooltipGeometry buildInventoryTooltipGeometry(
+    const InventoryMenuPreviewConfig& preview,
+    float mouseX,
+    float mouseY,
+    int screenWidth,
+    int screenHeight,
+    const glm::vec2& nameSize,
+    const glm::vec2& categorySize,
+    bool hasCategory
+) {
+    const int nameWidth = static_cast<int>(std::round(nameSize.x));
+    const int nameHeight = static_cast<int>(std::round(nameSize.y));
+    const int categoryWidth = hasCategory ? static_cast<int>(std::round(categorySize.x)) : 0;
+    const int categoryHeight = hasCategory ? static_cast<int>(std::round(categorySize.y)) : 0;
+
+    const int contentWidth =
+        glm::max(preview.tooltipPreviewSize.x, glm::max(nameWidth, categoryWidth));
+    const int textHeight =
+        nameHeight + (hasCategory ? preview.tooltipTextGap + categoryHeight : 0);
+    const int popupWidth = preview.tooltipPadding.x * 2 + contentWidth;
+    const int popupHeight =
+        preview.tooltipPadding.y * 2 + preview.tooltipPreviewSize.y +
+        preview.tooltipGap + textHeight;
+
+    int popupX = static_cast<int>(std::round(mouseX)) + preview.tooltipCursorOffset.x;
+    int popupY = static_cast<int>(std::round(mouseY)) + preview.tooltipCursorOffset.y;
+    if (popupX + popupWidth > screenWidth - 4) {
+        popupX = static_cast<int>(std::round(mouseX)) - preview.tooltipCursorOffset.x -
+                 popupWidth;
+    }
+    if (popupY + popupHeight > screenHeight - 4) {
+        popupY = static_cast<int>(std::round(mouseY)) - preview.tooltipCursorOffset.y -
+                 popupHeight;
+    }
+    popupX = glm::clamp(popupX, 4, glm::max(4, screenWidth - popupWidth - 4));
+    popupY = glm::clamp(popupY, 4, glm::max(4, screenHeight - popupHeight - 4));
+
+    InventoryTooltipGeometry geometry{};
+    geometry.popupRect = glm::ivec4(popupX, popupY, popupWidth, popupHeight);
+    geometry.previewRect = glm::ivec4(popupX + preview.tooltipPadding.x,
+                                      popupY + preview.tooltipPadding.y,
+                                      preview.tooltipPreviewSize.x,
+                                      preview.tooltipPreviewSize.y);
+    geometry.namePos = glm::ivec2(popupX + preview.tooltipPadding.x,
+                                  popupY + preview.tooltipPadding.y +
+                                      preview.tooltipPreviewSize.y + preview.tooltipGap);
+    geometry.categoryPos = glm::ivec2(
+        popupX + preview.tooltipPadding.x,
+        geometry.namePos.y + nameHeight + preview.tooltipTextGap
+    );
+
+    return geometry;
+}
+
+void drawInventoryTooltipRect(Shader& shader, const glm::ivec4& rect, const glm::vec4& color) {
+    if (rect.z <= 0 || rect.w <= 0) {
+        return;
+    }
+
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, glm::vec3(static_cast<float>(rect.x),
+                                            static_cast<float>(rect.y), 0.0f));
+    model = glm::scale(model, glm::vec3(static_cast<float>(rect.z),
+                                        static_cast<float>(rect.w), 1.0f));
+
+    shader.setMat4("model", model);
+    shader.setInt("isText", 0);
+    shader.setVec4("color", color);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, HUD::getWhiteTexture());
+
+    HUD::bindQuad();
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    HUD::unbindQuad();
+}
 
 } // namespace
 
@@ -357,53 +485,8 @@ void hudInventoryMenu::drawBackground(Shader& shader, int screenWidth, int scree
     float mouseY = 0.0f;
     Input::getMousePosFramebuffer(mouseX, mouseY, screenWidth, screenHeight);
 
-    InventoryTooltipInfo tooltip{};
-    if (hoveredSlot.kind == InventoryMenuHoveredSlotKind::CRAFT_RESULT) {
-        const CraftingRecipeResult result = player->getCraftingResult();
-        if (!result.empty()) {
-            tooltip.visible = true;
-            tooltip.item = result.item;
-            tooltip.name = getInventoryItemDisplayName(result.item);
-        }
-    } else {
-        const PlayerHotbar::Slot* hoveredSlotData = resolveSlot(hoveredSlot);
-        if (hoveredSlotData && !hoveredSlotData->empty()) {
-            tooltip.visible = true;
-            tooltip.item = hoveredSlotData->item;
-            tooltip.name = getInventoryItemDisplayName(hoveredSlotData->item);
-        }
-    }
-
-    if (tooltip.visible) {
-        nameText.setText(tooltip.name);
-        const glm::vec2 textSize = nameText.measure();
-        const auto& preview = HUDInventoryMenuPreview::config;
-        const int contentWidth =
-            glm::max(preview.tooltipPreviewSize.x,
-                     static_cast<int>(std::round(textSize.x)));
-        const int popupWidth = preview.tooltipPadding.x * 2 + contentWidth;
-        const int popupHeight =
-            preview.tooltipPadding.y * 2 + preview.tooltipPreviewSize.y +
-            preview.tooltipGap + static_cast<int>(std::round(textSize.y));
-
-        int popupX = static_cast<int>(std::round(mouseX)) + preview.tooltipCursorOffset.x;
-        int popupY = static_cast<int>(std::round(mouseY)) + preview.tooltipCursorOffset.y;
-        if (popupX + popupWidth > screenWidth - 4) {
-            popupX = static_cast<int>(std::round(mouseX)) - preview.tooltipCursorOffset.x -
-                     popupWidth;
-        }
-        if (popupY + popupHeight > screenHeight - 4) {
-            popupY = static_cast<int>(std::round(mouseY)) - preview.tooltipCursorOffset.y -
-                     popupHeight;
-        }
-        popupX = glm::clamp(popupX, 4, glm::max(4, screenWidth - popupWidth - 4));
-        popupY = glm::clamp(popupY, 4, glm::max(4, screenHeight - popupHeight - 4));
-
-        tooltip.popupRect = glm::ivec4(popupX, popupY, popupWidth, popupHeight);
-        drawRect(shader, expandRect(tooltip.popupRect, preview.tooltipBorderThickness),
-                 glm::vec4(0.08f, 0.08f, 0.11f, 0.95f));
-        drawRect(shader, tooltip.popupRect, glm::vec4(0.01f, 0.01f, 0.03f, 0.94f));
-    }
+    (void)mouseX;
+    (void)mouseY;
 }
 
 // Funcao: renderiza 'drawCounts' na exibicao visual do inventario.
@@ -478,62 +561,45 @@ void hudInventoryMenu::drawCounts(Shader& shader, int screenWidth, int screenHei
         countText.setPosition(drawX, drawY);
         countText.draw(shader, screenWidth, screenHeight);
     }
+}
 
-    InventoryTooltipInfo tooltip{};
-    if (currentHovered.kind == InventoryMenuHoveredSlotKind::CRAFT_RESULT) {
-        const CraftingRecipeResult craftResult = player->getCraftingResult();
-        if (!craftResult.empty()) {
-            tooltip.visible = true;
-            tooltip.item = craftResult.item;
-            tooltip.name = getInventoryItemDisplayName(craftResult.item);
-        }
-    } else {
-        const PlayerHotbar::Slot* hoveredSlotData = resolveSlot(currentHovered);
-        if (hoveredSlotData && !hoveredSlotData->empty()) {
-            tooltip.visible = true;
-            tooltip.item = hoveredSlotData->item;
-            tooltip.name = getInventoryItemDisplayName(hoveredSlotData->item);
-        }
+void hudInventoryMenu::drawTooltip(Shader& shader, int screenWidth, int screenHeight) {
+    if (!player) {
+        return;
     }
 
-    if (tooltip.visible) {
-        nameText.setText(tooltip.name);
-        const glm::vec2 textSize = nameText.measure();
-        const int contentWidth =
-            glm::max(preview.tooltipPreviewSize.x,
-                     static_cast<int>(std::round(textSize.x)));
-        const int popupWidth = preview.tooltipPadding.x * 2 + contentWidth;
-        const int popupHeight =
-            preview.tooltipPadding.y * 2 + preview.tooltipPreviewSize.y +
-            preview.tooltipGap + static_cast<int>(std::round(textSize.y));
+    const auto& preview = HUDInventoryMenuPreview::config;
+    float mouseX = 0.0f;
+    float mouseY = 0.0f;
+    Input::getMousePosFramebuffer(mouseX, mouseY, screenWidth, screenHeight);
+    const InventoryMenuHoveredSlot currentHovered =
+        findHoveredSlot(screenWidth, screenHeight, mouseX, mouseY);
+    const InventoryTooltipInfo tooltip = resolveInventoryTooltip(player, currentHovered);
+    if (!tooltip.visible) {
+        return;
+    }
 
-        int popupX = static_cast<int>(std::round(mouseX)) + preview.tooltipCursorOffset.x;
-        int popupY = static_cast<int>(std::round(mouseY)) + preview.tooltipCursorOffset.y;
-        if (popupX + popupWidth > screenWidth - 4) {
-            popupX = static_cast<int>(std::round(mouseX)) - preview.tooltipCursorOffset.x -
-                     popupWidth;
-        }
-        if (popupY + popupHeight > screenHeight - 4) {
-            popupY = static_cast<int>(std::round(mouseY)) - preview.tooltipCursorOffset.y -
-                     popupHeight;
-        }
-        popupX = glm::clamp(popupX, 4, glm::max(4, screenWidth - popupWidth - 4));
-        popupY = glm::clamp(popupY, 4, glm::max(4, screenHeight - popupHeight - 4));
+    nameText.setText(tooltip.name);
+    const glm::vec2 nameSize = nameText.measure();
+    const glm::vec2 categorySize = tooltip.category.empty()
+                                       ? glm::vec2(0.0f)
+                                       : nameText.measureText(tooltip.category);
+    const InventoryTooltipGeometry geometry = buildInventoryTooltipGeometry(
+        preview, mouseX, mouseY, screenWidth, screenHeight, nameSize, categorySize,
+        !tooltip.category.empty());
 
-        tooltip.popupRect = glm::ivec4(popupX, popupY, popupWidth, popupHeight);
-        tooltip.previewRect =
-            glm::ivec4(popupX + preview.tooltipPadding.x +
-                           (contentWidth - preview.tooltipPreviewSize.x) / 2,
-                       popupY + preview.tooltipPadding.y,
-                       preview.tooltipPreviewSize.x,
-                       preview.tooltipPreviewSize.y);
-        tooltip.textPos =
-            glm::ivec2(popupX + preview.tooltipPadding.x +
-                           (contentWidth - static_cast<int>(std::round(textSize.x))) / 2,
-                       popupY + preview.tooltipPadding.y + preview.tooltipPreviewSize.y +
-                           preview.tooltipGap);
+    drawInventoryTooltipRect(shader, expandRect(geometry.popupRect, preview.tooltipBorderThickness),
+                             glm::vec4(0.08f, 0.08f, 0.11f, 0.95f));
+    drawInventoryTooltipRect(shader, geometry.popupRect, glm::vec4(0.01f, 0.01f, 0.03f, 0.94f));
 
-        nameText.setPosition(tooltip.textPos.x, tooltip.textPos.y);
+    nameText.setColor(glm::vec3(0.94f, 0.96f, 1.0f));
+    nameText.setPosition(geometry.namePos.x, geometry.namePos.y);
+    nameText.draw(shader, screenWidth, screenHeight);
+
+    if (!tooltip.category.empty()) {
+        nameText.setColor(glm::vec3(0.76f, 0.80f, 0.88f));
+        nameText.setText(tooltip.category);
+        nameText.setPosition(geometry.categoryPos.x, geometry.categoryPos.y);
         nameText.draw(shader, screenWidth, screenHeight);
     }
 }
@@ -552,16 +618,21 @@ void hudInventoryMenu::draw(Shader& shader, int screenWidth, int screenHeight) {
     case InventoryMenuVisualPart::COUNTS:
         drawCounts(shader, screenWidth, screenHeight);
         break;
+    case InventoryMenuVisualPart::TOOLTIP:
+        drawTooltip(shader, screenWidth, screenHeight);
+        break;
     }
 }
 
 // Funcao: executa 'hudInventoryMenuPreview' na exibicao visual do inventario.
 // Detalhe: usa 'renderer', 'player', 'worldStack' para encapsular esta etapa especifica do subsistema.
 hudInventoryMenuPreview::hudInventoryMenuPreview(Renderer* renderer, const Player* player,
-                                                 const WorldStack* worldStack)
+                                                 const WorldStack* worldStack,
+                                                 InventoryMenuPreviewPart part)
     : renderer(renderer),
       player(player),
       worldStack(worldStack),
+      part(part),
       tooltipText("", 0, 0, glm::vec2(1.0f), 16) {}
 
 // Funcao: renderiza 'draw' na exibicao visual do inventario.
@@ -570,8 +641,6 @@ hudInventoryMenuPreview::hudInventoryMenuPreview(Renderer* renderer, const Playe
 
 #pragma region InventoryMenuPreview
 void hudInventoryMenuPreview::draw(Shader& shader, int screenWidth, int screenHeight) {
-    (void)shader;
-
     if (!renderer || !player || !player->isInventoryOpen()) {
         return;
     }
@@ -586,152 +655,136 @@ void hudInventoryMenuPreview::draw(Shader& shader, int screenWidth, int screenHe
     float mouseY = 0.0f;
     Input::getMousePosFramebuffer(mouseX, mouseY, screenWidth, screenHeight);
 
-    for (int index = 0; index < PlayerHotbar::EXTRA_SLOT_COUNT; index++) {
-        const PlayerHotbar::Slot& slot = player->getExtraInventorySlot(index);
-        if (slot.empty()) {
-            continue;
+    if (part == InventoryMenuPreviewPart::SLOTS) {
+        for (int index = 0; index < PlayerHotbar::EXTRA_SLOT_COUNT; index++) {
+            const PlayerHotbar::Slot& slot = player->getExtraInventorySlot(index);
+            if (slot.empty()) {
+                continue;
+            }
+
+            renderer->renderItemPreviewInRect(
+                layout.inventorySlotRects[static_cast<size_t>(index)],
+                screenHeight,
+                config.layout.slotPreviewInset,
+                slot.item,
+                depth,
+                time,
+                config.item,
+                false,
+                1.0f,
+                currentWorld);
         }
 
-        renderer->renderItemPreviewInRect(
-            layout.inventorySlotRects[static_cast<size_t>(index)],
-            screenHeight,
-            config.layout.slotPreviewInset,
-            slot.item,
-            depth,
-            time,
-            config.item,
-            false,
-            1.0f,
-            currentWorld);
-    }
+        for (int index = 0; index < PlayerHotbar::HOTBAR_SLOT_COUNT; index++) {
+            const PlayerHotbar::Slot& slot = player->getHotbar().getHotbarSlot(index);
+            if (slot.empty()) {
+                continue;
+            }
 
-    for (int index = 0; index < PlayerHotbar::HOTBAR_SLOT_COUNT; index++) {
-        const PlayerHotbar::Slot& slot = player->getHotbar().getHotbarSlot(index);
-        if (slot.empty()) {
-            continue;
+            const bool selected = index == player->getSelectedHotbarIndex();
+            renderer->renderItemPreviewInRect(
+                layout.hotbarSlotRects[static_cast<size_t>(index)],
+                screenHeight,
+                config.layout.slotPreviewInset,
+                slot.item,
+                depth,
+                time,
+                config.item,
+                selected,
+                selected ? config.item.selectedScaleMultiplier : 1.0f,
+                currentWorld);
         }
 
-        const bool selected = index == player->getSelectedHotbarIndex();
-        renderer->renderItemPreviewInRect(
-            layout.hotbarSlotRects[static_cast<size_t>(index)],
-            screenHeight,
-            config.layout.slotPreviewInset,
-            slot.item,
-            depth,
-            time,
-            config.item,
-            selected,
-            selected ? config.item.selectedScaleMultiplier : 1.0f,
-            currentWorld);
-    }
+        for (int index = 0; index < PlayerHotbar::CRAFT_SLOT_COUNT; index++) {
+            const PlayerHotbar::Slot& slot = player->getCraftSlot(index);
+            if (slot.empty()) {
+                continue;
+            }
 
-    for (int index = 0; index < PlayerHotbar::CRAFT_SLOT_COUNT; index++) {
-        const PlayerHotbar::Slot& slot = player->getCraftSlot(index);
-        if (slot.empty()) {
-            continue;
+            renderer->renderItemPreviewInRect(
+                layout.craftInputRects[static_cast<size_t>(index)],
+                screenHeight,
+                config.layout.slotPreviewInset,
+                slot.item,
+                depth,
+                time,
+                config.item,
+                false,
+                1.0f,
+                currentWorld);
         }
 
-        renderer->renderItemPreviewInRect(
-            layout.craftInputRects[static_cast<size_t>(index)],
-            screenHeight,
-            config.layout.slotPreviewInset,
-            slot.item,
-            depth,
-            time,
-            config.item,
-            false,
-            1.0f,
-            currentWorld);
-    }
-
-    const CraftingRecipeResult result = player->getCraftingResult();
-    if (!result.empty()) {
-        renderer->renderItemPreviewInRect(
-            layout.craftResultRect,
-            screenHeight,
-            config.layout.slotPreviewInset,
-            result.item,
-            depth,
-            time,
-            config.item,
-            true,
-            config.item.selectedScaleMultiplier,
-            currentWorld);
-    }
-
-    const PlayerHotbar::Slot& held = player->getHeldInventorySlot();
-    if (!held.empty()) {
-        float mouseX = 0.0f;
-        float mouseY = 0.0f;
-        Input::getMousePosFramebuffer(mouseX, mouseY, screenWidth, screenHeight);
-
-        const glm::ivec4 heldRect(static_cast<int>(std::round(mouseX)) + config.heldSlotOffset.x,
-                                  static_cast<int>(std::round(mouseY)) + config.heldSlotOffset.y,
-                                  config.heldSlotSize.x, config.heldSlotSize.y);
-        renderer->renderItemPreviewInRect(heldRect, screenHeight, 0, held.item, depth, time,
-                                          config.item, true,
-                                          config.item.selectedScaleMultiplier,
-                                          currentWorld);
-    }
-
-    const InventoryMenuHoveredSlot hovered =
-        findInventoryHoveredSlot(layout, mouseX, mouseY);
-    InventoryItem tooltipItem{};
-    if (hovered.kind == InventoryMenuHoveredSlotKind::CRAFT_RESULT) {
-        const CraftingRecipeResult craftResult = player->getCraftingResult();
-        if (!craftResult.empty()) {
-            tooltipItem = craftResult.item;
+        const CraftingRecipeResult result = player->getCraftingResult();
+        if (!result.empty()) {
+            renderer->renderItemPreviewInRect(
+                layout.craftResultRect,
+                screenHeight,
+                config.layout.slotPreviewInset,
+                result.item,
+                depth,
+                time,
+                config.item,
+                true,
+                config.item.selectedScaleMultiplier,
+                currentWorld);
         }
-    } else if (hovered.valid()) {
-        switch (hovered.kind) {
-        case InventoryMenuHoveredSlotKind::HOTBAR:
-            tooltipItem = player->getHotbar().getHotbarSlot(hovered.index).item;
-            break;
-        case InventoryMenuHoveredSlotKind::INVENTORY:
-            tooltipItem = player->getExtraInventorySlot(hovered.index).item;
-            break;
-        case InventoryMenuHoveredSlotKind::CRAFT_INPUT:
-            tooltipItem = player->getCraftSlot(hovered.index).item;
-            break;
-        case InventoryMenuHoveredSlotKind::CRAFT_RESULT:
-        case InventoryMenuHoveredSlotKind::NONE:
-        default:
-            break;
+
+        const PlayerHotbar::Slot& held = player->getHeldInventorySlot();
+        if (!held.empty()) {
+            float heldMouseX = 0.0f;
+            float heldMouseY = 0.0f;
+            Input::getMousePosFramebuffer(heldMouseX, heldMouseY, screenWidth, screenHeight);
+
+            const glm::ivec4 heldRect(
+                static_cast<int>(std::round(heldMouseX)) + config.heldSlotOffset.x,
+                static_cast<int>(std::round(heldMouseY)) + config.heldSlotOffset.y,
+                config.heldSlotSize.x,
+                config.heldSlotSize.y
+            );
+            renderer->renderItemPreviewInRect(
+                heldRect,
+                screenHeight,
+                0,
+                held.item,
+                depth,
+                time,
+                config.item,
+                true,
+                config.item.selectedScaleMultiplier,
+                currentWorld);
         }
+
+        return;
     }
 
-    if (!tooltipItem.empty()) {
-        tooltipText.setText(getInventoryItemDisplayName(tooltipItem));
-        const glm::vec2 textSize = tooltipText.measure();
-        const int contentWidth =
-            glm::max(config.tooltipPreviewSize.x,
-                     static_cast<int>(std::round(textSize.x)));
-        const int popupWidth = config.tooltipPadding.x * 2 + contentWidth;
-        const int popupHeight =
-            config.tooltipPadding.y * 2 + config.tooltipPreviewSize.y +
-            config.tooltipGap + static_cast<int>(std::round(textSize.y));
-
-        int popupX = static_cast<int>(std::round(mouseX)) + config.tooltipCursorOffset.x;
-        int popupY = static_cast<int>(std::round(mouseY)) + config.tooltipCursorOffset.y;
-        if (popupX + popupWidth > screenWidth - 4) {
-            popupX = static_cast<int>(std::round(mouseX)) - config.tooltipCursorOffset.x -
-                     popupWidth;
-        }
-        if (popupY + popupHeight > screenHeight - 4) {
-            popupY = static_cast<int>(std::round(mouseY)) - config.tooltipCursorOffset.y -
-                     popupHeight;
-        }
-        popupX = glm::clamp(popupX, 4, glm::max(4, screenWidth - popupWidth - 4));
-        popupY = glm::clamp(popupY, 4, glm::max(4, screenHeight - popupHeight - 4));
-
-        const glm::ivec4 previewRect(
-            popupX + config.tooltipPadding.x +
-                (contentWidth - config.tooltipPreviewSize.x) / 2,
-            popupY + config.tooltipPadding.y,
-            config.tooltipPreviewSize.x,
-            config.tooltipPreviewSize.y);
-        renderer->renderItemPreviewInRect(previewRect, screenHeight, 0, tooltipItem, depth, time,
-                                          config.item, false, 1.0f, currentWorld);
+    const InventoryMenuHoveredSlot hovered = findInventoryHoveredSlot(layout, mouseX, mouseY);
+    const InventoryTooltipInfo tooltip = resolveInventoryTooltip(player, hovered);
+    if (!tooltip.visible) {
+        return;
     }
+
+    tooltipText.setText(tooltip.name);
+    const glm::vec2 nameSize = tooltipText.measure();
+    const glm::vec2 categorySize = tooltip.category.empty()
+                                       ? glm::vec2(0.0f)
+                                       : tooltipText.measureText(tooltip.category);
+    const InventoryTooltipGeometry geometry = buildInventoryTooltipGeometry(
+        config, mouseX, mouseY, screenWidth, screenHeight, nameSize, categorySize,
+        !tooltip.category.empty());
+
+    drawInventoryTooltipRect(shader, geometry.previewRect, glm::vec4(0.01f, 0.01f, 0.03f, 0.94f));
+
+    renderer->renderItemPreviewInRect(
+        geometry.previewRect,
+        screenHeight,
+        0,
+        tooltip.item,
+        depth,
+        time,
+        config.item,
+        true,
+        1.0f,
+        currentWorld
+    );
 }
 #pragma endregion

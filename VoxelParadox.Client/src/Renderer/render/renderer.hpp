@@ -21,6 +21,7 @@
 #include "items/item_catalog.hpp"
 #include "obj_block_model.hpp"
 #include "player/player.hpp"
+#include "world/block_registry.hpp"
 
 class Camera;
 class FractalWorld;
@@ -185,7 +186,7 @@ private:
     HeldItemTransitionState heldItemTransition{};
 
     LoadedEntityModel guyModel_{};
-    LoadedObjBlockModel membraneWireModel_{};
+    std::unordered_map<int, LoadedObjBlockModel> customBlockModels_{};
 
     std::unordered_map<int, GLuint> itemTextureCache{};
     std::vector<DustParticleVertex> dustParticleScratch{};
@@ -224,10 +225,10 @@ private:
         float time, float visibility, float verticalOffset);
 
     void renderHeldCustomBlockModel(const Player& player, const FractalWorld* world,
-        BlockType heldType, const glm::mat4& vp, int depth,
+        BlockId heldType, const glm::mat4& vp, int depth,
         float time, float visibility, float verticalOffset);
 
-    void renderHeldBlock(const Player& player, const FractalWorld* world, BlockType heldType,
+    void renderHeldBlock(const Player& player, const FractalWorld* world, BlockId heldType,
         const glm::mat4& vp, int depth, float time, float visibility,
         float verticalOffset);
 
@@ -250,8 +251,8 @@ private:
     void cleanupEntityAssets();
     void cleanupBlockModelAssets();
 
-    const LoadedObjBlockModel* getLoadedCustomBlockModel(BlockType type) const;
-    float getCustomBlockModelFitScale(BlockType type) const;
+    const LoadedObjBlockModel* getLoadedCustomBlockModel(BlockId type) const;
+    float getCustomBlockModelFitScale(BlockId type) const;
 
     glm::mat4 buildWorldBlockModelTransform(const LoadedObjBlockModel& model,
         const glm::vec3& cellOrigin,
@@ -277,7 +278,7 @@ private:
     void renderCrosshair();
     void setBreakEffectUniforms(const glm::vec3& blockCenter, float breakProgress);
     void setHighlightEffectUniforms(const glm::vec3& blockCenter, float active);
-    void uploadBlockCube(BlockType type, const glm::vec3& blockOrigin, int depth);
+    void uploadBlockCube(BlockId type, const glm::vec3& blockOrigin, int depth);
 
     void setupStencilFaceQuad();
     void setupPortalFrameGeometry();

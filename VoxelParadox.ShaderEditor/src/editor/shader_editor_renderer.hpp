@@ -13,7 +13,7 @@ struct PreviewRenderSettings {
   glm::vec4 backgroundColor{0.08f, 0.09f, 0.12f, 1.0f};
   glm::vec4 biomeTint{1.0f, 1.0f, 1.0f, 1.0f};
   glm::vec3 breakBlockCenter{0.5f, 0.5f, 0.5f};
-  BlockType blockType = BlockType::STONE;
+  BlockId blockType = BlockIds::STONE;
   float breakState = 0.0f;
   bool highlightEnabled = false;
   bool wireframe = false;
@@ -47,12 +47,12 @@ private:
   GLuint cubeVao_ = 0;
   GLuint cubeVbo_ = 0;
   glm::ivec2 viewportSize_{0};
-  BlockType currentBlockType_ = BlockType::AIR;
+  BlockId currentBlockType_ = BlockIds::AIR;
 
   void destroyFramebuffer();
   bool ensureFramebuffer(const glm::ivec2& size);
   bool ensureCubeGeometry();
-  void updateCubeGeometry(BlockType blockType);
+  void updateCubeGeometry(BlockId blockType);
 };
 
 } // namespace ShaderEditor

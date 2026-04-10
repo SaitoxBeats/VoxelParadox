@@ -74,11 +74,11 @@ void Player::handleBlockInteraction(WorldStack& worldStack, float dt) {
     // --- 1. Get Initial State ---
     FractalWorld* world = worldStack.currentWorld();
 
-    const BlockType targetType = (world && hasTarget) ? world->getBlock(targetBlock) : BlockType::AIR;
+    const BlockId targetType = (world && hasTarget) ? world->getBlock(targetBlock) : BlockIds::AIR;
 
     const bool portalActionTarget = hasTarget &&
         !usesCustomBlockModel(targetType) &&
-        (targetType == BlockType::PORTAL || isSolid(targetType));
+        (targetType == BlockIds::PORTAL || isSolid(targetType));
 
     // --- 2. Process Input Actions ---
     if (inputActions.wasPressed(InputActionIds::kPreviewPortal) && portalActionTarget) {
@@ -124,9 +124,9 @@ void Player::updateBlockBreaking(WorldStack& worldStack, float dt) {
         return;
     }
 
-    const BlockType targetType = world->getBlock(targetBlock);
+    const BlockId targetType = world->getBlock(targetBlock);
 
-    if (targetType == BlockType::AIR) {
+    if (targetType == BlockIds::AIR) {
         resetBlockBreaking();
         return;
     }
@@ -180,9 +180,9 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
         return;
     }
 
-    const BlockType brokenType = world->getBlock(targetBlock);
+    const BlockId brokenType = world->getBlock(targetBlock);
 
-    if (brokenType == BlockType::AIR) {
+    if (brokenType == BlockIds::AIR) {
         resetBlockBreaking();
         return;
     }
@@ -190,7 +190,7 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
     const InventoryItem harvestTool = hotbar.getSelectedItem();
 
     // --- 2. Portal Destruction Logic ---
-    if (brokenType == BlockType::PORTAL) {
+    if (brokenType == BlockIds::PORTAL) {
         if (worldStack.deleteUniverseAtPortal(targetBlock)) {
             GameplayStatus::System::instance().recordBlocksBroken();
 
@@ -213,7 +213,7 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
     }
 
     // --- 3. Standard Block Destruction Logic ---
-    world->setBlock(targetBlock, BlockType::AIR);
+    world->setBlock(targetBlock, BlockIds::AIR);
     GameplayStatus::System::instance().recordBlocksBroken();
 
     if (audioController) {
@@ -230,20 +230,25 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
 
     // --- 4. Handle Attached Blocks ---
     const glm::ivec3 supportedBlockPos = targetBlock + glm::ivec3(0, 1, 0);
+    const BlockId attachedTopBlockType = world->getBlock(supportedBlockPos);
+    const BlockDefinition& attachedTopBlockDefinition =
+        getBlockDefinition(attachedTopBlockType);
 
-    if (world->getBlock(supportedBlockPos) == BlockType::MEMBRANE_WIRE) {
-        world->setBlock(supportedBlockPos, BlockType::AIR);
+    if (attachedTopBlockDefinition.supportRule.mode == BlockSupportMode::ALLOW_LIST) {
+        world->setBlock(supportedBlockPos, BlockIds::AIR);
         GameplayStatus::System::instance().recordBlocksBroken();
 
         if (audioController) {
-            audioController->onBlockBroken(BlockType::MEMBRANE_WIRE, supportedBlockPos);
+            audioController->onBlockBroken(attachedTopBlockType, supportedBlockPos);
         }
 
-        world->spawnDroppedItem(
-            supportedBlockPos,
-            makeInventoryBlock(BlockType::MEMBRANE_WIRE),
-            camera.getForward() * (kDroppedItemThrowSpeed * 0.35f)
-        );
+        if (canBlockDropItem(attachedTopBlockType)) {
+            world->spawnDroppedItem(
+                supportedBlockPos,
+                makeInventoryBlock(attachedTopBlockType),
+                camera.getForward() * (kDroppedItemThrowSpeed * 0.35f)
+            );
+        }
     }
 
     resetBlockBreaking();
@@ -269,19 +274,22 @@ void Player::placeBlockAtTarget(WorldStack& worldStack) {
     }
 
     const glm::ivec3 placePos = targetBlock + targetNormal;
-    const BlockType existingType = world->getBlock(placePos);
+    const BlockId existingType = world->getBlock(placePos);
 
     if (!isReplaceableBlock(existingType)) {
         return;
     }
 
     // --- 2. Special Placement Logic ---
-    if (selectedItem.blockType == BlockType::MEMBRANE_WIRE) {
+    const BlockDefinition& selectedBlockDefinition =
+        getBlockDefinition(selectedItem.blockType);
+
+    if (selectedBlockDefinition.requiresTopPlacement) {
         if (targetNormal != glm::ivec3(0, 1, 0)) {
             return;
         }
 
-        const BlockType supportType = world->getBlock(placePos + glm::ivec3(0, -1, 0));
+        const BlockId supportType = world->getBlock(placePos + glm::ivec3(0, -1, 0));
 
         if (!canSupportTopPlacedBlock(supportType, selectedItem.blockType)) {
             return;
@@ -289,12 +297,16 @@ void Player::placeBlockAtTarget(WorldStack& worldStack) {
     }
 
     // --- 3. Existing Block Interactions ---
-    if (existingType == BlockType::MEMBRANE_WIRE && selectedItem.blockType != BlockType::MEMBRANE_WIRE) {
-        world->spawnDroppedItem(
-            placePos,
-            makeInventoryBlock(existingType),
-            camera.getForward() * (kDroppedItemThrowSpeed * 0.35f)
-        );
+    const BlockDefinition& existingBlockDefinition = getBlockDefinition(existingType);
+    if (existingBlockDefinition.supportRule.mode == BlockSupportMode::ALLOW_LIST &&
+        selectedItem.blockType != existingType) {
+        if (canBlockDropItem(existingType)) {
+            world->spawnDroppedItem(
+                placePos,
+                makeInventoryBlock(existingType),
+                camera.getForward() * (kDroppedItemThrowSpeed * 0.35f)
+            );
+        }
 
         if (audioController) {
             audioController->onBlockBroken(existingType, placePos);
@@ -302,7 +314,7 @@ void Player::placeBlockAtTarget(WorldStack& worldStack) {
     }
 
     // --- 4. Finalize Placement ---
-    const BlockType placedBlockType = selectedItem.blockType;
+    const BlockId placedBlockType = selectedItem.blockType;
 
     world->setBlock(placePos, placedBlockType);
     hotbar.consumeSelected(1);
@@ -422,7 +434,7 @@ void Player::doRaycast(FractalWorld* world) {
             break;
         }
 
-        const BlockType hitType = world->getBlock(current);
+        const BlockId hitType = world->getBlock(current);
         if (!canTargetBlock(hitType)) {
             continue;
         }

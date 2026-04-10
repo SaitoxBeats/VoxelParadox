@@ -110,9 +110,9 @@ private:
   // Funcao: executa 'carveSpawnBubble' na geracao procedural baseada em presets.
   // Detalhe: usa 'chunk' para encapsular esta etapa especifica do subsistema.
   static void carveSpawnBubble(Chunk& chunk);
-  // Funcao: aplica 'applyMembraneWireLayer' na geracao procedural baseada em presets.
-  // Detalhe: usa 'chunk' para derivar decoracao procedural a partir da geometria ja gerada.
-  void applyMembraneWireLayer(Chunk& chunk) const;
+  // Funcao: aplica 'applyTopDecorationBlocks' na geracao procedural baseada em presets.
+  // Detalhe: usa 'chunk' para derivar decoracoes procedurais a partir da geometria ja gerada.
+  void applyTopDecorationBlocks(Chunk& chunk) const;
   // Funcao: executa 'floorDiv' na geracao procedural baseada em presets.
   // Detalhe: usa 'value', 'divisor' para encapsular esta etapa especifica do subsistema.
   // Retorno: devolve 'int' com o valor numerico calculado para a proxima decisao do pipeline.
@@ -144,7 +144,7 @@ private:
   static glm::ivec3 rotatedVoxSizeY(const glm::ivec3& size, int rotation);
   // Funcao: executa 'writeLayerBlock' na geracao procedural baseada em presets.
   // Detalhe: usa 'target', 'value', 'blendMode' para encapsular esta etapa especifica do subsistema.
-  static void writeLayerBlock(BlockType& target, BlockType value,
+  static void writeLayerBlock(BlockId& target, BlockId value,
                               LayerBlendMode blendMode);
   // Funcao: executa 'collectVoxFiles' na geracao procedural baseada em presets.
   // Detalhe: usa 'root', 'recursive' para encapsular esta etapa especifica do subsistema.
@@ -189,10 +189,10 @@ private:
                                LayerBlendMode blendMode) const;
   // Funcao: executa 'pickPerlinBlockType' na geracao procedural baseada em presets.
   // Detalhe: usa 'module', 'wx', 'wy', 'wz', 'densityValue' para encapsular esta etapa especifica do subsistema.
-  // Retorno: devolve 'BlockType' com o resultado composto por esta chamada.
-  BlockType pickPerlinBlockType(const PerlinTerrainModule& module, int wx, int wy,
+  // Retorno: devolve 'BlockId' com o resultado composto por esta chamada.
+  BlockId pickPerlinBlockType(const PerlinTerrainModule& module, int wx, int wy,
                                 int wz, float densityValue) const;
-  BlockType pickVolumeNoiseBlock(const VolumeNoiseModuleSettings& settings,
+  BlockId pickVolumeNoiseBlock(const VolumeNoiseModuleSettings& settings,
                                  float signalMargin, float secondaryNoise,
                                  float accentNoise) const;
 };
@@ -202,7 +202,7 @@ using PresetPerlinGeneratorSource = PresetModuleGeneratorSource;
 // Funcao: calcula 'hashChunkBlocks' na geracao procedural baseada em presets.
 // Detalhe: centraliza a logica necessaria para produzir um identificador deterministico usado em cache, lookup ou seed.
 // Retorno: devolve 'std::uint64_t' com o valor numerico calculado para a proxima decisao do pipeline.
-std::uint64_t hashChunkBlocks(const BlockType blocks[Chunk::SIZE][Chunk::SIZE][Chunk::SIZE]);
+std::uint64_t hashChunkBlocks(const BlockId blocks[Chunk::SIZE][Chunk::SIZE][Chunk::SIZE]);
 // Funcao: calcula 'hashChunk' na geracao procedural baseada em presets.
 // Detalhe: usa 'chunk' para produzir um identificador deterministico usado em cache, lookup ou seed.
 // Retorno: devolve 'std::uint64_t' com o valor numerico calculado para a proxima decisao do pipeline.

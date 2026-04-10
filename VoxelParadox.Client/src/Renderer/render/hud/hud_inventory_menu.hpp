@@ -16,6 +16,12 @@
 enum class InventoryMenuVisualPart {
     BACKGROUND = 0,
     COUNTS,
+    TOOLTIP,
+};
+
+enum class InventoryMenuPreviewPart {
+    SLOTS = 0,
+    TOOLTIP,
 };
 
 enum class InventoryMenuHoveredSlotKind {
@@ -104,6 +110,9 @@ private:
     // Funcao: renderiza 'drawCounts' na exibicao visual do inventario.
     // Detalhe: usa 'shader', 'screenWidth', 'screenHeight' para desenhar a saida visual correspondente usando o estado atual.
     void drawCounts(class Shader& shader, int screenWidth, int screenHeight);
+    // Funcao: renderiza 'drawTooltip' na exibicao visual do inventario.
+    // Detalhe: usa 'shader', 'screenWidth', 'screenHeight' para desenhar a saida visual correspondente usando o estado atual.
+    void drawTooltip(class Shader& shader, int screenWidth, int screenHeight);
 #pragma endregion
 };
 #pragma endregion
@@ -115,7 +124,8 @@ public:
     // Funcao: executa 'hudInventoryMenuPreview' na exibicao visual do inventario.
     // Detalhe: usa 'renderer', 'player', 'worldStack' para encapsular esta etapa especifica do subsistema.
     hudInventoryMenuPreview(Renderer* renderer, const Player* player,
-                            const WorldStack* worldStack);
+                            const WorldStack* worldStack,
+                            InventoryMenuPreviewPart part);
     // Funcao: renderiza 'draw' na exibicao visual do inventario.
     // Detalhe: usa 'shader', 'screenWidth', 'screenHeight' para desenhar a saida visual correspondente usando o estado atual.
     void draw(class Shader& shader, int screenWidth, int screenHeight) override;
@@ -126,6 +136,7 @@ private:
     Renderer* renderer = nullptr;
     const Player* player = nullptr;
     const WorldStack* worldStack = nullptr;
+    InventoryMenuPreviewPart part = InventoryMenuPreviewPart::SLOTS;
     hudText tooltipText;
 #pragma endregion
 };

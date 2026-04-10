@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "engine/shader.hpp"
+#include "world/block.hpp"
 
 namespace ShaderEditor {
 
@@ -15,24 +16,20 @@ struct ShaderDiagnostic {
   std::string message;
 };
 
-struct ShaderDirectoryEntry {
-  std::filesystem::path relativePath{};
-  bool supported = false;
-};
-
 class BlockShaderSession {
 public:
   bool initialize(double nowSeconds);
   void update(double nowSeconds);
   bool requestReload(double nowSeconds, const char* trigger = "Manual reload");
-  bool trySelectFile(const std::filesystem::path& candidate, double nowSeconds);
-  void refreshAvailableFiles();
+  bool setPreviewBlock(BlockId blockId, double nowSeconds);
 
   void setHotReloadEnabled(bool enabled) { hotReloadEnabled_ = enabled; }
   bool hotReloadEnabled() const { return hotReloadEnabled_; }
 
-  const std::filesystem::path& fragmentPath() const { return fragmentPath_; }
+  const std::filesystem::path& fragmentPath() const { return fragmentTemplatePath_; }
   const std::filesystem::path& vertexPath() const { return vertexPath_; }
+  const std::filesystem::path& blockShaderPath() const { return blockShaderPath_; }
+  BlockId previewBlockId() const { return previewBlockId_; }
   const Shader* activeShader() const { return valid_ ? &shader_ : nullptr; }
   bool hasValidShader() const { return valid_; }
   bool sourceDirty() const { return sourceDirty_; }
@@ -42,22 +39,27 @@ public:
   const std::string& lastSuccessText() const { return lastSuccessText_; }
   const std::vector<ShaderDiagnostic>& diagnostics() const { return diagnostics_; }
   const std::string& rawLog() const { return rawLog_; }
-  const std::vector<ShaderDirectoryEntry>& availableFiles() const {
-    return availableFiles_;
-  }
 
 private:
   struct SourceFingerprint {
+    bool registryExists = false;
     bool vertexExists = false;
     bool fragmentExists = false;
+    bool blockShaderExists = false;
+    std::filesystem::file_time_type registryWrite{};
     std::filesystem::file_time_type vertexWrite{};
     std::filesystem::file_time_type fragmentWrite{};
+    std::filesystem::file_time_type blockShaderWrite{};
 
     bool operator==(const SourceFingerprint& other) const {
-      return vertexExists == other.vertexExists &&
+      return registryExists == other.registryExists &&
+             vertexExists == other.vertexExists &&
              fragmentExists == other.fragmentExists &&
+             blockShaderExists == other.blockShaderExists &&
+             (!registryExists || registryWrite == other.registryWrite) &&
              (!vertexExists || vertexWrite == other.vertexWrite) &&
-             (!fragmentExists || fragmentWrite == other.fragmentWrite);
+             (!fragmentExists || fragmentWrite == other.fragmentWrite) &&
+             (!blockShaderExists || blockShaderWrite == other.blockShaderWrite);
     }
 
     bool operator!=(const SourceFingerprint& other) const {
@@ -68,12 +70,13 @@ private:
   static constexpr double kDebounceSeconds = 0.20;
   static constexpr double kRetrySeconds = 0.75;
 
-  std::filesystem::path shaderRootAbs_{};
-  std::filesystem::path fragmentPath_{"Assets/Shaders/block.frag"};
+  std::filesystem::path registryPath_{"Assets/Blocks/registry.json"};
+  std::filesystem::path fragmentTemplatePath_{"Assets/Shaders/block.frag"};
   std::filesystem::path vertexPath_{"Assets/Shaders/block.vert"};
+  std::filesystem::path blockShaderPath_{};
+  BlockId previewBlockId_ = BlockIds::STONE;
 
   Shader shader_{};
-  std::vector<ShaderDirectoryEntry> availableFiles_{};
   std::vector<ShaderDiagnostic> diagnostics_{};
   std::string rawLog_{};
   std::string statusMessage_{"Waiting for the initial shader compile."};

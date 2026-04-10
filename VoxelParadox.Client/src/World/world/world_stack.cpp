@@ -202,7 +202,7 @@ bool WorldStack::descendInto(glm::ivec3 blockPos, glm::vec3 returnPos,
     }
     const ResolvedBiomeSelection childBiome =
         ensurePortalBiomeSelection(*current, blockPos, childSeed, createdPortal);
-    current->setBlock(blockPos, BlockType::PORTAL);
+    current->setBlock(blockPos, BlockIds::PORTAL);
 
     saveActiveToCache();
 
@@ -403,13 +403,13 @@ bool WorldStack::ensureNestedWorldAtBlock(
         childSeed = deriveChildSeed(current->seed, blockPos);
         current->portalBlocks[blockPos] = childSeed;
         createdPortal = true;
-        current->setBlock(blockPos, BlockType::PORTAL);
+        current->setBlock(blockPos, BlockIds::PORTAL);
         GameplayStatus::System::instance().recordUniverseCreated();
         saveActiveToCache();
     } else {
         childSeed = it->second;
-        if (current->getBlock(blockPos) != BlockType::PORTAL) {
-            current->setBlock(blockPos, BlockType::PORTAL);
+        if (current->getBlock(blockPos) != BlockIds::PORTAL) {
+            current->setBlock(blockPos, BlockIds::PORTAL);
         }
     }
 

@@ -27,8 +27,8 @@ struct GreedyChunkInput {
     int chunkSize = 16;
     int depth = 0;
     bool enableMerging = true;
-    std::function<BlockType(const glm::ivec3& localPos)> sampleBlock;
-    std::function<FaceMaterialDesc(BlockType block, int faceDirection)> resolveFaceMaterial;
+    std::function<BlockId(const glm::ivec3& localPos)> sampleBlock;
+    std::function<FaceMaterialDesc(BlockId block, int faceDirection)> resolveFaceMaterial;
 };
 
 GreedyMeshResult buildGreedyChunkMesh(const GreedyChunkInput& input);

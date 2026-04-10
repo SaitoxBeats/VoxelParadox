@@ -195,7 +195,7 @@ public:
     glm::ivec3 targetNormal{ 0 };
     bool isBreakingBlock = false;
     glm::ivec3 breakingBlock{ 0 };
-    BlockType breakingBlockType = BlockType::AIR;
+    BlockId breakingBlockType = BlockIds::AIR;
     float breakingTimer = 0.0f;
     float breakingProgress = 0.0f;
     float breakingHitCooldown = 0.0f;
@@ -274,7 +274,7 @@ public:
                        const BiomeSelection& biomeSelection,
                        const std::vector<WorldLevel>& traversalStack = {});
 
-    float getBreakTimeSeconds(BlockType targetType) const {
+    float getBreakTimeSeconds(BlockId targetType) const {
         return getToolAdjustedBreakTimeSeconds(
             hotbar.getSelectedItem(),
             targetType,
@@ -291,9 +291,9 @@ public:
     int getSelectedHotbarIndex() const { return hotbar.getSelectedIndex(); }
     const InventoryItem& getSelectedHotbarItem() const { return hotbar.getSelectedItem(); }
 
-    BlockType getSelectedHotbarBlockType() const {
+    BlockId getSelectedHotbarBlockType() const {
         const InventoryItem& selectedItem = hotbar.getSelectedItem();
-        return selectedItem.isBlock() ? selectedItem.blockType : BlockType::AIR;
+        return selectedItem.isBlock() ? selectedItem.blockType : BlockIds::AIR;
     }
 
     int getSelectedHotbarCount() const { return hotbar.getSelectedCount(); }
@@ -475,10 +475,9 @@ private:
     void updatePreviewVisibility(WorldStack& worldStack, bool lookingAtPortal, float dt);
 
     void preloadNearbyNestedWorld(WorldStack& worldStack, FractalWorld* world, bool lookingAtPortal);
-    void enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& blockPos, Camera& nestedCamera);
+    void enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& blockPos,
+                                Camera& nestedCamera, bool requireSupportBelow = true);
 
-    bool isTouchingPortalBlock(glm::ivec3 portalBlock) const;
-    bool shouldAutoEnterLookedPortal(FractalWorld* world) const;
     void beginAscendTransition(WorldStack& worldStack);
     void beginNestedEntryTransition(WorldStack& worldStack);
 #pragma endregion
@@ -501,10 +500,10 @@ private:
     void updateHeadBob(float dt, FractalWorld* world, bool active);
     void applyCameraVisualEffects();
 
-    BlockType getFootstepBlockType(FractalWorld* world) const;
+    BlockId getFootstepBlockType(FractalWorld* world) const;
     void emitFootstep(FractalWorld* world, float speedAlpha);
 
-    void handleMovement(float dt, bool allowMovementInput);
+    void handleMovement(float dt, bool allowMovementInput, bool& jumpPressConsumed);
     void handleHotbarSelectionInput();
     void resolveCollisions(FractalWorld* world, float dt);
     void updateZoom(float dt, bool allowMovementInput);

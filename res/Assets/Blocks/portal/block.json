@@ -1,0 +1,29 @@
+{
+  "id": "portal",
+  "display_name": "Portal",
+  "categories": ["portal", "decoration"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 7,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": true,
+    "has_entity": false,
+    "tags": 0,
+    "hardness": 25.0
+  },
+  "data": {
+    "can_drop_item": false
+  },
+  "render": {
+    "base_color": [0.95, 0.2, 0.85],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

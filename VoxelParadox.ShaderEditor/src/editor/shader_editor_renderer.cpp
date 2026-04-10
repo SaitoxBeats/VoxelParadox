@@ -198,11 +198,11 @@ bool ShaderEditorRenderer::ensureCubeGeometry() {
   glEnableVertexAttribArray(4);
   glBindVertexArray(0);
 
-  updateCubeGeometry(BlockType::STONE);
+  updateCubeGeometry(BlockIds::STONE);
   return true;
 }
 
-void ShaderEditorRenderer::updateCubeGeometry(BlockType blockType) {
+void ShaderEditorRenderer::updateCubeGeometry(BlockId blockType) {
   static const glm::vec3 normals[6] = {
       {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},  {0.0f, -1.0f, 0.0f},
       {0.0f, 1.0f, 0.0f},  {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f},

@@ -24,7 +24,7 @@
 #include "vox_structure.hpp"
 
 struct WorldEdits {
-    std::unordered_map<glm::ivec3, BlockType, IVec3Hash, IVec3Equal> modifiedBlocks;
+    std::unordered_map<glm::ivec3, BlockId, IVec3Hash, IVec3Equal> modifiedBlocks;
     std::unordered_map<glm::ivec3, uint32_t, IVec3Hash, IVec3Equal> portalBlocks;
     std::unordered_map<glm::ivec3, BiomeSelection, IVec3Hash, IVec3Equal> portalBiomeSelections;
     std::vector<WorldEnemy> enemies;

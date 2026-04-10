@@ -73,9 +73,9 @@ bool sameFaceKey(const FaceKey& a, const FaceKey& b) {
            a.ao == b.ao;
 }
 
-BlockType sampleBlockOrAir(const GreedyChunkInput& input, const glm::ivec3& localPos) {
+BlockId sampleBlockOrAir(const GreedyChunkInput& input, const glm::ivec3& localPos) {
     if (!input.sampleBlock) {
-        return BlockType::AIR;
+        return BlockIds::AIR;
     }
     return input.sampleBlock(localPos);
 }
@@ -279,9 +279,9 @@ GreedyMeshResult buildGreedyChunkMesh(const GreedyChunkInput& input) {
                 for (int u = 0; u < size; ++u) {
                     FaceKey key{};
                     const glm::ivec3 blockPos = faceBlockPos(face, slice, u, v);
-                    const BlockType block = sampleBlockOrAir(input, blockPos);
+                    const BlockId block = sampleBlockOrAir(input, blockPos);
                     if (isSolid(block)) {
-                        const BlockType neighbor =
+                        const BlockId neighbor =
                             sampleBlockOrAir(input, faceNeighborPos(face, blockPos));
                         if (!isSolid(neighbor)) {
                             key.visible = true;

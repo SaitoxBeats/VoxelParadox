@@ -1,0 +1,29 @@
+{
+  "id": "membrane_weave",
+  "display_name": "Membrane Weave",
+  "categories": ["decoration", "organic"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 8,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "tags": 1,
+    "hardness": 1.5
+  },
+  "data": {
+    "can_drop_item": true
+  },
+  "render": {
+    "base_color": [0.58, 0.92, 0.78],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

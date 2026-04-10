@@ -376,7 +376,7 @@ void hudPortalTracker::updateWaypoint(int screenWidth, int screenHeight) {
     } else {
         const auto portalIt = world->portalBlocks.find(trackedBlock);
         if (portalIt == world->portalBlocks.end() || portalIt->second != trackedChildSeed ||
-            world->getBlock(trackedBlock) != BlockType::PORTAL) {
+            world->getBlock(trackedBlock) != BlockIds::PORTAL) {
             waypointDeactivateWhenHidden = true;
         } else {
             trackedChildBiome =

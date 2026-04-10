@@ -26,11 +26,11 @@ public:
 
     struct CustomModelBlockInstance {
         glm::ivec3 localPos{0};
-        BlockType type = BlockType::AIR;
+        BlockId type = BlockIds::AIR;
     };
 
     glm::ivec3 chunkPos;
-    BlockType blocks[SIZE][SIZE][SIZE];
+    BlockId blocks[SIZE][SIZE][SIZE];
     GLuint vao = 0;
     GLuint vbo = 0;
     int vertexCount = 0;
@@ -48,14 +48,14 @@ public:
         if (vbo) glDeleteBuffers(1, &vbo);
     }
 
-    BlockType getBlock(int x, int y, int z) const {
+    BlockId getBlock(int x, int y, int z) const {
         if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || z < 0 || z >= SIZE) {
-            return BlockType::AIR;
+            return BlockIds::AIR;
         }
         return blocks[x][y][z];
     }
 
-    void setBlock(int x, int y, int z, BlockType type) {
+    void setBlock(int x, int y, int z, BlockId type) {
         if (x >= 0 && x < SIZE && y >= 0 && y < SIZE && z >= 0 && z < SIZE) {
             blocks[x][y][z] = type;
         }
@@ -64,7 +64,7 @@ public:
     void buildMesh(int depth, Chunk* nxC, Chunk* pxC, Chunk* nyC, Chunk* pyC,
                    Chunk* nzC, Chunk* pzC, bool useGreedyMeshing = true) {
         const auto sampleBlock = [this, nxC, pxC, nyC, pyC, nzC, pzC](
-                                     const glm::ivec3& localPos) -> BlockType {
+                                     const glm::ivec3& localPos) -> BlockId {
             if (localPos.x >= 0 && localPos.x < SIZE && localPos.y >= 0 &&
                 localPos.y < SIZE && localPos.z >= 0 && localPos.z < SIZE) {
                 return blocks[localPos.x][localPos.y][localPos.z];
@@ -89,7 +89,7 @@ public:
                 return pzC->getBlock(localPos.x, localPos.y, 0);
             }
 
-            return BlockType::AIR;
+            return BlockIds::AIR;
         };
 
         ENGINE::Meshing::GreedyChunkInput input{};
@@ -100,7 +100,7 @@ public:
         input.depth = depth;
         input.enableMerging = useGreedyMeshing;
         input.sampleBlock = sampleBlock;
-        input.resolveFaceMaterial = [depth](BlockType block,
+        input.resolveFaceMaterial = [depth](BlockId block,
                                             int faceDirection) {
             ENGINE::Meshing::FaceMaterialDesc material{};
             material.color = getBlockColor(block, depth, faceDirection);
@@ -136,7 +136,7 @@ private:
         for (int x = 0; x < SIZE; ++x) {
             for (int y = 0; y < SIZE; ++y) {
                 for (int z = 0; z < SIZE; ++z) {
-                    const BlockType type = blocks[x][y][z];
+                    const BlockId type = blocks[x][y][z];
                     if (!usesCustomBlockModel(type)) {
                         continue;
                     }

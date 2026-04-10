@@ -15,15 +15,19 @@ struct HotbarHUDLayout {
     int slotSpacing = 6;
     glm::ivec2 padding{5, 5};
     glm::ivec2 offset{0, 0};
-    int lifeBarWidthSlots = 4;
-    int lifeBarHeight = 30;
+    int barBorderThickness = 2;
+    int lifeBarWidthSlots = 9;
+    int lifeBarHeight = 10;
     int lifeBarGap = 8;
     int lifeBarBorderThickness = 2;
-    int lifeBarFillInset = 2;
+    int lifeBarFillInset = 0;
+    int portalCooldownHorizontalOffset = 42;
+    int portalCooldownVerticalOffset = 4;
     int slotPreviewInset = 4;
     int slotBorderThickness = 2;
     int selectedBorderThickness = 3;
     int countPadding = 3;
+    int countBottomPadding = 6;
 };
 
 struct ResolvedHotbarLayout {
@@ -34,16 +38,40 @@ struct ResolvedHotbarLayout {
 // Funcao: resolve 'resolveHotbarLayout' neste modulo do projeto VoxelParadox.Client.
 // Detalhe: usa 'layout', 'screenWidth', 'screenHeight' para traduzir o estado atual para uma resposta concreta usada pelo restante do sistema.
 // Retorno: devolve 'ResolvedHotbarLayout' com o resultado composto por esta chamada.
-inline ResolvedHotbarLayout resolveHotbarLayout(const HotbarHUDLayout& layout,
-                                                int screenWidth,
-                                                int screenHeight) {
-    ResolvedHotbarLayout resolved{};
-
-    const int barWidth =
-        layout.padding.x * 2 +
+inline int resolveHotbarBarWidth(const HotbarHUDLayout& layout) {
+    return layout.padding.x * 2 +
         layout.slotSize.x * PlayerHotbar::SLOT_COUNT +
         layout.slotSpacing * (PlayerHotbar::SLOT_COUNT - 1);
-    const int barHeight = layout.padding.y * 2 + layout.slotSize.y;
+}
+
+inline int resolveHotbarBarHeight(const HotbarHUDLayout& layout) {
+    return layout.padding.y * 2 + layout.slotSize.y;
+}
+
+inline int resolveHotbarLifeBarWidth(const HotbarHUDLayout& layout) {
+    const int clampedLifeBarWidthSlots =
+        glm::clamp(layout.lifeBarWidthSlots, 1, PlayerHotbar::SLOT_COUNT + 11);
+
+    return layout.slotSize.x * clampedLifeBarWidthSlots +
+        layout.slotSpacing * (clampedLifeBarWidthSlots - 1);
+}
+
+inline glm::ivec2 resolveHotbarLifeBarSize(const HotbarHUDLayout& layout) {
+    return glm::ivec2(
+        resolveHotbarLifeBarWidth(layout),
+        layout.lifeBarHeight
+    );
+}
+
+inline ResolvedHotbarLayout resolveHotbarLayout(
+    const HotbarHUDLayout& layout,
+    int screenWidth,
+    int screenHeight
+) {
+    ResolvedHotbarLayout resolved{};
+
+    const int barWidth = resolveHotbarBarWidth(layout);
+    const int barHeight = resolveHotbarBarHeight(layout);
 
     const int barX = (screenWidth - barWidth) / 2 + layout.offset.x;
     const int barY = screenHeight - barHeight - layout.offset.y;

@@ -142,24 +142,24 @@ bool fromJson(const json& value, PreviewSettings& outPreview,
 // Funcao: executa 'toJson' na serializacao e utilitarios de preset de biome.
 // Detalhe: usa 'blockType' para encapsular esta etapa especifica do subsistema.
 // Retorno: devolve 'json' com o resultado composto por esta chamada.
-json toJson(BlockType blockType) {
+json toJson(BlockId blockType) {
   return getBlockId(blockType);
 }
 
 // Funcao: executa 'fromJson' na serializacao e utilitarios de preset de biome.
 // Detalhe: usa 'value', 'outBlockType' para encapsular esta etapa especifica do subsistema.
 // Retorno: devolve 'bool' para indicar sucesso, presenca, validacao ou qualquer outra condicao relevante produzida pela chamada.
-bool fromJson(const json& value, BlockType& outBlockType) {
+bool fromJson(const json& value, BlockId& outBlockType) {
   if (!value.is_string()) {
     return false;
   }
   return tryParseBlockType(value.get<std::string>(), outBlockType);
 }
 
-json toJson(const std::vector<BlockType>& blockTypes) {
+json toJson(const std::vector<BlockId>& blockTypes) {
   json result = json::array();
-  for (BlockType blockType : blockTypes) {
-    if (blockType == BlockType::AIR || blockType == BlockType::COUNT) {
+  for (BlockId blockType : blockTypes) {
+    if (blockType == BlockIds::AIR || blockType == BlockIds::COUNT) {
       continue;
     }
     result.push_back(toJson(blockType));
@@ -167,19 +167,19 @@ json toJson(const std::vector<BlockType>& blockTypes) {
   return result;
 }
 
-bool fromJson(const json& value, std::vector<BlockType>& outBlockTypes,
+bool fromJson(const json& value, std::vector<BlockId>& outBlockTypes,
               std::string& outError, const char* contextName) {
   if (!value.is_array()) {
     outError = std::string(contextName) + " must be an array of block ids.";
     return false;
   }
 
-  std::vector<BlockType> blockTypes;
+  std::vector<BlockId> blockTypes;
   blockTypes.reserve(value.size());
   for (const json& blockValue : value) {
-    BlockType blockType = BlockType::AIR;
-    if (!fromJson(blockValue, blockType) || blockType == BlockType::AIR ||
-        blockType == BlockType::COUNT) {
+    BlockId blockType = BlockIds::AIR;
+    if (!fromJson(blockValue, blockType) || blockType == BlockIds::AIR ||
+        blockType == BlockIds::COUNT) {
       outError = std::string(contextName) + " uses an unknown block id.";
       return false;
     }
@@ -421,7 +421,7 @@ bool fromJson(const json& value, ImportVoxFilesModule& outModule,
   outModule.rotationMode = rotationMode;
   outModule.fixedRotation = std::clamp(value.value("fixed_rotation", 0), 0, 3);
 
-  BlockType defaultVoxel = outModule.defaultVoxel;
+  BlockId defaultVoxel = outModule.defaultVoxel;
   if (!fromJson(value.value("default_voxel", json()), defaultVoxel)) {
     outError = "import_vox_files.settings.default_voxel uses an unknown block id.";
     return false;
@@ -785,17 +785,17 @@ bool fromJson(const json& value, TreeGeneratorModule& outModule,
   }
   outModule.treeType = treeType;
 
-  BlockType trunkBlock = outModule.trunkBlock;
+  BlockId trunkBlock = outModule.trunkBlock;
   if (!fromJson(value.value("trunk_block", json()), trunkBlock) ||
-      trunkBlock == BlockType::AIR || trunkBlock == BlockType::COUNT) {
+      trunkBlock == BlockIds::AIR || trunkBlock == BlockIds::COUNT) {
     outError = "tree_generator.settings.trunk_block uses an unknown block id.";
     return false;
   }
   outModule.trunkBlock = trunkBlock;
 
-  BlockType leavesBlock = outModule.leavesBlock;
+  BlockId leavesBlock = outModule.leavesBlock;
   if (!fromJson(value.value("leaves_block", json()), leavesBlock) ||
-      leavesBlock == BlockType::AIR || leavesBlock == BlockType::COUNT) {
+      leavesBlock == BlockIds::AIR || leavesBlock == BlockIds::COUNT) {
     outError = "tree_generator.settings.leaves_block uses an unknown block id.";
     return false;
   }

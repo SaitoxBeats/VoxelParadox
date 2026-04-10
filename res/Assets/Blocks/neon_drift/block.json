@@ -1,0 +1,29 @@
+{
+  "id": "neon_drift",
+  "display_name": "Neon Drift",
+  "categories": ["decoration"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 10,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": true,
+    "has_entity": false,
+    "tags": 2,
+    "hardness": 1.0
+  },
+  "data": {
+    "can_drop_item": true
+  },
+  "render": {
+    "base_color": [0.18, 0.04, 0.28],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

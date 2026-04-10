@@ -27,6 +27,7 @@
 #include "hud/hud.hpp"
 #include "renderer.hpp"
 #include "renderer_internal.hpp"
+#include "world/block_registry.hpp"
 #include "world/fractal_world.hpp"
 #include "world/world_stack.hpp"
 
@@ -550,11 +551,25 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
 // Return: returns 'bool' to indicate success, presence, validation, or any other relevant condition produced by the call.
 bool Renderer::init() {
     // --- 1. Shader Programs ---
-    // The block shader tries to load from real files first and only falls back to inline if necessary.
-    if (!blockShader.compileFromFiles(ClientAssets::kBlockVertexShader,
-        ClientAssets::kBlockFragmentShader) &&
-        !blockShader.compile(BLOCK_VERT, BLOCK_FRAG)) {
-        return false;
+    // The block shader is assembled from per-block material snippets and only
+    // falls back to the embedded emergency shader when the data-driven path fails.
+    const BlockShaderSources blockShaderSources =
+        BlockRegistry::instance().buildShaderSources();
+    const bool assembledBlockShaderCompiled =
+        blockShaderSources.valid() &&
+        blockShader.compile(blockShaderSources.vertexSource.c_str(),
+                            blockShaderSources.fragmentSource.c_str());
+
+    if (!assembledBlockShaderCompiled) {
+        if (!blockShaderSources.error.empty()) {
+            std::printf("[Blocks] %s\n", blockShaderSources.error.c_str());
+        } else {
+            std::printf("[Blocks] Failed to compile assembled block shader. Using fallback.\n");
+        }
+
+        if (!blockShader.compile(BLOCK_VERT, BLOCK_FRAG)) {
+            return false;
+        }
     }
 
     if (!lineShader.compile(LINE_VERT, LINE_FRAG)) {
@@ -766,7 +781,7 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
 
     if (world && player.hasTarget && player.isBreakingBlock &&
         player.breakingBlock == player.targetBlock) {
-        const BlockType targetType = world->getBlock(player.targetBlock);
+        const BlockId targetType = world->getBlock(player.targetBlock);
         if (canTargetBlock(targetType)) {
             breakProgress = player.breakingProgress;
             breakBlockCenter = glm::vec3(player.targetBlock) + glm::vec3(0.5f);
@@ -774,7 +789,7 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
     }
 
     if (world && player.hasTarget && HUD::isVisible()) {
-        const BlockType targetType = world->getBlock(player.targetBlock);
+        const BlockId targetType = world->getBlock(player.targetBlock);
         if (canTargetBlock(targetType)) {
             highlightActive = 1.0f;
             highlightBlockCenter = glm::vec3(player.targetBlock) + glm::vec3(0.5f);

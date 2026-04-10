@@ -24,17 +24,17 @@ BiomeModule makeBaseModule(const std::string& id, std::string displayName,
 
 TricolorPaletteModule makeStoneMembraneCrystalPalette() {
   TricolorPaletteModule palette;
-  palette.primary = BlockType::STONE;
-  palette.secondary = BlockType::MEMBRANE;
-  palette.accent = BlockType::CRYSTAL;
+  palette.primary = BlockIds::STONE;
+  palette.secondary = BlockIds::MEMBRANE;
+  palette.accent = BlockIds::CRYSTAL;
   return palette;
 }
 
 TricolorPaletteModule makeStoneOrganicCrystalPalette() {
   TricolorPaletteModule palette;
-  palette.primary = BlockType::STONE;
-  palette.secondary = BlockType::ORGANIC;
-  palette.accent = BlockType::CRYSTAL;
+  palette.primary = BlockIds::STONE;
+  palette.secondary = BlockIds::ORGANIC;
+  palette.accent = BlockIds::CRYSTAL;
   return palette;
 }
 
@@ -415,7 +415,7 @@ BiomeModule BiomeModule::makeImportVoxFiles(const std::string& id) {
       makeBaseModule(id, "Vox Import", ModuleType::IMPORT_VOX_FILES,
                      LayerBlendMode::PLACE_SOLIDS);
   result.importVoxFiles = {};
-  result.importVoxFiles.defaultVoxel = BlockType::STONE;
+  result.importVoxFiles.defaultVoxel = BlockIds::STONE;
   return result;
 }
 
@@ -512,12 +512,12 @@ BiomeModule BiomeModule::makeTreeGenerator(const std::string& id) {
       makeBaseModule(id, "Tree Generator", ModuleType::TREE_GENERATOR,
                      LayerBlendMode::PLACE_ON_AIR);
   result.treeGenerator = {};
-  result.treeGenerator.spawnOnBlocks = {BlockType::MEMBRANE, BlockType::ORGANIC};
+  result.treeGenerator.spawnOnBlocks = {BlockIds::MEMBRANE, BlockIds::ORGANIC};
   result.treeGenerator.pattern = VoxPlacementPattern::RANDOM_SCATTER;
   result.treeGenerator.density = 0.35f;
   result.treeGenerator.treeType = TreeGeneratorType::NORMAL;
-  result.treeGenerator.trunkBlock = BlockType::MEMBRANE_WEAVE;
-  result.treeGenerator.leavesBlock = BlockType::ORGANIC;
+  result.treeGenerator.trunkBlock = BlockIds::MEMBRANE_WEAVE;
+  result.treeGenerator.leavesBlock = BlockIds::ORGANIC;
   result.treeGenerator.infiniteY = false;
   result.treeGenerator.minY = -8;
   result.treeGenerator.maxY = 72;
@@ -545,31 +545,31 @@ PerlinDensityModule legacyDefaultPerlinDensity(int depth) {
 
 MaterialPaletteModule legacyDefaultMaterialPalette(int depth) {
   if (depth == 0) {
-    return {BlockType::MEMBRANE, BlockType::ORGANIC, BlockType::STONE,
-            BlockType::STONE, BlockType::CRYSTAL, BlockType::VOID_MATTER};
+    return {BlockIds::MEMBRANE, BlockIds::ORGANIC, BlockIds::STONE,
+            BlockIds::STONE, BlockIds::CRYSTAL, BlockIds::VOID_MATTER};
   }
   if (depth == 1) {
-    return {BlockType::MEMBRANE, BlockType::ORGANIC, BlockType::MEMBRANE,
-            BlockType::VOID_MATTER, BlockType::CRYSTAL, BlockType::STONE};
+    return {BlockIds::MEMBRANE, BlockIds::ORGANIC, BlockIds::MEMBRANE,
+            BlockIds::VOID_MATTER, BlockIds::CRYSTAL, BlockIds::STONE};
   }
   if (depth == 2) {
-    return {BlockType::MEMBRANE, BlockType::ORGANIC, BlockType::VOID_MATTER,
-            BlockType::METAL, BlockType::CRYSTAL, BlockType::MEMBRANE};
+    return {BlockIds::MEMBRANE, BlockIds::ORGANIC, BlockIds::VOID_MATTER,
+            BlockIds::METAL, BlockIds::CRYSTAL, BlockIds::MEMBRANE};
   }
 
   switch ((depth - 3) % 4) {
   case 0:
-    return {BlockType::MEMBRANE, BlockType::ORGANIC, BlockType::STONE,
-            BlockType::VOID_MATTER, BlockType::CRYSTAL, BlockType::STONE};
+    return {BlockIds::MEMBRANE, BlockIds::ORGANIC, BlockIds::STONE,
+            BlockIds::VOID_MATTER, BlockIds::CRYSTAL, BlockIds::STONE};
   case 1:
-    return {BlockType::MEMBRANE, BlockType::ORGANIC, BlockType::MEMBRANE,
-            BlockType::ORGANIC, BlockType::CRYSTAL, BlockType::VOID_MATTER};
+    return {BlockIds::MEMBRANE, BlockIds::ORGANIC, BlockIds::MEMBRANE,
+            BlockIds::ORGANIC, BlockIds::CRYSTAL, BlockIds::VOID_MATTER};
   case 2:
-    return {BlockType::MEMBRANE, BlockType::ORGANIC, BlockType::VOID_MATTER,
-            BlockType::METAL, BlockType::CRYSTAL, BlockType::VOID_MATTER};
+    return {BlockIds::MEMBRANE, BlockIds::ORGANIC, BlockIds::VOID_MATTER,
+            BlockIds::METAL, BlockIds::CRYSTAL, BlockIds::VOID_MATTER};
   default:
-    return {BlockType::MEMBRANE, BlockType::ORGANIC, BlockType::ORGANIC,
-            BlockType::MEMBRANE, BlockType::CRYSTAL, BlockType::VOID_MATTER};
+    return {BlockIds::MEMBRANE, BlockIds::ORGANIC, BlockIds::ORGANIC,
+            BlockIds::MEMBRANE, BlockIds::CRYSTAL, BlockIds::VOID_MATTER};
   }
 }
 

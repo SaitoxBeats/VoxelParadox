@@ -1,7 +1,7 @@
 #version 460 core
 // block.frag
-// Main block surface shader. Builds the procedural material, applies biome tint,
-// lighting, fog, transparency, and the block breaking effect.
+// Shared block surface shader template. The block registry injects block base colors,
+// per-block material functions, and the dispatch table into the placeholders below.
 
 in vec3 vWorldPos;
 in vec3 vLocalPos;
@@ -25,15 +25,6 @@ uniform vec3 uHighlightBlockCenter;
 uniform float uHighlightActive;
 
 out vec4 FragColor;
-
-const int MATERIAL_STONE = 1;
-const int MATERIAL_CRYSTAL = 2;
-const int MATERIAL_VOID_MATTER = 3;
-const int MATERIAL_MEMBRANE = 4;
-const int MATERIAL_ORGANIC = 5;
-const int MATERIAL_METAL = 6;
-const int MATERIAL_PORTAL = 7;
-const int MATERIAL_MEMBRANE_WEAVE = 8;
 
 struct MaterialSample {
     vec3 albedo;
@@ -102,9 +93,6 @@ float breakFaceId(vec3 normal) {
     return normal.y > 0.0 ? 4.0 : 5.0;
 }
 
-// The old effect evaluated a full 3D Voronoi with two expensive passes per
-// fragment. The fracture is only visible on the current face, so a 2D Worley
-// pattern in face space keeps the same visual language at a much lower cost.
 vec3 breakVoronoi2D(vec2 x) {
     vec2 n = floor(x);
     vec2 f = fract(x);
@@ -169,10 +157,6 @@ float blockMask(vec3 worldPos, vec3 blockCenter) {
     return inside.x * inside.y * inside.z;
 }
 
-// Photoshop-style block selection outline:
-// this runs only for the highlighted block and keeps the effect on the cube
-// silhouette by checking whether each face edge borders a neighbor face that is
-// turned away from the camera.
 vec3 applySelectionHighlight(vec3 baseColor, vec3 worldPos, vec3 normal) {
     float selectionMask = uHighlightActive * blockMask(worldPos, uHighlightBlockCenter);
     if (selectionMask <= 0.0) {
@@ -252,31 +236,7 @@ vec3 applySelectionHighlight(vec3 baseColor, vec3 worldPos, vec3 normal) {
 }
 
 vec3 blockBaseColor(int materialId) {
-    if (materialId == MATERIAL_STONE) {
-        return vec3(0.45, 0.42, 0.50);
-    }
-    if (materialId == MATERIAL_CRYSTAL) {
-        return vec3(0.15, 0.85, 0.95);
-    }
-    if (materialId == MATERIAL_VOID_MATTER) {
-        return vec3(0.20, 0.08, 0.30);
-    }
-    if (materialId == MATERIAL_MEMBRANE) {
-        return vec3(0.25, 0.90, 0.55);
-    }
-    if (materialId == MATERIAL_ORGANIC) {
-        return vec3(0.75, 0.35, 0.28);
-    }
-    if (materialId == MATERIAL_METAL) {
-        return vec3(0.68, 0.70, 0.75);
-    }
-    if (materialId == MATERIAL_PORTAL) {
-        return vec3(0.95, 0.20, 0.85);
-    }
-    if (materialId == MATERIAL_MEMBRANE_WEAVE) {
-        return vec3(0.58, 0.92, 0.78);
-    }
-    return vec3(1.0, 0.0, 1.0);
+/*__BLOCK_BASE_COLOR__*/    return vec3(1.0, 0.0, 1.0);
 }
 
 MaterialSample makeSample(vec3 albedo, float roughness, float specular, float emissive) {
@@ -288,108 +248,11 @@ MaterialSample makeSample(vec3 albedo, float roughness, float specular, float em
     return result;
 }
 
+/*__BLOCK_SHADER_DECLARATIONS__*/
+
 MaterialSample sampleBlockMaterial(int materialId, vec3 worldPos, vec3 worldNormal,
                                    vec3 faceNormal, vec3 viewDir) {
-    vec3 base = blockBaseColor(materialId);
-    vec2 uv = faceUv(worldPos, faceNormal);
-    vec2 localUv = fract(uv + vec2(0.001));
-    vec2 centeredUv = localUv - 0.5;
-    vec3 cell = floor(worldPos - faceNormal * 0.5 + vec3(0.001));
-    float cellHash = hash31(cell + vec3(float(materialId) * 1.6180339, 2.13, 4.37));
-
-    if (materialId == MATERIAL_STONE) {
-        float strata = fbm21(vec2(uv.x * 3.4 + cellHash * 4.0, worldPos.y * 0.28 + uv.y * 1.4));
-        float grain = noise21(localUv * 11.0 + cellHash * 9.0);
-        float cracks = smoothstep(0.63, 0.82,
-                                  fbm21(uv * 8.0 + vec2(cellHash * 17.0, -cellHash * 13.0)));
-        vec3 albedo = base * mix(0.72, 1.15, strata);
-        albedo *= mix(0.96, 0.82, cracks * 0.55);
-        albedo += vec3((grain - 0.5) * 0.06);
-        return makeSample(clamp(albedo, vec3(0.0), vec3(1.4)), 0.92, 0.05, 0.0);
-    }
-
-    if (materialId == MATERIAL_CRYSTAL) {
-        float bands = 0.5 + 0.5 * sin((uv.x + uv.y) * 18.0 + uTime * 2.4);
-        float sparkle = noise21(localUv * 14.0 + cellHash * 9.0);
-        float fresnel = pow(1.0 - max(dot(worldNormal, viewDir), 0.0), 4.0);
-        vec3 albedo = mix(base * 0.78, vec3(1.0), bands * 0.32 + fresnel * 0.22);
-        albedo *= 0.96 + sparkle * 0.08;
-        albedo += vec3(0.08, 0.14, 0.18) * fresnel;
-
-        return makeSample(clamp(albedo, vec3(0.0), vec3(1.6)), 0.14, 0.65,
-                          0.42 + bands * 0.28 + fresnel * 0.30 + sparkle * 0.04);
-    }
-
-    if (materialId == MATERIAL_VOID_MATTER) {
-        float voidNoise = fbm21(uv * 6.0 + vec2(uTime * 0.20, -uTime * 0.20) + cellHash * 5.0);
-        float wisps = 0.5 + 0.5 * sin((uv.x - uv.y) * 14.0 - uTime * 3.0 + cellHash * 8.0);
-        float rim = pow(1.0 - max(dot(worldNormal, viewDir), 0.0), 2.4);
-        vec3 albedo = mix(base * 0.22, base * 0.85 + vec3(0.08, 0.0, 0.12), voidNoise);
-        albedo += vec3(0.06, 0.01, 0.08) * wisps * 0.25;
-        return makeSample(clamp(albedo, vec3(0.0), vec3(1.2)), 0.52, 0.18,
-                          0.12 + rim * 0.18 + wisps * 0.08);
-    }
-
-    if (materialId == MATERIAL_MEMBRANE) {
-        float veins = fbm21(vec2(uv.x * 5.0, uv.y * 1.0 - uTime * 0.45));
-        float ridge = abs(sin(uv.x * 18.0 + veins * 6.0 + uTime * 2.1));
-        float pulseField = fbm21(uv * 0.35 + vec2(3.7, 8.1));
-        float pulse = 0.5 + 0.5 * sin(uTime * 5.8 + pulseField * 6.2831853);
-        float pores = noise21(localUv * 18.0 + cellHash * 13.0);
-
-        vec3 albedo = mix(base * 0.72, base * 1.18, smoothstep(0.36, 0.92, ridge));
-        albedo *= 0.95 + pores * 0.08;
-        albedo += vec3(0.06, 0.10, 0.05) * pulse * 0.18;
-
-        return makeSample(clamp(albedo, vec3(0.0), vec3(1.4)), 0.66, 0.12,
-                          0.10 + ridge * 0.10 * pulse);
-    }
-
-    if (materialId == MATERIAL_ORGANIC) {
-        float fiber = fbm21(vec2(uv.x * 9.0 + cellHash * 4.0, uv.y * 3.0 - cellHash * 3.0));
-        float pores = noise21(localUv * 18.0 + cellHash * 13.0);
-        vec3 albedo = mix(base * 0.78, base * 1.06, fiber);
-        albedo *= 0.92 + pores * 0.10;
-        albedo += vec3(0.05, 0.02, 0.01) * smoothstep(0.72, 1.0, pores);
-        return makeSample(clamp(albedo, vec3(0.0), vec3(1.25)), 0.78, 0.08, 0.0);
-    }
-
-    if (materialId == MATERIAL_METAL) {
-        float brushed = 0.5 + 0.5 * sin(uv.y * 96.0);
-        float scratches = fbm21(vec2(uv.x * 18.0, uv.y * 72.0));
-        float microScratch = noise21(localUv * 18.0 + cellHash * 7.0);
-        float edge = pow(1.0 - max(dot(worldNormal, viewDir), 0.0), 3.5);
-        vec3 albedo = mix(base * 0.72, base * 1.12,
-                          brushed * 0.22 + scratches * 0.14 + microScratch * 0.04);
-        albedo += vec3(edge) * 0.08;
-
-        return makeSample(clamp(albedo, vec3(0.0), vec3(1.6)), 0.18, 0.85, 0.0);
-    }
-
-    if (materialId == MATERIAL_PORTAL) {
-        float dist = length(centeredUv);
-        float ring = 0.5 + 0.5 * sin(dist * 26.0 - uTime * 2.0);
-        float vortex = fbm21(uv * 2.25 + vec2(uTime * 0.15, -uTime * 0.12) +
-                             vec2(cellHash * 9.0));
-        vec3 albedo = mix(vec3(0.06, 0.02, 0.10),
-                          base * 1.20 + vec3(0.10, 0.0, 0.16), vortex);
-        albedo += vec3(0.18, 0.03, 0.22) * ring * 0.25;
-        return makeSample(clamp(albedo, vec3(0.0), vec3(1.8)), 0.05, 0.35,
-                          0.55 + ring * 2.30 + vortex * 0.20);
-    }
-
-    if (materialId == MATERIAL_MEMBRANE_WEAVE) {
-        float weaveA = smoothstep(0.5, 0.58, abs(sin(localUv.x * 16.0 + 1.5)));
-        float weaveB = smoothstep(0.5, 0.58, abs(sin(localUv.y * 16.0 + 1.5)));
-        float knots = fbm21(localUv * 16.0 + cellHash * 5.0);
-        float weave = max(weaveA, weaveB);
-        vec3 albedo = mix(base * 0.72, base * 1.10, weave);
-        albedo *= 0.90 + knots * 0.12;
-        return makeSample(clamp(albedo, vec3(0.0), vec3(1.4)), 0.52, 0.22,
-                          0.08 * weave);
-    }
-
-    return makeSample(base, 0.80, 0.10, 0.0);
+/*__BLOCK_SHADER_DISPATCH__*/    return makeSample(vec3(1.0, 0.0, 1.0), 0.80, 0.10, 0.0);
 }
 
 float bayerDither4x4(vec2 pix, float brightness) {
@@ -514,7 +377,7 @@ void main() {
                         6.2831853));
             float starMask =
                 starPresence * 0.0 * starShape * starBlink *
-                smoothstep(0.55, 0.9, filledMask); // starPresence * 0.2 <-- controls max star brightness
+                smoothstep(0.55, 0.9, filledMask);
 
             color = mix(color, vec3(1.0), clamp(starMask, 0.0, 1.0));
         }

@@ -1,0 +1,29 @@
+{
+  "id": "metal",
+  "display_name": "Metal",
+  "categories": ["terrain", "decoration"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 6,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "tags": 2,
+    "hardness": 25.0
+  },
+  "data": {
+    "can_drop_item": false
+  },
+  "render": {
+    "base_color": [0.68, 0.7, 0.75],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

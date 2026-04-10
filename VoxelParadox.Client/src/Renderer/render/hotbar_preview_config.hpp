@@ -8,11 +8,13 @@
 #include <glm/glm.hpp>
 
 #include "hotbar_layout.hpp"
+#include "hud/styles/hotbar_hud_style.hpp"
 #include "hud_3d_preview.hpp"
 #include "item_preview_config.hpp"
 
 struct HotbarPreviewConfig {
     HotbarHUDLayout layout{};
+    HotbarHUDStyle style = HUDStyles::kHotbar;
     HUDItemPreviewConfig item{};
 
     // Funcao: executa 'HotbarPreviewConfig' neste modulo do projeto VoxelParadox.Client.

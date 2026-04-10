@@ -150,7 +150,7 @@ void Player::updateNestedPreviewAnchorFromSavedState(WorldStack& worldStack,
     Camera savedChildCamera = camera;
     savedChildCamera.position = savedChildPos;
     savedChildCamera.orientation = savedChildOrientation;
-    enforceSafeNestedSpawn(worldStack, block, savedChildCamera);
+    enforceSafeNestedSpawn(worldStack, block, savedChildCamera, false);
     setNestedPreviewOverrideFrame(
         buildPreviewOverrideFrame(camera, previewPortal, savedChildCamera));
 }
@@ -161,7 +161,7 @@ void Player::setNestedPreviewOverrideFrame(const NestedPreviewFrame& frame) {
 }
 
 bool Player::isLookingAtPortal(FractalWorld* world) const {
-    return world && hasTarget && world->getBlock(targetBlock) == BlockType::PORTAL;
+    return world && hasTarget && world->getBlock(targetBlock) == BlockIds::PORTAL;
 }
 
 bool Player::canCreateNestedWorldNow() const {
@@ -196,22 +196,6 @@ bool Player::tryPrepareNestedWorld(
         markNestedWorldCreated();
     }
     return true;
-}
-
-bool Player::isTouchingPortalBlock(glm::ivec3 portalBlock) const {
-    const glm::vec3 blockMin = glm::vec3(portalBlock);
-    const glm::vec3 blockMax = blockMin + glm::vec3(1.0f);
-    const glm::vec3 closest(
-        glm::clamp(camera.position.x, blockMin.x, blockMax.x),
-        glm::clamp(camera.position.y, blockMin.y, blockMax.y),
-        glm::clamp(camera.position.z, blockMin.z, blockMax.z));
-
-    const glm::vec3 delta = camera.position - closest;
-    return glm::dot(delta, delta) <= (playerRadius * playerRadius);
-}
-
-bool Player::shouldAutoEnterLookedPortal(FractalWorld* world) const {
-    return isLookingAtPortal(world) && isTouchingPortalBlock(targetBlock);
 }
 
 void Player::handleTransition(float dt, WorldStack& worldStack) {
@@ -325,7 +309,7 @@ void Player::preloadNearbyNestedWorld(WorldStack& worldStack, FractalWorld* worl
 }
 
 void Player::enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& blockPos,
-                                    Camera& nestedCamera) {
+                                    Camera& nestedCamera, bool requireSupportBelow) {
     FractalWorld* nestedWorld = worldStack.getOrCreateNestedPreviewWorld(blockPos);
     if (!nestedWorld) {
         nestedCamera.position = nestedWorldSpawnPosition();
@@ -335,7 +319,8 @@ void Player::enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& bl
     const glm::vec3 candidateFeet =
         nestedCamera.position - glm::vec3(0.0f, standingEyeHeight, 0.0f);
     const bool hasRoom = canOccupyBodyAt(nestedWorld, candidateFeet, standingHeight);
-    const bool hasGround = hasSupportBelow(nestedWorld, candidateFeet, 0.0f, false);
+    const bool hasGround =
+        !requireSupportBelow || hasSupportBelow(nestedWorld, candidateFeet, 0.0f, false);
     if (hasRoom && hasGround) {
         return;
     }
@@ -423,11 +408,13 @@ void Player::beginNestedEntryTransition(WorldStack& worldStack) {
 
     glm::vec3 savedChildPos(0.0f);
     glm::quat savedChildOrientation(1.0f, 0.0f, 0.0f, 0.0f);
-    if (worldStack.tryGetNestedPlayerState(targetBlock, savedChildPos, savedChildOrientation)) {
+    const bool hasSavedChildState =
+        worldStack.tryGetNestedPlayerState(targetBlock, savedChildPos, savedChildOrientation);
+    if (hasSavedChildState) {
         Camera savedChildCamera = camera;
         savedChildCamera.position = savedChildPos;
         savedChildCamera.orientation = savedChildOrientation;
-        enforceSafeNestedSpawn(worldStack, targetBlock, savedChildCamera);
+        enforceSafeNestedSpawn(worldStack, targetBlock, savedChildCamera, false);
         setNestedPreviewOverrideFrame(
             buildPreviewOverrideFrame(targetCamera, nestedPreview, savedChildCamera));
     } else {
@@ -436,7 +423,7 @@ void Player::beginNestedEntryTransition(WorldStack& worldStack) {
     }
 
     Camera childCamera = buildNestedPreviewCamera(targetCamera, nestedPreview);
-    enforceSafeNestedSpawn(worldStack, targetBlock, childCamera);
+    enforceSafeNestedSpawn(worldStack, targetBlock, childCamera, !hasSavedChildState);
 
     enterNested.block = targetBlock;
     enterNested.normal = targetNormal;

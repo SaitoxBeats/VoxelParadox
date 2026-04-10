@@ -64,7 +64,7 @@ private:
   struct ReadyChunkResult {
     glm::ivec3 pos{0};
     std::uint64_t revision = 0;
-    BlockType blocks[Chunk::SIZE][Chunk::SIZE][Chunk::SIZE]{};
+    BlockId blocks[Chunk::SIZE][Chunk::SIZE][Chunk::SIZE]{};
   };
 
   struct AsyncState {

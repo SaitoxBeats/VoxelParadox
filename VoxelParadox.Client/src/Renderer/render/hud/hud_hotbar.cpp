@@ -37,7 +37,7 @@ hudHotbar::hudHotbar(const Player* player, HotbarVisualPart part)
     : player(player),
       part(part),
       countText("", 0, 0, glm::vec2(0.9f), 14) {
-    countText.setColor(glm::vec3(0.92f, 0.94f, 1.0f));
+    countText.setColor(HUDHotbarPreview::config.style.countTextColor);
 }
 
 // Funcao: renderiza 'drawRect' na exibicao visual da hotbar.
@@ -72,17 +72,19 @@ void hudHotbar::drawBackground(Shader& shader, int screenWidth, int screenHeight
         return;
     }
 
-    const auto& config = HUDHotbarPreview::config.layout;
-    const ResolvedHotbarLayout layout = resolveHotbarLayout(config, screenWidth, screenHeight);
+    const HotbarPreviewConfig& config = HUDHotbarPreview::config;
+    const ResolvedHotbarLayout layout =
+        resolveHotbarLayout(config.layout, screenWidth, screenHeight);
 
-    drawRect(shader, expandRect(layout.barRect, 2), glm::vec4(0.02f, 0.02f, 0.04f, 0.70f));
-    drawRect(shader, layout.barRect, glm::vec4(0.06f, 0.06f, 0.10f, 0.55f));
+    drawRect(shader, expandRect(layout.barRect, config.layout.barBorderThickness),
+             config.style.barBorderColor);
+    drawRect(shader, layout.barRect, config.style.barFillColor);
 
     for (int slotIndex = 0; slotIndex < PlayerHotbar::SLOT_COUNT; slotIndex++) {
         const glm::ivec4 slotRect = layout.slotRects[static_cast<size_t>(slotIndex)];
-        drawRect(shader, expandRect(slotRect, config.slotBorderThickness),
-                 glm::vec4(0.20f, 0.24f, 0.32f, 0.78f));
-        drawRect(shader, slotRect, glm::vec4(0.05f, 0.05f, 0.08f, 0.36f));
+        drawRect(shader, expandRect(slotRect, config.layout.slotBorderThickness),
+                 config.style.slotBorderColor);
+        drawRect(shader, slotRect, config.style.slotFillColor);
     }
 }
 
@@ -93,17 +95,18 @@ void hudHotbar::drawSelection(Shader& shader, int screenWidth, int screenHeight)
         return;
     }
 
-    const auto& config = HUDHotbarPreview::config.layout;
-    const ResolvedHotbarLayout layout = resolveHotbarLayout(config, screenWidth, screenHeight);
+    const HotbarPreviewConfig& config = HUDHotbarPreview::config;
+    const ResolvedHotbarLayout layout =
+        resolveHotbarLayout(config.layout, screenWidth, screenHeight);
     const int selectedIndex = player->getSelectedHotbarIndex();
     if (selectedIndex < 0 || selectedIndex >= PlayerHotbar::SLOT_COUNT) {
         return;
     }
 
     const glm::ivec4 slotRect = layout.slotRects[static_cast<size_t>(selectedIndex)];
-    drawRect(shader, expandRect(slotRect, config.selectedBorderThickness),
-             glm::vec4(0.95f, 0.97f, 1.0f, 0.90f));
-    drawRect(shader, slotRect, glm::vec4(0.18f, 0.20f, 0.30f, 0.28f));
+    drawRect(shader, expandRect(slotRect, config.layout.selectedBorderThickness),
+             config.style.selectionBorderColor);
+    drawRect(shader, slotRect, config.style.selectionFillColor);
 }
 
 // Funcao: renderiza 'drawCounts' na exibicao visual da hotbar.
@@ -113,8 +116,9 @@ void hudHotbar::drawCounts(Shader& shader, int screenWidth, int screenHeight) {
         return;
     }
 
-    const auto& config = HUDHotbarPreview::config.layout;
-    const ResolvedHotbarLayout layout = resolveHotbarLayout(config, screenWidth, screenHeight);
+    const HotbarPreviewConfig& config = HUDHotbarPreview::config;
+    const ResolvedHotbarLayout layout =
+        resolveHotbarLayout(config.layout, screenWidth, screenHeight);
     const PlayerHotbar& hotbar = player->getHotbar();
 
     for (int slotIndex = 0; slotIndex < PlayerHotbar::SLOT_COUNT; slotIndex++) {
@@ -128,15 +132,16 @@ void hudHotbar::drawCounts(Shader& shader, int screenWidth, int screenHeight) {
         const std::string countString = std::to_string(slot.count);
         countText.setText(countString);
         countText.setColor(selected
-                               ? glm::vec3(1.0f, 1.0f, 1.0f)
-                               : glm::vec3(0.88f, 0.90f, 0.95f));
+                               ? config.style.selectedCountTextColor
+                               : config.style.countTextColor);
 
         const glm::vec2 textSize = countText.measureText(countString);
         const int drawX = slotRect.x + slotRect.z -
                           static_cast<int>(std::round(textSize.x)) -
-                          config.countPadding;
+                          config.layout.countPadding;
         const int drawY = slotRect.y + slotRect.w -
-                          static_cast<int>(std::round(textSize.y)) - 6;
+                          static_cast<int>(std::round(textSize.y)) -
+                          config.layout.countBottomPadding;
         countText.setPosition(drawX, drawY);
         countText.draw(shader, screenWidth, screenHeight);
     }

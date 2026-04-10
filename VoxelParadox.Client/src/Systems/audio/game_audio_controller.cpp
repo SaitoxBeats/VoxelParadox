@@ -137,7 +137,7 @@ void GameAudioController::onPauseMenuToggled(bool open) {
 #pragma region 4. Gameplay Events (Blocks)
 // --- 4. Gameplay Events (Blocks) ---
 
-void GameAudioController::onBlockHit(BlockType blockType, const glm::ivec3& blockPos, bool initialHit) {
+void GameAudioController::onBlockHit(BlockId blockType, const glm::ivec3& blockPos, bool initialHit) {
     if (deathScreenActive_) {
         return;
     }
@@ -149,7 +149,7 @@ void GameAudioController::onBlockHit(BlockType blockType, const glm::ivec3& bloc
     );
 }
 
-void GameAudioController::onBlockBroken(BlockType blockType, const glm::ivec3& blockPos) {
+void GameAudioController::onBlockBroken(BlockId blockType, const glm::ivec3& blockPos) {
     if (deathScreenActive_) {
         return;
     }
@@ -161,7 +161,7 @@ void GameAudioController::onBlockBroken(BlockType blockType, const glm::ivec3& b
     );
 }
 
-void GameAudioController::onBlockPlaced(BlockType blockType, const glm::ivec3& blockPos) {
+void GameAudioController::onBlockPlaced(BlockId blockType, const glm::ivec3& blockPos) {
     if (deathScreenActive_) {
         return;
     }
@@ -212,7 +212,7 @@ void GameAudioController::onDeathSequenceStarted() {
     forceImmediateMusicRefresh_ = true;
 }
 
-void GameAudioController::onPlayerFootstep(BlockType blockType, const glm::vec3& worldPosition,
+void GameAudioController::onPlayerFootstep(BlockId blockType, const glm::vec3& worldPosition,
     float gain, float pitch) {
     if (deathScreenActive_) {
         return;

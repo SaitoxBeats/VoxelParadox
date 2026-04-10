@@ -45,7 +45,7 @@ struct Tool {
 
 struct InventoryItem {
     InventoryItemKind kind = InventoryItemKind::NONE;
-    BlockType blockType = BlockType::AIR;
+    BlockId blockType = BlockIds::AIR;
     ItemType itemType = ItemType::NONE;
 
     bool empty() const {
@@ -53,7 +53,7 @@ struct InventoryItem {
     }
 
     bool isBlock() const {
-        return kind == InventoryItemKind::BLOCK && blockType != BlockType::AIR;
+        return kind == InventoryItemKind::BLOCK && blockType != BlockIds::AIR;
     }
 
     bool isItem() const {
@@ -76,8 +76,8 @@ inline bool operator!=(const InventoryItem& lhs, const InventoryItem& rhs) {
 #pragma region 3. Constructors & Factories
 // --- 3. Constructors & Factories ---
 
-inline InventoryItem makeInventoryBlock(BlockType blockType) {
-    if (blockType == BlockType::AIR || blockType == BlockType::COUNT) {
+inline InventoryItem makeInventoryBlock(BlockId blockType) {
+    if (blockType == BlockIds::AIR || blockType == BlockIds::COUNT) {
         return {};
     }
     return { InventoryItemKind::BLOCK, blockType, ItemType::NONE };
@@ -87,7 +87,7 @@ inline InventoryItem makeInventoryItem(ItemType itemType) {
     if (itemType == ItemType::NONE || itemType == ItemType::COUNT) {
         return {};
     }
-    return { InventoryItemKind::ITEM, BlockType::AIR, itemType };
+    return { InventoryItemKind::ITEM, BlockIds::AIR, itemType };
 }
 
 #pragma endregion
@@ -139,6 +139,13 @@ inline const char* getInventoryItemDisplayName(const InventoryItem& item) {
     return "None";
 }
 
+inline std::string getInventoryItemCategoryDisplayName(const InventoryItem& item) {
+    if (item.isBlock()) {
+        return getBlockCategoryDisplayName(item.blockType);
+    }
+    return {};
+}
+
 inline bool tryParseItemType(const std::string& rawValue, ItemType& outType) {
     const std::string value = normalizeItemId(rawValue);
 
@@ -155,9 +162,9 @@ inline bool tryParseItemType(const std::string& rawValue, ItemType& outType) {
 }
 
 inline bool tryParseInventoryItem(const std::string& rawValue, InventoryItem& outItem) {
-    BlockType parsedBlock = BlockType::AIR;
+    BlockId parsedBlock = BlockIds::AIR;
 
-    if (tryParseBlockType(rawValue, parsedBlock) && parsedBlock != BlockType::AIR) {
+    if (tryParseBlockType(rawValue, parsedBlock) && parsedBlock != BlockIds::AIR) {
         outItem = makeInventoryBlock(parsedBlock);
         return true;
     }
@@ -200,7 +207,7 @@ inline Tool getTool(const InventoryItem& item) {
     return item.isItem() ? getTool(item.itemType) : Tool{};
 }
 
-inline bool isToolEffectiveForBlock(const InventoryItem& toolItem, BlockType targetType) {
+inline bool isToolEffectiveForBlock(const InventoryItem& toolItem, BlockId targetType) {
     const Tool tool = getTool(toolItem);
 
     return tool.effectiveTags != BLOCK_TAG_NONE &&
@@ -208,7 +215,7 @@ inline bool isToolEffectiveForBlock(const InventoryItem& toolItem, BlockType tar
 }
 
 inline float getToolAdjustedBreakTimeSeconds(const InventoryItem& toolItem,
-    BlockType targetType,
+    BlockId targetType,
     float baseBreakTimeSeconds) {
     if (baseBreakTimeSeconds <= 0.0f) {
         return baseBreakTimeSeconds;
@@ -223,12 +230,12 @@ inline float getToolAdjustedBreakTimeSeconds(const InventoryItem& toolItem,
     return baseBreakTimeSeconds / efficiency;
 }
 
-inline bool shouldDropBlockItemForTool(const InventoryItem& toolItem, BlockType brokenType) {
+inline bool shouldDropBlockItemForTool(const InventoryItem& toolItem, BlockId brokenType) {
     if (canBlockDropItem(brokenType)) {
         return true;
     }
 
-    return brokenType == BlockType::STONE &&
+    return brokenType == BlockIds::STONE &&
         toolItem.isItem() &&
         toolItem.itemType == ItemType::PICKAXE;
 }

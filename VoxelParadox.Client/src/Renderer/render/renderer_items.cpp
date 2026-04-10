@@ -478,7 +478,7 @@ void Renderer::renderHeldSpriteItem(const Player& player, ItemType heldType,
 }
 
 void Renderer::renderHeldCustomBlockModel(const Player& player, const FractalWorld* world,
-                                          BlockType heldType, const glm::mat4& vp, int depth,
+                                          BlockId heldType, const glm::mat4& vp, int depth,
                                           float time, float visibility,
                                           float verticalOffset) {
     (void)world;
@@ -551,7 +551,7 @@ void Renderer::renderHeldCustomBlockModel(const Player& player, const FractalWor
 }
 
 void Renderer::renderHeldBlock(const Player& player, const FractalWorld* world,
-                               BlockType heldType, const glm::mat4& vp, int depth,
+                               BlockId heldType, const glm::mat4& vp, int depth,
                                float time, float visibility, float verticalOffset) {
     const glm::vec3 forward = glm::normalize(player.camera.getForward());
     const glm::vec3 right = glm::normalize(player.camera.getRight());
@@ -788,7 +788,7 @@ void Renderer::setHighlightEffectUniforms(const glm::vec3& blockCenter, float ac
     blockShader.setFloat("uHighlightActive", active);
 }
 
-void Renderer::uploadBlockCube(BlockType type, const glm::vec3& blockOrigin, int depth) {
+void Renderer::uploadBlockCube(BlockId type, const glm::vec3& blockOrigin, int depth) {
     static const glm::vec3 normals[6] = {
         {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},  {0.0f, -1.0f, 0.0f},
         {0.0f, 1.0f, 0.0f},  {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 1.0f},

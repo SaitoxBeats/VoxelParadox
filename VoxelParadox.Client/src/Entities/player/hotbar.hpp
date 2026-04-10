@@ -147,7 +147,7 @@ public:
 
     // Funcao: retorna 'getSelectedType' na hotbar e no inventario do jogador.
     // Detalhe: centraliza a logica necessaria para expor um dado derivado ou um acesso controlado ao estado interno.
-    // Retorno: devolve 'BlockType' com o resultado composto por esta chamada.
+    // Retorno: devolve 'BlockId' com o resultado composto por esta chamada.
     const InventoryItem& getSelectedItem() const {
         return getSelectedSlot().item;
     }

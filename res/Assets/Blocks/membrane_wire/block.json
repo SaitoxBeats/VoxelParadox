@@ -1,0 +1,45 @@
+{
+  "id": "membrane_wire",
+  "display_name": "Membrane Wire",
+  "categories": ["plant", "decoration", "organic"],
+  "replaceable": true,
+  "placeable": true,
+  "targetable": true,
+  "requires_top_placement": true,
+  "material_id": 9,
+  "properties": {
+    "solid": false,
+    "transparent": true,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "tags": 0,
+    "hardness": 0.01
+  },
+  "data": {
+    "can_drop_item": true
+  },
+  "render": {
+    "base_color": [0.76, 0.96, 0.82],
+    "shader": "shader.glsl",
+    "custom_model_asset": "Assets/Models/block/membrane_wire.obj",
+    "selection_bounds": {
+      "min": [0.3, 0.0, 0.3],
+      "max": [0.7, 0.65, 0.7]
+    }
+  },
+  "placement": {
+    "support_mode": "allow_list",
+    "allowed_support_blocks": ["membrane"]
+  },
+  "generation": {
+    "top_decoration": {
+      "enabled": true,
+      "anchor_block": "membrane",
+      "required_above_block": "air",
+      "spawn_chance": 0.11,
+      "vertical_offset": 1,
+      "seed_key": "membrane_wire"
+    }
+  }
+}

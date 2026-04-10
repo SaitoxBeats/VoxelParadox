@@ -69,7 +69,7 @@ inline ThreadPool chunkThreadPool;
 // when the player suddenly Ascends and the parent FractalWorld memory is instantly vaporized.
 struct ChunkData {
     glm::ivec3 pos;
-    BlockType blocks[16][16][16];
+    BlockId blocks[16][16][16];
 };
 
 struct AsyncChunkState {
@@ -154,7 +154,7 @@ public:
     WorldGenerator generator;
     std::unordered_map<glm::ivec3, std::unique_ptr<Chunk>, IVec3Hash, IVec3Equal> chunks;
 
-    std::unordered_map<glm::ivec3, BlockType, IVec3Hash, IVec3Equal> modifications;
+    std::unordered_map<glm::ivec3, BlockId, IVec3Hash, IVec3Equal> modifications;
     std::unordered_map<glm::ivec3, uint32_t, IVec3Hash, IVec3Equal> portalBlocks;
     std::unordered_map<glm::ivec3, BiomeSelection, IVec3Hash, IVec3Equal> portalBiomeSelections;
     std::vector<DroppedItem> droppedItems;
@@ -352,7 +352,7 @@ public:
 #pragma region FractalWorldAsyncAndQueries
     void pruneRedundantSparseEditsForChunk(
         const glm::ivec3& chunkPos,
-        const BlockType blocks[Chunk::SIZE][Chunk::SIZE][Chunk::SIZE]) {
+        const BlockId blocks[Chunk::SIZE][Chunk::SIZE][Chunk::SIZE]) {
         // Procedural decoration such as membrane_wire is deterministic from the seed.
         // Persist only the player's edits, not the untouched generated result.
         if (sparseEditIndexDirty) {
@@ -367,7 +367,7 @@ public:
         bool removedAny = false;
         for (const auto& [worldPos, modifiedType] : chunkEditIt->second) {
             const glm::ivec3 localPos = worldToLocalPos(worldPos);
-            const BlockType generatedType =
+            const BlockId generatedType =
                 blocks[localPos.x][localPos.y][localPos.z];
             if (generatedType != modifiedType) {
                 continue;
@@ -559,29 +559,29 @@ public:
 
     // Funcao: retorna 'getBlock' no mundo fractal ativo.
     // Detalhe: usa 'wp' para expor um dado derivado ou um acesso controlado ao estado interno.
-    // Retorno: devolve 'BlockType' com o resultado composto por esta chamada.
-    BlockType getBlock(glm::ivec3 wp) {
+    // Retorno: devolve 'BlockId' com o resultado composto por esta chamada.
+    BlockId getBlock(glm::ivec3 wp) {
         glm::ivec3 cp = worldToChunkPos(wp);
         glm::ivec3 lp = worldToLocalPos(wp);
         Chunk* c = getChunkIfLoaded(cp);
-        if (!c || !c->generated) return BlockType::AIR;
+        if (!c || !c->generated) return BlockIds::AIR;
         return c->getBlock(lp.x, lp.y, lp.z);
     }
 
     // Funcao: retorna 'getBlock' no mundo fractal ativo.
     // Detalhe: usa 'wp' para expor um dado derivado ou um acesso controlado ao estado interno.
-    // Retorno: devolve 'BlockType' com o resultado composto por esta chamada.
-    BlockType getBlock(glm::ivec3 wp) const {
+    // Retorno: devolve 'BlockId' com o resultado composto por esta chamada.
+    BlockId getBlock(glm::ivec3 wp) const {
         glm::ivec3 cp = worldToChunkPos(wp);
         glm::ivec3 lp = worldToLocalPos(wp);
         Chunk* c = getChunkIfLoaded(cp);
-        if (!c || !c->generated) return BlockType::AIR;
+        if (!c || !c->generated) return BlockIds::AIR;
         return c->getBlock(lp.x, lp.y, lp.z);
     }
 
     // Funcao: define 'setBlock' no mundo fractal ativo.
     // Detalhe: usa 'wp', 'type' para aplicar ao componente o valor ou configuracao recebida.
-    void setBlock(glm::ivec3 wp, BlockType type) {
+    void setBlock(glm::ivec3 wp, BlockId type) {
         // Toda edicao persistente entra primeiro no mapa esparso e so depois e refletida nos chunks carregados.
         modifications[wp] = type;
         sparseEditIndexDirty = true;
@@ -826,7 +826,7 @@ private:
     int chunkLoadOffsetsRenderDistance = -1;
     bool sparseEditIndexDirty = true;
     mutable RenderDiagnostics lastRenderDiagnostics{};
-    std::unordered_map<glm::ivec3, std::vector<std::pair<glm::ivec3, BlockType>>, IVec3Hash, IVec3Equal>
+    std::unordered_map<glm::ivec3, std::vector<std::pair<glm::ivec3, BlockId>>, IVec3Hash, IVec3Equal>
         chunkModifications;
     std::unordered_map<glm::ivec3, std::vector<glm::ivec3>, IVec3Hash, IVec3Equal> chunkPortals;
     std::unordered_map<glm::ivec3, int, IVec3Hash, IVec3Equal> chunkSolidVoxelCounts;
@@ -1439,7 +1439,7 @@ private:
         if (chunkPortalIt != chunkPortals.end()) {
             for (const glm::ivec3& wp : chunkPortalIt->second) {
                 glm::ivec3 lp = worldToLocalPos(wp);
-                chunk.blocks[lp.x][lp.y][lp.z] = BlockType::PORTAL;
+                chunk.blocks[lp.x][lp.y][lp.z] = BlockIds::PORTAL;
             }
         }
     }

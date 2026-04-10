@@ -28,7 +28,7 @@ struct Config {
   std::string windowTitle = "Voxel Paradox";
   glm::ivec2 windowSize{1280, 720};
   ENGINE::VIEWPORTMODE viewportMode = ENGINE::VIEWPORTMODE::BORDERLESS;
-  std::string defaultFontPath = "Assets/Fonts/Minecraft.ttf";
+  std::string defaultFontPath = "Assets/Fonts/ChillBitmap.ttf";
   bool vSyncEnabled = false;
   std::string saveDirectory = "Saves/worlds";
   std::vector<std::string> requiredAssetFiles{

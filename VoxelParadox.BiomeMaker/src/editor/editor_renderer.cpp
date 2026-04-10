@@ -3,17 +3,16 @@
 #include <algorithm>
 
 #include "engine/engine.hpp"
+#include "world/block_registry.hpp"
 
 namespace BiomeMaker {
-namespace {
-
-constexpr const char* kBlockVertexShaderPath = "Assets/Shaders/block.vert";
-constexpr const char* kBlockFragmentShaderPath = "Assets/Shaders/block.frag";
-
-} // namespace
 
 bool EditorRenderer::init() {
-  return blockShader_.compileFromFiles(kBlockVertexShaderPath, kBlockFragmentShaderPath);
+  const BlockShaderSources blockShaderSources =
+      BlockRegistry::instance().buildShaderSources();
+  return blockShaderSources.valid() &&
+         blockShader_.compile(blockShaderSources.vertexSource.c_str(),
+                              blockShaderSources.fragmentSource.c_str());
 }
 
 void EditorRenderer::destroyFramebuffer() {

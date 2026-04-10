@@ -1,0 +1,29 @@
+{
+  "id": "crystal",
+  "display_name": "Crystal",
+  "categories": ["terrain", "decoration"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 2,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": true,
+    "has_entity": false,
+    "tags": 2,
+    "hardness": 250.0
+  },
+  "data": {
+    "can_drop_item": false
+  },
+  "render": {
+    "base_color": [0.15, 0.85, 0.95],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

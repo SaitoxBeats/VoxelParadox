@@ -64,6 +64,7 @@
     </ClCompile>
     <ClCompile Include="src\Core\support\crash_handler.cpp" />
     <ClCompile Include="src\Core\input\input_action_system.cpp" />
+    <ClCompile Include="src\World\world\block_catalog.cpp" />
     <ClCompile Include="src\Systems\audio\game_audio_controller.cpp" />
     <ClCompile Include="src\Systems\debug\biome_debug_tools.cpp" />
     <ClCompile Include="src\Systems\gameplay\gameplay_status.cpp" />
@@ -101,10 +102,13 @@
     <ClCompile Include="src\Core\runtime\main.cpp" />
     <ClCompile Include="src\Core\runtime\runtime_app.cpp" />
     <ClCompile Include="src\Core\runtime\runtime_app_bootstrap.cpp" />
+    <ClCompile Include="src\Core\runtime\runtime_app_death_sequence.cpp" />
     <ClCompile Include="src\Core\runtime\runtime_app_loop.cpp" />
+    <ClCompile Include="src\Core\runtime\runtime_app_screenshot.cpp" />
     <ClCompile Include="src\Core\runtime\world_launcher.cpp" />
     <ClCompile Include="src\Core\runtime\runtime_ui_common.cpp" />
     <ClCompile Include="src\Core\runtime\runtime_ui_hud.cpp" />
+    <ClCompile Include="src\Core\runtime\runtime_ui_hotbar.cpp" />
     <ClCompile Include="src\Core\runtime\runtime_ui.cpp" />
     <ClCompile Include="src\UI\ui\biome_teleport_window.cpp" />
     <ClCompile Include="src\World\world\biome_preset.cpp" />
@@ -151,6 +155,12 @@
     <ClInclude Include="src\Renderer\render\hud\hud_portal_info.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_portal_tracker.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_slider.hpp" />
+    <ClInclude Include="src\Renderer\render\hud\styles\hotbar_hud_style.hpp" />
+    <ClInclude Include="src\Renderer\render\hud\styles\hud_style_primitives.hpp" />
+    <ClInclude Include="src\Renderer\render\hud\styles\pause_menu_hud_style.hpp" />
+    <ClInclude Include="src\Renderer\render\hud\styles\save_toast_hud_style.hpp" />
+    <ClInclude Include="src\Renderer\render\hud\styles\settings_dialog_hud_style.hpp" />
+    <ClInclude Include="src\Renderer\render\hud\styles\settings_menu_hud_style.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_world_launcher.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_text.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_watch_text.hpp" />
@@ -165,7 +175,10 @@
     <ClInclude Include="src\Core\runtime\game_chat.hpp" />
     <ClInclude Include="src\Core\runtime\game_settings.hpp" />
     <ClInclude Include="src\Core\runtime\runtime_app.hpp" />
+    <ClInclude Include="src\Core\runtime\runtime_app_death_sequence.hpp" />
     <ClInclude Include="src\Core\runtime\runtime_app_internal.hpp" />
+    <ClInclude Include="src\Core\runtime\runtime_app_loop_shared.hpp" />
+    <ClInclude Include="src\Core\runtime\runtime_app_screenshot.hpp" />
     <ClInclude Include="src\Core\runtime\runtime_hud_ids.hpp" />
     <ClInclude Include="src\Core\runtime\runtime_ui_internal.hpp" />
     <ClInclude Include="src\Core\runtime\runtime_ui.hpp" />
@@ -177,6 +190,9 @@
     <ClInclude Include="src\World\world\biome_preset_internal.hpp" />
     <ClInclude Include="src\World\world\biome_registry.hpp" />
     <ClInclude Include="src\World\world\block.hpp" />
+    <ClInclude Include="src\World\world\block_catalog.hpp" />
+    <ClInclude Include="src\World\world\block_registry.hpp" />
+    <ClInclude Include="src\World\world\block_types.hpp" />
     <ClInclude Include="src\World\world\chunk.hpp" />
     <ClInclude Include="src\World\world\chunk_generator_source.hpp" />
     <ClInclude Include="src\World\world\fractal_world.hpp" />

@@ -43,6 +43,9 @@
     <Filter Include="src\Renderer\render\hud">
       <UniqueIdentifier>{493E5BB2-AE75-43B3-B6C6-B8D4A64A322A}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Renderer\render\hud\styles">
+      <UniqueIdentifier>{7E06ED7D-B99C-43C4-BAF7-16952B3D66F2}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\Systems">
       <UniqueIdentifier>{7537A1F6-64BC-408D-954C-C994F657468E}</UniqueIdentifier>
     </Filter>
@@ -74,6 +77,9 @@
     </ClCompile>
     <ClCompile Include="src\Core\input\input_action_system.cpp">
       <Filter>src\Core\input</Filter>
+    </ClCompile>
+    <ClCompile Include="src\World\world\block_catalog.cpp">
+      <Filter>src\World</Filter>
     </ClCompile>
     <ClCompile Include="src\Systems\audio\game_audio_controller.cpp">
       <Filter>src\Systems\audio</Filter>
@@ -198,6 +204,9 @@
     <ClCompile Include="src\Core\runtime\runtime_ui_hud.cpp">
       <Filter>src\Core\runtime</Filter>
     </ClCompile>
+    <ClCompile Include="src\Core\runtime\runtime_ui_hotbar.cpp">
+      <Filter>src\Core\runtime</Filter>
+    </ClCompile>
     <ClCompile Include="src\Core\runtime\runtime_ui.cpp">
       <Filter>src\Core\runtime</Filter>
     </ClCompile>
@@ -221,6 +230,12 @@
     </ClCompile>
     <ClCompile Include="src\World\world\world_stack_persistence.cpp">
       <Filter>src\World</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Core\runtime\runtime_app_death_sequence.cpp">
+      <Filter>src\Core\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Core\runtime\runtime_app_screenshot.cpp">
+      <Filter>src\Core\runtime</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -332,6 +347,24 @@
     <ClInclude Include="src\Renderer\render\hud\hud_slider.hpp">
       <Filter>src\Renderer\render\hud</Filter>
     </ClInclude>
+    <ClInclude Include="src\Renderer\render\hud\styles\hotbar_hud_style.hpp">
+      <Filter>src\Renderer\render\hud\styles</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderer\render\hud\styles\hud_style_primitives.hpp">
+      <Filter>src\Renderer\render\hud\styles</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderer\render\hud\styles\pause_menu_hud_style.hpp">
+      <Filter>src\Renderer\render\hud\styles</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderer\render\hud\styles\save_toast_hud_style.hpp">
+      <Filter>src\Renderer\render\hud\styles</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderer\render\hud\styles\settings_dialog_hud_style.hpp">
+      <Filter>src\Renderer\render\hud\styles</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderer\render\hud\styles\settings_menu_hud_style.hpp">
+      <Filter>src\Renderer\render\hud\styles</Filter>
+    </ClInclude>
     <ClInclude Include="src\Renderer\render\hud\hud_world_launcher.hpp">
       <Filter>src\Renderer\render\hud</Filter>
     </ClInclude>
@@ -410,6 +443,9 @@
     <ClInclude Include="src\World\world\block.hpp">
       <Filter>src\World</Filter>
     </ClInclude>
+    <ClInclude Include="src\World\world\block_catalog.hpp">
+      <Filter>src\World</Filter>
+    </ClInclude>
     <ClInclude Include="src\World\world\chunk.hpp">
       <Filter>src\World</Filter>
     </ClInclude>
@@ -438,6 +474,21 @@
       <Filter>src\World</Filter>
     </ClInclude>
     <ClInclude Include="src\World\world\world_stack.hpp">
+      <Filter>src\World</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\runtime\runtime_app_death_sequence.hpp">
+      <Filter>src\Core\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\runtime\runtime_app_loop_shared.hpp">
+      <Filter>src\Core\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\runtime\runtime_app_screenshot.hpp">
+      <Filter>src\Core\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\World\world\block_registry.hpp">
+      <Filter>src\World</Filter>
+    </ClInclude>
+    <ClInclude Include="src\World\world\block_types.hpp">
       <Filter>src\World</Filter>
     </ClInclude>
   </ItemGroup>

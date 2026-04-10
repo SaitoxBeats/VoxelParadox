@@ -38,7 +38,7 @@ private:
   void drawControlsWindow();
   void drawDiagnosticsWindow();
 
-  bool drawBlockTypeCombo(const char* label, BlockType& blockType);
+  bool drawBlockIdCombo(const char* label, BlockId& blockId);
 };
 
 } // namespace ShaderEditor

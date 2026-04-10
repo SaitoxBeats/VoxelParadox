@@ -1,0 +1,29 @@
+{
+  "id": "air",
+  "display_name": "Air",
+  "categories": [],
+  "replaceable": true,
+  "placeable": false,
+  "targetable": false,
+  "material_id": 0,
+  "properties": {
+    "solid": false,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "tags": 0,
+    "hardness": 0.0
+  },
+  "data": {
+    "can_drop_item": false
+  },
+  "render": {
+    "base_color": [0.0, 0.0, 0.0],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

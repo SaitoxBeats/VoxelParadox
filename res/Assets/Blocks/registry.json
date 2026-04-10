@@ -1,0 +1,15 @@
+{
+  "entries": [
+    { "value": 0, "id": "air", "folder": "air" },
+    { "value": 1, "id": "stone", "folder": "stone" },
+    { "value": 2, "id": "crystal", "folder": "crystal" },
+    { "value": 3, "id": "void_matter", "folder": "void_matter" },
+    { "value": 4, "id": "membrane", "folder": "membrane" },
+    { "value": 5, "id": "organic", "folder": "organic" },
+    { "value": 6, "id": "metal", "folder": "metal" },
+    { "value": 7, "id": "portal", "folder": "portal" },
+    { "value": 8, "id": "membrane_weave", "folder": "membrane_weave" },
+    { "value": 9, "id": "membrane_wire", "folder": "membrane_wire" },
+    { "value": 10, "id": "neon_drift", "folder": "neon_drift" }
+  ]
+}

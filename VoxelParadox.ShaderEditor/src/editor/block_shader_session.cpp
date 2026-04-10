@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include "path/app_paths.hpp"
+#include "world/block_registry.hpp"
 
 namespace ShaderEditor {
 namespace {
@@ -35,15 +36,10 @@ std::optional<int> tryParseShaderLogLineNumber(const std::string& line) {
   return std::nullopt;
 }
 
-std::string toGenericString(const std::filesystem::path& path) {
-  return path.lexically_normal().generic_string();
-}
-
 } // namespace
 
 bool BlockShaderSession::initialize(double nowSeconds) {
-  shaderRootAbs_ = AppPaths::shadersRoot();
-  refreshAvailableFiles();
+  setPreviewBlock(previewBlockId_, nowSeconds);
   observedFingerprint_ = readFingerprint();
   appliedFingerprint_ = observedFingerprint_;
   fingerprintInitialized_ = true;
@@ -59,7 +55,6 @@ void BlockShaderSession::update(double nowSeconds) {
     sourceDirty_ = true;
     lastChangeDetectedSeconds_ = nowSeconds;
     statusMessage_ = "Detected shader file change on disk.";
-    refreshAvailableFiles();
   }
 
   if (!hotReloadEnabled_ || !sourceDirty_) {
@@ -76,69 +71,33 @@ void BlockShaderSession::update(double nowSeconds) {
 }
 
 bool BlockShaderSession::requestReload(double nowSeconds, const char* trigger) {
-  refreshAvailableFiles();
   observedFingerprint_ = readFingerprint();
   fingerprintInitialized_ = true;
   sourceDirty_ = false;
   return compileCurrentSelection(nowSeconds, trigger);
 }
 
-bool BlockShaderSession::trySelectFile(const std::filesystem::path& candidate,
-                                       double nowSeconds) {
-  const std::string normalized = toGenericString(candidate);
-  if (normalized != "block.frag" &&
-      normalized != "Assets/Shaders/block.frag") {
-    diagnostics_.clear();
-    rawLog_.clear();
-    statusMessage_ =
-        "Rejected shader selection: only block.frag inside Resources/Assets/Shaders "
-        "is supported, and block.vert is loaded automatically.";
-    lastAttemptText_ = formatCurrentTimestamp();
-    lastAttemptSeconds_ = nowSeconds;
-    diagnostics_.push_back(
-        {"selection", shaderRootAbs_ / candidate, -1, statusMessage_});
-    sourceDirty_ = false;
-    return false;
+bool BlockShaderSession::setPreviewBlock(BlockId blockId, double nowSeconds) {
+  previewBlockId_ = blockId;
+  const BlockDefinition& definition = BlockRegistry::instance().definition(blockId);
+  blockShaderPath_ = definition.shaderAssetPath;
+  if (!nowSeconds) {
+    return true;
   }
-
-  fragmentPath_ = std::filesystem::path("Assets/Shaders/block.frag");
-  vertexPath_ = std::filesystem::path("Assets/Shaders/block.vert");
-  return requestReload(nowSeconds, "Selected block.frag");
-}
-
-void BlockShaderSession::refreshAvailableFiles() {
-  availableFiles_.clear();
-
-  std::error_code ec;
-  if (!std::filesystem::exists(shaderRootAbs_, ec)) {
-    return;
-  }
-
-  for (const auto& entry : std::filesystem::directory_iterator(shaderRootAbs_, ec)) {
-    if (ec || !entry.is_regular_file()) {
-      continue;
-    }
-
-    const std::filesystem::path extension = entry.path().extension();
-    if (extension != ".frag" && extension != ".vert") {
-      continue;
-    }
-
-    availableFiles_.push_back(
-        {entry.path().filename(),
-         entry.path().filename() == std::filesystem::path("block.frag")});
-  }
-
-  std::sort(availableFiles_.begin(), availableFiles_.end(),
-            [](const ShaderDirectoryEntry& a, const ShaderDirectoryEntry& b) {
-              return a.relativePath.generic_string() < b.relativePath.generic_string();
-            });
+  return requestReload(nowSeconds, "Preview block changed");
 }
 
 BlockShaderSession::SourceFingerprint BlockShaderSession::readFingerprint() const {
   SourceFingerprint fingerprint;
 
   std::error_code ec;
+  const std::filesystem::path registryAbs = AppPaths::resolve(registryPath_);
+  fingerprint.registryExists = std::filesystem::exists(registryAbs, ec);
+  if (!ec && fingerprint.registryExists) {
+    fingerprint.registryWrite = std::filesystem::last_write_time(registryAbs, ec);
+  }
+
+  ec.clear();
   const std::filesystem::path vertexAbs = AppPaths::resolve(vertexPath_);
   fingerprint.vertexExists = std::filesystem::exists(vertexAbs, ec);
   if (!ec && fingerprint.vertexExists) {
@@ -146,10 +105,20 @@ BlockShaderSession::SourceFingerprint BlockShaderSession::readFingerprint() cons
   }
 
   ec.clear();
-  const std::filesystem::path fragmentAbs = AppPaths::resolve(fragmentPath_);
+  const std::filesystem::path fragmentAbs = AppPaths::resolve(fragmentTemplatePath_);
   fingerprint.fragmentExists = std::filesystem::exists(fragmentAbs, ec);
   if (!ec && fingerprint.fragmentExists) {
     fingerprint.fragmentWrite = std::filesystem::last_write_time(fragmentAbs, ec);
+  }
+
+  ec.clear();
+  if (!blockShaderPath_.empty()) {
+    const std::filesystem::path blockShaderAbs = AppPaths::resolve(blockShaderPath_);
+    fingerprint.blockShaderExists = std::filesystem::exists(blockShaderAbs, ec);
+    if (!ec && fingerprint.blockShaderExists) {
+      fingerprint.blockShaderWrite =
+          std::filesystem::last_write_time(blockShaderAbs, ec);
+    }
   }
 
   return fingerprint;
@@ -163,30 +132,20 @@ bool BlockShaderSession::compileCurrentSelection(double nowSeconds,
   rawLog_.clear();
 
   const std::filesystem::path vertexAbs = AppPaths::resolve(vertexPath_);
-  const std::filesystem::path fragmentAbs = AppPaths::resolve(fragmentPath_);
+  const std::filesystem::path fragmentAbs = AppPaths::resolve(fragmentTemplatePath_);
+  const std::filesystem::path blockShaderAbs =
+      blockShaderPath_.empty() ? std::filesystem::path{} : AppPaths::resolve(blockShaderPath_);
 
-  std::string vertexSource;
-  std::string fragmentSource;
-  std::string ioError;
-
-  if (!readTextFile(vertexAbs, vertexSource, ioError)) {
+  BlockRegistry::mutableInstance().reload();
+  const BlockShaderSources blockShaderSources =
+      BlockRegistry::instance().buildShaderSources();
+  if (!blockShaderSources.valid()) {
     valid_ = false;
     shader_.release();
     statusMessage_ =
-        "Vertex shader read failed. The preview will stay alive with the fallback shader.";
-    rawLog_ = ioError;
-    diagnostics_.push_back({"io", vertexAbs, -1, ioError});
-    sourceDirty_ = true;
-    return false;
-  }
-
-  if (!readTextFile(fragmentAbs, fragmentSource, ioError)) {
-    valid_ = false;
-    shader_.release();
-    statusMessage_ =
-        "Fragment shader read failed. The preview will stay alive with the fallback shader.";
-    rawLog_ = ioError;
-    diagnostics_.push_back({"io", fragmentAbs, -1, ioError});
+        "Failed to assemble the block shader. The preview will stay alive with the fallback shader.";
+    rawLog_ = blockShaderSources.error;
+    diagnostics_.push_back({"assembly", fragmentAbs, -1, blockShaderSources.error});
     sourceDirty_ = true;
     return false;
   }
@@ -196,7 +155,7 @@ bool BlockShaderSession::compileCurrentSelection(double nowSeconds,
   std::vector<ShaderDiagnostic> compileDiagnostics;
   std::string compileLog;
 
-  if (!compileStage(GL_VERTEX_SHADER, vertexSource, vertexAbs, "vertex",
+  if (!compileStage(GL_VERTEX_SHADER, blockShaderSources.vertexSource, vertexAbs, "vertex",
                     vertexShader, compileLog, compileDiagnostics)) {
     valid_ = false;
     shader_.release();
@@ -208,7 +167,7 @@ bool BlockShaderSession::compileCurrentSelection(double nowSeconds,
     return false;
   }
 
-  if (!compileStage(GL_FRAGMENT_SHADER, fragmentSource, fragmentAbs, "fragment",
+  if (!compileStage(GL_FRAGMENT_SHADER, blockShaderSources.fragmentSource, fragmentAbs, "fragment",
                     fragmentShader, compileLog, compileDiagnostics)) {
     valid_ = false;
     shader_.release();

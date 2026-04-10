@@ -10,9 +10,9 @@
 #include "hud_element.hpp"
 
 struct HudSliderStyle {
-    glm::vec4 borderColor{0.08f, 0.09f, 0.13f, 0.90f};
-    glm::vec4 trackColor{0.04f, 0.05f, 0.08f, 0.82f};
-    glm::vec4 fillColor{1.0f, 0.22f, 0.22f, 0.96f};
+    glm::vec4 borderColor   { 0.02f, 0.02f, 0.04f, 0.70f };
+    glm::vec4 trackColor    { 0.04f, 0.05f, 0.08f, 0.82f };
+    glm::vec4 fillColor     { 1.0f, 0.22f, 0.22f, 0.96f  };
 };
 
 class hudSlider : public HUDElement {

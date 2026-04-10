@@ -1,0 +1,29 @@
+{
+  "id": "stone",
+  "display_name": "Stone",
+  "categories": ["terrain"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 1,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "tags": 2,
+    "hardness": 7.5
+  },
+  "data": {
+    "can_drop_item": false
+  },
+  "render": {
+    "base_color": [0.45, 0.42, 0.5],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

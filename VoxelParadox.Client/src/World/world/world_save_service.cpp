@@ -738,7 +738,7 @@ bool tryReadPersistedUniverseName(const std::filesystem::path& path,
 
     for (size_t index = 0; index < modifiedBlockCount; index++) {
         glm::ivec3 blockPos{};
-        BlockType blockType = BlockType::AIR;
+        BlockId blockType = BlockIds::AIR;
         file.read(reinterpret_cast<char*>(&blockPos), sizeof(blockPos));
         file.read(reinterpret_cast<char*>(&blockType), sizeof(blockType));
         if (!file) {

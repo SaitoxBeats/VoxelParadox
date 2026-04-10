@@ -137,7 +137,7 @@ void resetPlayerTraversalState(Player& player) {
   player.targetNormal = glm::ivec3(0);
   player.isBreakingBlock = false;
   player.breakingBlock = glm::ivec3(0);
-  player.breakingBlockType = BlockType::AIR;
+  player.breakingBlockType = BlockIds::AIR;
   player.breakingTimer = 0.0f;
   player.breakingProgress = 0.0f;
   player.nestedPreview = Player::NestedPreviewPortal{};

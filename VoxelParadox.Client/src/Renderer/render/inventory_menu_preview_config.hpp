@@ -20,6 +20,7 @@ struct InventoryMenuPreviewConfig {
     glm::ivec2 tooltipPadding{10, 8};
     glm::ivec2 tooltipCursorOffset{14, 14};
     int tooltipGap = 6;
+    int tooltipTextGap = 2;
     int tooltipBorderThickness = 2;
 
     // Funcao: executa 'InventoryMenuPreviewConfig' neste modulo do projeto VoxelParadox.Client.

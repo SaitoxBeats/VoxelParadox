@@ -55,15 +55,15 @@ public:
     void onPauseMenuToggled(bool open);
 
     // --- Gameplay Events (Blocks) ---
-    void onBlockHit(BlockType blockType, const glm::ivec3& blockPos, bool initialHit);
-    void onBlockBroken(BlockType blockType, const glm::ivec3& blockPos);
-    void onBlockPlaced(BlockType blockType, const glm::ivec3& blockPos);
+    void onBlockHit(BlockId blockType, const glm::ivec3& blockPos, bool initialHit);
+    void onBlockBroken(BlockId blockType, const glm::ivec3& blockPos);
+    void onBlockPlaced(BlockId blockType, const glm::ivec3& blockPos);
 
     // --- Gameplay Events (Player/Items) ---
     void onItemCollected();
     void onPlayerDamaged();
     void onPlayerDoubleJump();
-    void onPlayerFootstep(BlockType blockType, const glm::vec3& worldPosition,
+    void onPlayerFootstep(BlockId blockType, const glm::vec3& worldPosition,
         float gain, float pitch);
     void onDeathSequenceStarted();
 

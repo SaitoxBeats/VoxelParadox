@@ -173,9 +173,9 @@ void Player::updateDamageFeedback(float dt) {
         oscillation * glm::radians(kDamageRollAmplitudeDegrees) * decay;
 }
 
-BlockType Player::getFootstepBlockType(FractalWorld* world) const {
+BlockId Player::getFootstepBlockType(FractalWorld* world) const {
     if (!world) {
-        return BlockType::AIR;
+        return BlockIds::AIR;
     }
 
     const glm::vec3 feetPosition = getFeetPosition();
@@ -193,13 +193,13 @@ BlockType Player::getFootstepBlockType(FractalWorld* world) const {
             static_cast<int>(std::floor(feetPosition.x + sample.x)),
             static_cast<int>(std::floor(probeY)),
             static_cast<int>(std::floor(feetPosition.z + sample.y)));
-        const BlockType blockType = world->getBlock(blockPos);
+        const BlockId blockType = world->getBlock(blockPos);
         if (isSolid(blockType)) {
             return blockType;
         }
     }
 
-    return BlockType::AIR;
+    return BlockIds::AIR;
 }
 
 void Player::emitFootstep(FractalWorld* world, float speedAlpha) {
@@ -207,7 +207,7 @@ void Player::emitFootstep(FractalWorld* world, float speedAlpha) {
         return;
     }
 
-    const BlockType blockType = getFootstepBlockType(world);
+    const BlockId blockType = getFootstepBlockType(world);
     if (!isSolid(blockType)) {
         return;
     }
@@ -399,11 +399,6 @@ void Player::update(float dt, WorldStack& worldStack, PlayerUpdateMode updateMod
 
     if (allowGameplayInteractions) {
         updateNestedPreview(worldStack, world, dt);
-        if (shouldAutoEnterLookedPortal(world)) {
-            resetBlockBreaking();
-            beginNestedEntryTransition(worldStack);
-            return;
-        }
         handleBlockInteraction(worldStack, dt);
     } else {
         clearTargetSelection();

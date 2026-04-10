@@ -202,7 +202,7 @@ namespace {
             return false;
         }
 
-        const BlockType supportType = world->getBlock(targetBlock);
+        const BlockId supportType = world->getBlock(targetBlock);
         if (!isSolid(supportType)) {
             outFailureReason = "look at the top face of a solid block first.";
             return false;

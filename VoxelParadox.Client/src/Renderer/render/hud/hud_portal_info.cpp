@@ -134,7 +134,7 @@ bool hudPortalInfo::getPortalTarget(glm::ivec3& block, std::uint32_t& childSeed,
 
     FractalWorld* world = worldStack->currentWorld();
     if (!world) return false;
-    if (world->getBlock(block) != BlockType::PORTAL) return false;
+    if (world->getBlock(block) != BlockIds::PORTAL) return false;
 
     auto it = world->portalBlocks.find(block);
     if (it == world->portalBlocks.end()) return false;

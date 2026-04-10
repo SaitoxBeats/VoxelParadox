@@ -115,7 +115,7 @@ void Player::clearTargetOnly() {
 void Player::resetBlockBreaking() {
     isBreakingBlock = false;
     breakingBlock = glm::ivec3(0);
-    breakingBlockType = BlockType::AIR;
+    breakingBlockType = BlockIds::AIR;
     breakingTimer = 0.0f;
     breakingProgress = 0.0f;
     breakingHitCooldown = 0.0f;
@@ -201,7 +201,7 @@ void Player::updateStance(FractalWorld* world, bool allowMovementInput, float dt
     setFeetPosition(feetPosition);
 }
 
-void Player::handleMovement(float dt, bool allowMovementInput) {
+void Player::handleMovement(float dt, bool allowMovementInput, bool& jumpPressConsumed) {
     auto& inputActions = InputMapping::InputActionSystem::instance();
 
     // Determine forward vector
@@ -264,8 +264,12 @@ void Player::handleMovement(float dt, bool allowMovementInput) {
     velocity.z = horizontalVelocity.z;
 
     // Process jump
-    const bool jumpPressed =
+    const bool jumpPressedRaw =
         allowMovementInput && inputActions.wasPressed(InputActionIds::kJump);
+    const bool jumpPressed = jumpPressedRaw && !jumpPressConsumed;
+    if (jumpPressed) {
+        jumpPressConsumed = true;
+    }
     const bool jumpHeld =
         allowMovementInput && inputActions.isDown(InputActionIds::kJump);
     const double now = ENGINE::GETTIME();
@@ -306,6 +310,7 @@ void Player::handleMovement(float dt, bool allowMovementInput) {
 void Player::simulateMovement(float dt, FractalWorld* world, bool allowMovementInput) {
     // Split physics into substeps to keep the body stable against the voxel grid.
     float remaining = dt;
+    bool jumpPressConsumed = false;
 
     while (remaining > 0.0f) {
         const float step = std::min(remaining, kPhysicsMaxStep);
@@ -320,7 +325,7 @@ void Player::simulateMovement(float dt, FractalWorld* world, bool allowMovementI
 
         grounded = world && hasSupportBelow(world, getFeetPosition(), 0.0f, false) && velocity.y <= 0.05f;
 
-        handleMovement(step, allowMovementInput);
+        handleMovement(step, allowMovementInput, jumpPressConsumed);
 
         if (world) {
             resolveCollisions(world, step);

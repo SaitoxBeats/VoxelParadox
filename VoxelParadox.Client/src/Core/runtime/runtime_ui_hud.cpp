@@ -19,7 +19,10 @@
 #include "runtime/runtime_ui_internal.hpp"
 #include "client_assets.hpp"
 #include "client_defaults.hpp"
-#include "render/hotbar_preview_config.hpp"
+#include "render/hud/styles/pause_menu_hud_style.hpp"
+#include "render/hud/styles/save_toast_hud_style.hpp"
+#include "render/hud/styles/settings_dialog_hud_style.hpp"
+#include "render/hud/styles/settings_menu_hud_style.hpp"
 #include "runtime/runtime_hud_ids.hpp"
 
 #pragma endregion
@@ -45,70 +48,12 @@ namespace RuntimeUI::Detail {
             return makeHUDLayout(HUDAnchor::BOTTOM_CENTER, glm::vec2(-120.0f, -50.0f));
         }
 
-        HUDLayout makePlayerLifeSliderLayout() {
-            const HotbarHUDLayout& layout = HUDHotbarPreview::config.layout;
-
-            const int barWidth =
-                layout.padding.x * 2 +
-                layout.slotSize.x * PlayerHotbar::SLOT_COUNT +
-                layout.slotSpacing * (PlayerHotbar::SLOT_COUNT - 1);
-            const int barHeight = layout.padding.y * 2 + layout.slotSize.y;
-
-            return makeHUDLayout(
-                HUDAnchor::BOTTOM_CENTER,
-                HUDAnchor::TOP_LEFT,
-                glm::vec2(
-                    -static_cast<float>(barWidth) * 0.5f,
-                    -(static_cast<float>(barHeight + layout.offset.y +
-                                         layout.lifeBarGap + layout.lifeBarHeight))
-                )
-            );
-        }
-
-        HUDLayout makePortalCooldownLayout() {
-            const HotbarHUDLayout& layout = HUDHotbarPreview::config.layout;
-
-            const int barWidth = layout.padding.x * 2 +
-                layout.slotSize.x * PlayerHotbar::SLOT_COUNT +
-                layout.slotSpacing * (PlayerHotbar::SLOT_COUNT - 1);
-
-            const int barHeight = layout.padding.y * 2 + layout.slotSize.y;
-
-            const float xOffset = static_cast<float>(barWidth) * 0.5f + 42.0f;
-            const float yOffset = -(static_cast<float>(barHeight) * 0.5f + static_cast<float>(layout.offset.y) + 4.0f);
-
-            return makeHUDLayout(HUDAnchor::BOTTOM_CENTER, glm::vec2(xOffset, yOffset));
-        }
-
         HUDLayout makeSaveToastLayout() {
             return makeHUDLayout(
                 HUDAnchor::BOTTOM_RIGHT,
                 HUDAnchor::BOTTOM_RIGHT,
                 glm::vec2(-20.0f, -28.0f)
             );
-        }
-
-        std::string formatPortalCooldownText(const Player& player) {
-            if (player.isInventoryOpen()) {
-                return {};
-            }
-
-            if (player.isSandboxModeEnabled()) {
-                return "Portal: SANDBOX";
-            }
-
-            const double remainingSeconds = player.getUniverseCreationCooldownRemainingSeconds();
-            if (remainingSeconds <= 0.0) {
-                return "Portal: READY";
-            }
-
-            const int totalSeconds = static_cast<int>(std::ceil(remainingSeconds));
-            const int minutes = totalSeconds / 60;
-            const int seconds = totalSeconds % 60;
-
-            char buffer[48];
-            std::snprintf(buffer, sizeof(buffer), "Portal: %02d:%02d", minutes, seconds);
-            return buffer;
         }
 
         const InputMapping::InputCategoryDefinition* selectedControlsCategory(const RuntimeUI::RuntimeUiState& uiState) {
@@ -407,7 +352,7 @@ namespace RuntimeUI::Detail {
                         return;
                     }
 
-                    const BlockType blockType = world->getBlock(player.targetBlock);
+                    const BlockId blockType = world->getBlock(player.targetBlock);
                     float remaining = player.getBreakTimeSeconds(blockType);
 
                     if (player.isBreakingBlock && player.breakingBlock == player.targetBlock) {
@@ -455,110 +400,8 @@ namespace RuntimeUI::Detail {
 
 #pragma endregion
 
-#pragma region 5. Hotbar HUD
-    // --- 5. Hotbar HUD ---
-
-    // Bottom hotbar widgets: background, selection, item previews, and counts.
-    void addHotbarHUD(Player& player, Renderer& renderer, WorldStack& worldStack) {
-        const HotbarHUDLayout& hotbarLayout = HUDHotbarPreview::config.layout;
-        const int clampedLifeBarWidthSlots = glm::clamp(
-            hotbarLayout.lifeBarWidthSlots, 1, PlayerHotbar::SLOT_COUNT
-        );
-        const int lifeBarWidth =
-            hotbarLayout.slotSize.x * clampedLifeBarWidthSlots +
-            hotbarLayout.slotSpacing * (clampedLifeBarWidthSlots - 1);
-
-        auto* lifeSlider = new hudSlider(
-            makePlayerLifeSliderLayout(),
-            glm::vec2(
-                static_cast<float>(lifeBarWidth),
-                static_cast<float>(hotbarLayout.lifeBarHeight)
-            ),
-            [&player]() {
-                const int maxLifePoints = player.getMaxLifePoints();
-                if (maxLifePoints <= 0) {
-                    return 0.0f;
-                }
-
-                return glm::clamp(
-                    static_cast<float>(player.getLifePoints()) /
-                        static_cast<float>(maxLifePoints),
-                    0.0f,
-                    1.0f
-                );
-            },
-            HudSliderStyle{},
-            hotbarLayout.lifeBarBorderThickness,
-            hotbarLayout.lifeBarFillInset,
-            [&player]() {
-                return !player.isInventoryOpen();
-            }
-        );
-        lifeSlider->setStyleBinder([&player]() {
-            HudSliderStyle style;
-            style.borderColor = glm::vec4(0.08f, 0.09f, 0.13f, 1.00f);
-            style.trackColor = glm::vec4(2.37f, 1.16f, 1.16f, 1.00f);
-            style.fillColor = glm::vec4(0.92f, 0.08f, 0.08f, 1.00f);
-            return style;
-        });
-
-        HUD::add(attachToHUDGroup(
-            new hudHotbar(&player, HotbarVisualPart::BACKGROUND),
-            RuntimeHudIds::kHotbar, 0
-        ));
-
-        HUD::add(attachToHUDGroup(
-            lifeSlider,
-            RuntimeHudIds::kHotbar, 1
-        ));
-
-        HUD::add(attachToHUDGroup(
-            new hudHotbar(&player, HotbarVisualPart::SELECTION),
-            RuntimeHudIds::kHotbar, 2
-        ));
-
-        HUD::add(attachToHUDGroup(
-            new hudHotbarPreview(&renderer, &player, &worldStack),
-            RuntimeHudIds::kHotbar, 3
-        ));
-
-        HUD::add(attachToHUDGroup(
-            new hudHotbar(&player, HotbarVisualPart::COUNTS),
-            RuntimeHudIds::kHotbar, 4
-        ));
-
-        if (auto* portalCooldown = attachToHUDGroup(
-            HUD::watchText(
-                [&player](std::string& out) {
-                    out = formatPortalCooldownText(player);
-                },
-                makePortalCooldownLayout(), glm::vec2(1.0f), 16, 0.0f
-            ),
-            RuntimeHudIds::kHotbar, 5)) {
-
-            portalCooldown->setVisualBinder(
-                [&player](hudWatchText& watchText) {
-                    if (player.isSandboxModeEnabled()) {
-                        watchText.setColor(glm::vec3(0.55f, 1.0f, 0.68f));
-                        return;
-                    }
-
-                    if (player.getUniverseCreationCooldownRemainingSeconds() <= 0.0) {
-                        watchText.setColor(glm::vec3(1.0f, 0.94f, 0.58f));
-                        return;
-                    }
-
-                    watchText.setColor(glm::vec3(0.78f, 0.84f, 0.94f));
-                }
-            );
-            portalCooldown->setColor(glm::vec3(0.78f, 0.84f, 0.94f));
-        }
-    }
-
-#pragma endregion
-
-#pragma region 6. Portal Tracker & Toast HUD
-    // --- 6. Portal Tracker & Toast HUD ---
+#pragma region 5. Portal Tracker & Toast HUD
+    // --- 5. Portal Tracker & Toast HUD ---
 
     void addPortalTrackerHUD(Player& player, WorldStack& worldStack, hudPortalTracker*& outPortalTracker) {
         outPortalTracker = attachToHUDGroup(
@@ -572,6 +415,8 @@ namespace RuntimeUI::Detail {
     }
 
     void addSaveToastHUD(RuntimeUiState& uiState) {
+        const glm::vec3 toastColor = HUDStyles::kSaveToast.textColor;
+
         if (auto* toast = attachToHUDGroup(
             HUD::watchText(
                 [&uiState](std::string& out) {
@@ -581,9 +426,9 @@ namespace RuntimeUI::Detail {
             ),
             RuntimeHudIds::kSaveToast)) {
 
-            toast->setColor(glm::vec3(0.80f, 1.0f, 0.86f));
+            toast->setColor(toastColor);
             toast->setVisualBinder(
-                [&uiState](hudWatchText& watchText) {
+                [&uiState, toastColor](hudWatchText& watchText) {
                     const float duration = std::max(uiState.saveToastDuration, 0.001f);
                     const float fadeIn = std::max(uiState.saveToastFadeInDuration, 0.001f);
                     const float fadeOut = std::max(uiState.saveToastFadeOutDuration, 0.001f);
@@ -594,7 +439,7 @@ namespace RuntimeUI::Detail {
                     const float fadeOutAlpha = glm::clamp(remaining / fadeOut, 0.0f, 1.0f);
 
                     watchText.setOpacity(glm::min(fadeInAlpha, fadeOutAlpha));
-                    watchText.setColor(glm::vec3(0.80f, 1.0f, 0.86f));
+                    watchText.setColor(toastColor);
                 }
             );
         }
@@ -602,8 +447,8 @@ namespace RuntimeUI::Detail {
 
 #pragma endregion
 
-#pragma region 7. Pause Menu
-    // --- 7. Pause Menu ---
+#pragma region 6. Pause Menu
+    // --- 6. Pause Menu ---
 
     // Pause menu root layer shown while the game is paused and settings are closed.
     void addPauseMenuHUD(GLFWwindow* window, RuntimeUiState& uiState,
@@ -611,8 +456,10 @@ namespace RuntimeUI::Detail {
         GameSettings& pendingSettings) {
         (void)window;
 
+        const PauseMenuHUDStyle& style = HUDStyles::kPauseMenu;
+
         HUD::add(attachToHUDGroup(
-            new hudPanel(glm::vec4(0.0f, 0.0f, 0.0f, 0.65f)),
+            new hudPanel(style.panel.color),
             RuntimeHudIds::kPauseMenu
         ));
 
@@ -620,7 +467,8 @@ namespace RuntimeUI::Detail {
             new hudButtonText(
                 "Continue",
                 makeCenteredMenuButtonPositioner(-80.0f), 32,
-                glm::vec3(1.0f), glm::vec3(1.0f, 1.0f, 0.2f),
+                style.continueButton.normalColor,
+                style.continueButton.hoverColor,
                 [&uiState]() {
                     uiState.settingsMenuOpen = false;
                     ENGINE::SETPAUSED(false);
@@ -633,7 +481,8 @@ namespace RuntimeUI::Detail {
             new hudButtonText(
                 "Settings",
                 makeCenteredMenuButtonPositioner(-25.0f), 32,
-                glm::vec3(0.8f, 0.95f, 1.0f), glm::vec3(1.0f, 1.0f, 0.2f),
+                style.settingsButton.normalColor,
+                style.settingsButton.hoverColor,
                 [&uiState, &appliedSettings, &pendingSettings]() {
                     openSettingsMenu(uiState, appliedSettings, pendingSettings);
                 }
@@ -645,7 +494,8 @@ namespace RuntimeUI::Detail {
             new hudButtonText(
                 "Exit",
                 makeCenteredMenuButtonPositioner(30.0f), 32,
-                glm::vec3(1.0f), glm::vec3(1.0f, 0.4f, 0.4f),
+                style.exitButton.normalColor,
+                style.exitButton.hoverColor,
                 [&uiState]() {
                     uiState.returnToLauncherRequested = true;
                 }
@@ -656,8 +506,8 @@ namespace RuntimeUI::Detail {
 
 #pragma endregion
 
-#pragma region 8. Settings Menu
-    // --- 8. Settings Menu ---
+#pragma region 7. Settings Menu
+    // --- 7. Settings Menu ---
 
     // Main settings screen with General and Sound tabs plus footer actions.
     void addSettingsMenuHUD(Player& player, WorldStack& worldStack, Renderer& renderer,
@@ -666,15 +516,7 @@ namespace RuntimeUI::Detail {
         const std::vector<std::string>& availableFonts,
         const std::vector<glm::ivec2>& availableResolutions,
         RuntimeUiState& uiState) {
-
-        // --- Layout Constants & Colors ---
-        const glm::vec3 titleColor(0.95f, 0.98f, 1.0f);
-        const glm::vec3 labelColor(0.78f, 0.86f, 0.98f);
-        const glm::vec3 valueColor(1.0f);
-        const glm::vec3 buttonColor(0.90f, 0.96f, 1.0f);
-        const glm::vec3 buttonHoverColor(1.0f, 1.0f, 0.2f);
-        const glm::vec3 inactiveTabColor(0.72f, 0.82f, 0.94f);
-        const glm::vec3 activeTabColor(1.0f, 1.0f, 0.34f);
+        const SettingsMenuHUDStyle& style = HUDStyles::kSettingsMenu;
 
         const char* generalGroup = RuntimeHudIds::kSettingsGeneralTab;
         const char* soundGroup = RuntimeHudIds::kSettingsSoundTab;
@@ -695,7 +537,7 @@ namespace RuntimeUI::Detail {
 
         // --- Background & Title ---
         HUD::add(attachToHUDGroup(
-            new hudPanel(glm::vec4(0.0f, 0.0f, 0.0f, 0.78f)),
+            new hudPanel(style.panel.color),
             RuntimeHudIds::kSettingsMenu
         ));
 
@@ -706,7 +548,7 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 38
             ),
             RuntimeHudIds::kSettingsMenu)) {
-            title->setColor(titleColor);
+            title->setColor(style.titleColor);
         }
 
         if (auto* subtitle = attachToHUDGroup(
@@ -718,7 +560,7 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 18
             ),
             RuntimeHudIds::kSettingsMenu)) {
-            subtitle->setColor(glm::vec3(0.70f, 0.78f, 0.90f));
+            subtitle->setColor(style.subtitleColor);
         }
 
         // --- Tab Buttons Helper ---
@@ -726,7 +568,8 @@ namespace RuntimeUI::Detail {
             HUD::add(attachToHUDGroup(
                 new hudButtonText(
                     text, makeCenteredMenuButtonPositioner(tabsYOffset, xOffset), 26,
-                    inactiveTabColor, buttonHoverColor,
+                    style.inactiveTabButton.normalColor,
+                    style.inactiveTabButton.hoverColor,
                     [&uiState, tab]() { uiState.activeSettingsTab = tab; },
                     [&uiState, tab]() { return uiState.activeSettingsTab != tab; }
                 ),
@@ -736,7 +579,8 @@ namespace RuntimeUI::Detail {
             HUD::add(attachToHUDGroup(
                 new hudButtonText(
                     text, makeCenteredMenuButtonPositioner(tabsYOffset, xOffset), 26,
-                    activeTabColor, activeTabColor,
+                    style.activeTabButton.normalColor,
+                    style.activeTabButton.hoverColor,
                     [&uiState, tab]() { uiState.activeSettingsTab = tab; },
                     [&uiState, tab]() { return uiState.activeSettingsTab == tab; }
                 ),
@@ -762,7 +606,7 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 22
             ),
             RuntimeHudIds::kSettingsMenu)) {
-            sectionTitle->setColor(glm::vec3(0.82f, 0.90f, 1.0f));
+            sectionTitle->setColor(style.sectionTitleColor);
         }
 
         // --- Row Generation Helpers ---
@@ -770,7 +614,7 @@ namespace RuntimeUI::Detail {
             if (auto* label = attachToHUDGroup(
                 HUD::addText(text, makeSettingsLabelLayout(yOffset, rowLabelColumn), glm::vec2(1.0f), 22),
                 groupName)) {
-                label->setColor(labelColor);
+                label->setColor(style.labelColor);
             }
             };
 
@@ -781,7 +625,10 @@ namespace RuntimeUI::Detail {
                 HUD::add(attachToHUDGroup(
                     new hudButtonText(
                         text, makeCenteredMenuButtonPositioner(yOffset, xOffset), 26,
-                        buttonColor, buttonHoverColor, onClick, visible
+                        style.button.normalColor,
+                        style.button.hoverColor,
+                        onClick,
+                        visible
                     ),
                     groupName
                 ));
@@ -793,7 +640,6 @@ namespace RuntimeUI::Detail {
             const std::function<void()>& onNext,
             const std::function<bool()>& enabled = {}) {
                 const bool hasEnabledPredicate = static_cast<bool>(enabled);
-                const glm::vec3 disabledValueColor(0.60f, 0.64f, 0.72f);
 
                 addRowLabel(groupName, label, yOffset);
 
@@ -802,13 +648,15 @@ namespace RuntimeUI::Detail {
                     groupName)) {
                     if (hasEnabledPredicate) {
                         value->setVisualBinder(
-                            [enabled, valueColor, disabledValueColor](hudWatchText& text) {
+                            [enabled,
+                             valueColor = style.valueColor,
+                             disabledValueColor = style.disabledValueColor](hudWatchText& text) {
                                 text.setColor(enabled() ? valueColor : disabledValueColor);
                             }
                         );
                     }
                     else {
-                        value->setColor(valueColor);
+                        value->setColor(style.valueColor);
                     }
                 }
 
@@ -927,7 +775,7 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 24
             ),
             controlsGroup)) {
-            controlsCategoryLabel->setColor(valueColor);
+            controlsCategoryLabel->setColor(style.valueColor);
         }
 
         addArrowButton(
@@ -971,7 +819,7 @@ namespace RuntimeUI::Detail {
                     controlsLabelLayout(rowY), glm::vec2(1.0f), 18
                 ),
                 controlsGroup)) {
-                label->setColor(labelColor);
+                label->setColor(style.labelColor);
             }
 
             if (auto* binding = attachToHUDGroup(
@@ -986,13 +834,14 @@ namespace RuntimeUI::Detail {
                     controlsValueLayout(rowY), glm::vec2(1.0f), 18
                 ),
                 controlsGroup)) {
-                binding->setColor(valueColor);
+                binding->setColor(style.valueColor);
             }
 
             HUD::add(attachToHUDGroup(
                 new hudButtonText(
                     "Rebind", makeCenteredMenuButtonPositioner(rowY - 12.0f, 185.0f), 18,
-                    buttonColor, buttonHoverColor,
+                    style.button.normalColor,
+                    style.button.hoverColor,
                     [&uiState, rowIndex]() {
                         const auto* action = controlsActionForRow(uiState, rowIndex);
                         if (!action) return;
@@ -1009,7 +858,8 @@ namespace RuntimeUI::Detail {
             HUD::add(attachToHUDGroup(
                 new hudButtonText(
                     "Clear", makeCenteredMenuButtonPositioner(rowY - 12.0f, 300.0f), 18,
-                    buttonColor, buttonHoverColor,
+                    style.button.normalColor,
+                    style.button.hoverColor,
                     [&pendingSettings, &uiState, rowIndex]() {
                         const auto* action = controlsActionForRow(uiState, rowIndex);
                         if (!action) return;
@@ -1029,13 +879,14 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 16
             ),
             controlsGroup)) {
-            controlsWarning->setColor(glm::vec3(1.0f, 0.72f, 0.72f));
+            controlsWarning->setColor(style.warningColor);
         }
 
         HUD::add(attachToHUDGroup(
             new hudButtonText(
                 "Reset Category", makeBottomMenuButtonPositioner(92.0f, -125.0f), 22,
-                buttonColor, buttonHoverColor,
+                style.button.normalColor,
+                style.button.hoverColor,
                 [&pendingSettings, &uiState]() {
                     const auto* category = selectedControlsCategory(uiState);
                     if (!category) return;
@@ -1049,7 +900,8 @@ namespace RuntimeUI::Detail {
         HUD::add(attachToHUDGroup(
             new hudButtonText(
                 "Reset All", makeBottomMenuButtonPositioner(92.0f, 125.0f), 22,
-                buttonColor, buttonHoverColor,
+                style.button.normalColor,
+                style.button.hoverColor,
                 [&pendingSettings, &uiState]() {
                     InputMapping::InputActionSystem::instance().resetAll(pendingSettings.controlOverrides);
                     uiState.controlsWarningMessage.clear();
@@ -1062,7 +914,8 @@ namespace RuntimeUI::Detail {
         HUD::add(attachToHUDGroup(
             new hudButtonText(
                 "Apply", makeBottomMenuButtonPositioner(footerBottomMargin, -90.0f), 30,
-                glm::vec3(1.0f), buttonHoverColor,
+                style.footerButton.normalColor,
+                style.footerButton.hoverColor,
                 [&player, &worldStack, &renderer, &audioController, &uiState, &appliedSettings, &pendingSettings]() {
                     applyPendingSettings(player, worldStack, renderer, audioController, uiState,
                         appliedSettings, pendingSettings);
@@ -1074,7 +927,8 @@ namespace RuntimeUI::Detail {
         HUD::add(attachToHUDGroup(
             new hudButtonText(
                 "Back", makeBottomMenuButtonPositioner(footerBottomMargin, 90.0f), 30,
-                glm::vec3(1.0f), buttonHoverColor,
+                style.footerButton.normalColor,
+                style.footerButton.hoverColor,
                 [&uiState, &appliedSettings, &pendingSettings]() {
                     requestCloseSettingsMenu(uiState, appliedSettings, pendingSettings);
                 }
@@ -1085,21 +939,19 @@ namespace RuntimeUI::Detail {
 
 #pragma endregion
 
-#pragma region 9. Settings Confirmation Menu
-    // --- 9. Settings Confirmation Menu ---
+#pragma region 8. Settings Confirmation Menu
+    // --- 8. Settings Confirmation Menu ---
 
     // Confirmation dialog shown when leaving settings with unapplied changes.
     void addSettingsDiscardConfirmHUD(Player& player, WorldStack& worldStack, Renderer& renderer,
         GameAudioController& audioController,
         GameSettings& appliedSettings, GameSettings& pendingSettings,
         RuntimeUiState& uiState) {
-        const glm::vec3 textColor(0.95f, 0.98f, 1.0f);
-        const glm::vec3 secondaryTextColor(0.76f, 0.84f, 0.96f);
-        const glm::vec3 buttonColor(0.90f, 0.96f, 1.0f);
-        const glm::vec3 buttonHoverColor(1.0f, 1.0f, 0.2f);
+        const SettingsDiscardConfirmHUDStyle& style =
+            HUDStyles::kSettingsDiscardConfirm;
 
         HUD::add(attachToHUDGroup(
-            new hudPanel(glm::vec4(0.0f, 0.0f, 0.0f, 0.82f)),
+            new hudPanel(style.panel.color),
             RuntimeHudIds::kSettingsConfirmMenu
         ));
 
@@ -1110,7 +962,7 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 34
             ),
             RuntimeHudIds::kSettingsConfirmMenu)) {
-            title->setColor(textColor);
+            title->setColor(style.titleColor);
         }
 
         if (auto* message = attachToHUDGroup(
@@ -1120,13 +972,14 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 20
             ),
             RuntimeHudIds::kSettingsConfirmMenu)) {
-            message->setColor(secondaryTextColor);
+            message->setColor(style.messageColor);
         }
 
         HUD::add(attachToHUDGroup(
             new hudButtonText(
                 "Apply", makeCenteredMenuButtonPositioner(70.0f, -170.0f), 28,
-                buttonColor, buttonHoverColor,
+                style.button.normalColor,
+                style.button.hoverColor,
                 [&player, &worldStack, &renderer, &audioController, &uiState, &appliedSettings, &pendingSettings]() {
                     applyPendingSettings(player, worldStack, renderer, audioController, uiState,
                         appliedSettings, pendingSettings);
@@ -1140,7 +993,8 @@ namespace RuntimeUI::Detail {
         HUD::add(attachToHUDGroup(
             new hudButtonText(
                 "Discard", makeCenteredMenuButtonPositioner(70.0f, 0.0f), 28,
-                buttonColor, buttonHoverColor,
+                style.button.normalColor,
+                style.button.hoverColor,
                 [&uiState, &appliedSettings, &pendingSettings]() {
                     closeSettingsMenu(uiState, appliedSettings, pendingSettings);
                 }
@@ -1151,7 +1005,8 @@ namespace RuntimeUI::Detail {
         HUD::add(attachToHUDGroup(
             new hudButtonText(
                 "Cancel", makeCenteredMenuButtonPositioner(70.0f, 170.0f), 28,
-                buttonColor, buttonHoverColor,
+                style.button.normalColor,
+                style.button.hoverColor,
                 [&uiState]() { uiState.settingsDiscardConfirmOpen = false; }
             ),
             RuntimeHudIds::kSettingsConfirmMenu
@@ -1160,12 +1015,15 @@ namespace RuntimeUI::Detail {
 
 #pragma endregion
 
-#pragma region 10. Settings Controls Capture
-    // --- 10. Settings Controls Capture ---
+#pragma region 9. Settings Controls Capture
+    // --- 9. Settings Controls Capture ---
 
     void addSettingsControlsCaptureHUD(RuntimeUiState& uiState) {
+        const SettingsControlsCaptureHUDStyle& style =
+            HUDStyles::kSettingsControlsCapture;
+
         HUD::add(attachToHUDGroup(
-            new hudPanel(glm::vec4(0.0f, 0.0f, 0.0f, 0.84f)),
+            new hudPanel(style.panel.color),
             RuntimeHudIds::kSettingsControlsCaptureMenu
         ));
 
@@ -1176,7 +1034,7 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 30
             ),
             RuntimeHudIds::kSettingsControlsCaptureMenu)) {
-            title->setColor(glm::vec3(0.95f, 0.98f, 1.0f));
+            title->setColor(style.titleColor);
         }
 
         if (auto* actionLabel = attachToHUDGroup(
@@ -1189,7 +1047,7 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 20
             ),
             RuntimeHudIds::kSettingsControlsCaptureMenu)) {
-            actionLabel->setColor(glm::vec3(0.90f, 0.96f, 1.0f));
+            actionLabel->setColor(style.actionLabelColor);
         }
 
         if (auto* prompt = attachToHUDGroup(
@@ -1199,14 +1057,14 @@ namespace RuntimeUI::Detail {
                 glm::vec2(1.0f), 18
             ),
             RuntimeHudIds::kSettingsControlsCaptureMenu)) {
-            prompt->setColor(glm::vec3(0.78f, 0.86f, 0.98f));
+            prompt->setColor(style.promptColor);
         }
     }
 
 #pragma endregion
 
-#pragma region 11. Inventory Menu
-    // --- 11. Inventory Menu ---
+#pragma region 10. Inventory Menu
+    // --- 10. Inventory Menu ---
 
     // Full inventory menu visuals plus 3D slot previews.
     void addInventoryMenuHUD(Player& player, Renderer& renderer, WorldStack& worldStack) {
@@ -1216,20 +1074,40 @@ namespace RuntimeUI::Detail {
         ));
 
         HUD::add(attachToHUDGroup(
-            new hudInventoryMenuPreview(&renderer, &player, &worldStack),
+            new hudInventoryMenu(&player, InventoryMenuVisualPart::COUNTS),
             RuntimeHudIds::kInventoryMenu, 1
         ));
 
         HUD::add(attachToHUDGroup(
-            new hudInventoryMenu(&player, InventoryMenuVisualPart::COUNTS),
+            new hudInventoryMenuPreview(
+                &renderer,
+                &player,
+                &worldStack,
+                InventoryMenuPreviewPart::SLOTS
+            ),
             RuntimeHudIds::kInventoryMenu, 2
+        ));
+
+        HUD::add(attachToHUDGroup(
+            new hudInventoryMenu(&player, InventoryMenuVisualPart::TOOLTIP),
+            RuntimeHudIds::kInventoryMenu, 3
+        ));
+
+        HUD::add(attachToHUDGroup(
+            new hudInventoryMenuPreview(
+                &renderer,
+                &player,
+                &worldStack,
+                InventoryMenuPreviewPart::TOOLTIP
+            ),
+            RuntimeHudIds::kInventoryMenu, 4
         ));
     }
 
 #pragma endregion
 
-#pragma region 12. Pause Helpers
-    // --- 12. Pause Helpers ---
+#pragma region 11. Pause Helpers
+    // --- 11. Pause Helpers ---
 
     // Escape either cancels portal editing or toggles the pause state.
     void togglePauseOrCancelPortalEdit(hudPortalInfo* portalInfo) {
@@ -1328,7 +1206,7 @@ namespace RuntimeUI {
         Detail::createHUDGroups();
         Detail::addFpsOnlyHUD();
         Detail::addDebugHUD(worldStack, player);
-        Detail::addPlayerStatusHUD(player);
+        //Detail::addPlayerStatusHUD(player);
 
         auto* portalInfo = new hudPortalInfo(&player, &worldStack, 18);
         HUD::add(portalInfo);

@@ -1,0 +1,29 @@
+{
+  "id": "void_matter",
+  "display_name": "Void Matter",
+  "categories": ["terrain"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 3,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "tags": 2,
+    "hardness": 7.5
+  },
+  "data": {
+    "can_drop_item": true
+  },
+  "render": {
+    "base_color": [0.2, 0.08, 0.3],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

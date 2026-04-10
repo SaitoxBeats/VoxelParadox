@@ -1,0 +1,29 @@
+{
+  "id": "organic",
+  "display_name": "Organic",
+  "categories": ["terrain", "organic"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 5,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "tags": 1,
+    "hardness": 0.75
+  },
+  "data": {
+    "can_drop_item": true
+  },
+  "render": {
+    "base_color": [0.75, 0.35, 0.28],
+    "shader": "shader.glsl"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

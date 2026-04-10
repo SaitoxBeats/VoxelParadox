@@ -29,7 +29,7 @@
 #pragma region VoxAssetApi
 struct VoxStructureVoxel {
     glm::ivec3 position{0};
-    BlockType block = BlockType::AIR;
+    BlockId block = BlockIds::AIR;
 };
 
 struct VoxStructureData {
@@ -73,20 +73,20 @@ inline glm::vec3 voxColorToVec3(std::uint32_t rgba) {
 
 // Funcao: mapeia 'mapVoxColorToNearestBlock' no carregamento de assets VOX.
 // Detalhe: usa 'color' para converter um valor de origem para a categoria usada pelo projeto.
-// Retorno: devolve 'BlockType' com o resultado composto por esta chamada.
-inline BlockType mapVoxColorToNearestBlock(const glm::vec3& color) {
-    static const BlockType candidates[] = {
-        BlockType::STONE,
-        BlockType::CRYSTAL,
-        BlockType::VOID_MATTER,
-        BlockType::MEMBRANE,
-        BlockType::ORGANIC,
-        BlockType::METAL,
+// Retorno: devolve 'BlockId' com o resultado composto por esta chamada.
+inline BlockId mapVoxColorToNearestBlock(const glm::vec3& color) {
+    static const BlockId candidates[] = {
+        BlockIds::STONE,
+        BlockIds::CRYSTAL,
+        BlockIds::VOID_MATTER,
+        BlockIds::MEMBRANE,
+        BlockIds::ORGANIC,
+        BlockIds::METAL,
     };
 
     float bestDist = std::numeric_limits<float>::max();
-    BlockType bestType = BlockType::STONE;
-    for (BlockType candidate : candidates) {
+    BlockId bestType = BlockIds::STONE;
+    for (BlockId candidate : candidates) {
         const glm::vec3 base = getBaseColor(candidate);
         const glm::vec3 diff = color - base;
         const float dist = glm::dot(diff, diff);
@@ -100,8 +100,8 @@ inline BlockType mapVoxColorToNearestBlock(const glm::vec3& color) {
 
 // Funcao: mapeia 'mapAncientRuinsVoxColorToBlock' no carregamento de assets VOX.
 // Detalhe: usa 'rgba' para converter um valor de origem para a categoria usada pelo projeto.
-// Retorno: devolve 'BlockType' com o resultado composto por esta chamada.
-inline BlockType mapAncientRuinsVoxColorToBlock(std::uint32_t rgba) {
+// Retorno: devolve 'BlockId' com o resultado composto por esta chamada.
+inline BlockId mapAncientRuinsVoxColorToBlock(std::uint32_t rgba) {
     const glm::vec3 color = voxColorToVec3(rgba);
     const float maxChannel = std::max(color.r, std::max(color.g, color.b));
     const float minChannel = std::min(color.r, std::min(color.g, color.b));
@@ -109,11 +109,11 @@ inline BlockType mapAncientRuinsVoxColorToBlock(std::uint32_t rgba) {
     const float brightness = (color.r + color.g + color.b) / 3.0f;
 
     if (color.g > color.r * 1.08f && color.g > color.b * 1.08f && color.g > 0.18f) {
-        return brightness >= 0.32f ? BlockType::ORGANIC : BlockType::MEMBRANE;
+        return brightness >= 0.32f ? BlockIds::ORGANIC : BlockIds::MEMBRANE;
     }
 
     if (saturation <= 0.14f) {
-        return BlockType::STONE;
+        return BlockIds::STONE;
     }
 
     return mapVoxColorToNearestBlock(color);
@@ -121,12 +121,12 @@ inline BlockType mapAncientRuinsVoxColorToBlock(std::uint32_t rgba) {
 
 // Funcao: mapeia 'mapVoxColorToBlock' no carregamento de assets VOX.
 // Detalhe: usa 'rgba', 'mapping' para converter um valor de origem para a categoria usada pelo projeto.
-// Retorno: devolve 'BlockType' com o resultado composto por esta chamada.
-inline BlockType mapVoxColorToBlock(std::uint32_t rgba,
+// Retorno: devolve 'BlockId' com o resultado composto por esta chamada.
+inline BlockId mapVoxColorToBlock(std::uint32_t rgba,
                                     VoxColorMapping mapping = VoxColorMapping::DEFAULT) {
     const std::uint8_t alpha = static_cast<std::uint8_t>((rgba >> 24) & 0xFFu);
     if (alpha < 8) {
-        return BlockType::AIR;
+        return BlockIds::AIR;
     }
 
     if (mapping == VoxColorMapping::ANCIENT_RUINS) {
@@ -181,7 +181,7 @@ inline std::vector<std::string> getVoxFilesRecursive(const std::string& root) {
 inline const VoxStructureData* loadVoxStructure(
     const std::string& path,
     VoxColorMapping mapping = VoxColorMapping::DEFAULT,
-    std::optional<BlockType> defaultBlock = std::nullopt) {
+    std::optional<BlockId> defaultBlock = std::nullopt) {
   static std::mutex cacheMutex;
   static std::unordered_map<std::string, std::shared_ptr<VoxStructureData>> cache;
   const std::string resolvedPath = AppPaths::resolveString(path);
@@ -300,11 +300,11 @@ inline const VoxStructureData* loadVoxStructure(
         data->voxels.reserve(rawVoxels.size());
         for (const RawVoxel& raw : rawVoxels) {
             if (raw.colorIndex == 0) continue;
-            const BlockType block = defaultBlock.has_value()
+            const BlockId block = defaultBlock.has_value()
                                         ? *defaultBlock
                                         : mapVoxColorToBlock(palette[raw.colorIndex],
                                                              mapping);
-            if (block == BlockType::AIR) continue;
+            if (block == BlockIds::AIR) continue;
 
             // MagicaVoxel uses Z-up; the game uses Y-up.
             // Mirror X as well so the imported structure keeps the same handedness in-game.

@@ -59,6 +59,7 @@ $settingsProps = @'
     <ClCompile>
       <AdditionalIncludeDirectories>$(VpProjectIncludeDirs);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>$(VpCommonPreprocessorDefinitions);$(VpConfigPreprocessorDefinitions);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/Zm1000 /utf-8 %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ExceptionHandling>Sync</ExceptionHandling>

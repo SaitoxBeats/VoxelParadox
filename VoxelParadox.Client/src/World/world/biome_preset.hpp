@@ -120,18 +120,18 @@ struct PerlinDensityModule {
 };
 
 struct MaterialPaletteModule {
-  BlockType surfaceRib = BlockType::MEMBRANE;
-  BlockType surfacePatch = BlockType::ORGANIC;
-  BlockType shell = BlockType::STONE;
-  BlockType core = BlockType::STONE;
-  BlockType accent = BlockType::CRYSTAL;
-  BlockType recess = BlockType::VOID_MATTER;
+  BlockId surfaceRib = BlockIds::MEMBRANE;
+  BlockId surfacePatch = BlockIds::ORGANIC;
+  BlockId shell = BlockIds::STONE;
+  BlockId core = BlockIds::STONE;
+  BlockId accent = BlockIds::CRYSTAL;
+  BlockId recess = BlockIds::VOID_MATTER;
 };
 
 struct TricolorPaletteModule {
-  BlockType primary = BlockType::STONE;
-  BlockType secondary = BlockType::MEMBRANE;
-  BlockType accent = BlockType::CRYSTAL;
+  BlockId primary = BlockIds::STONE;
+  BlockId secondary = BlockIds::MEMBRANE;
+  BlockId accent = BlockIds::CRYSTAL;
 };
 
 struct VolumeNoiseModuleSettings {
@@ -173,7 +173,7 @@ struct ImportVoxFilesModule {
   float spawnChance = 0.25f;
   VoxRotationMode rotationMode = VoxRotationMode::RANDOM_90;
   int fixedRotation = 0;
-  BlockType defaultVoxel = BlockType::STONE;
+  BlockId defaultVoxel = BlockIds::STONE;
   VoxColorMapping colorMapping = VoxColorMapping::DEFAULT;
   std::uint32_t seedOffset = 0;
 };
@@ -255,12 +255,12 @@ struct DomainWarpedNoiseModule {
 };
 
 struct TreeGeneratorModule {
-  std::vector<BlockType> spawnOnBlocks{BlockType::MEMBRANE, BlockType::ORGANIC};
+  std::vector<BlockId> spawnOnBlocks{BlockIds::MEMBRANE, BlockIds::ORGANIC};
   VoxPlacementPattern pattern = VoxPlacementPattern::RANDOM_SCATTER;
   float density = 0.35f;
   TreeGeneratorType treeType = TreeGeneratorType::NORMAL;
-  BlockType trunkBlock = BlockType::MEMBRANE_WEAVE;
-  BlockType leavesBlock = BlockType::ORGANIC;
+  BlockId trunkBlock = BlockIds::MEMBRANE_WEAVE;
+  BlockId leavesBlock = BlockIds::ORGANIC;
   bool infiniteY = false;
   int minY = -8;
   int maxY = 72;

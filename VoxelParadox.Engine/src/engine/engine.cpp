@@ -308,11 +308,15 @@ void applyWindowMode() {
   }
 
   if (viewportMode == VIEWPORTMODE::WINDOWMODE) {
+    const glm::ivec2 windowedSize =
+        glm::ivec2(toInt(lastWindowedSize.x, 1280),
+                   toInt(lastWindowedSize.y, 720));
+    const glm::ivec2 windowedPos =
+        resolveCenteredWindowPos(primaryMonitor, videoMode, windowedSize);
+
     glfwSetWindowAttrib(attachedWindow, GLFW_DECORATED, GLFW_TRUE);
-    glfwSetWindowMonitor(attachedWindow, nullptr, toInt(lastWindowedPos.x, 100),
-                         toInt(lastWindowedPos.y, 100),
-                         toInt(lastWindowedSize.x, 1280),
-                         toInt(lastWindowedSize.y, 720), GLFW_DONT_CARE);
+    glfwSetWindowMonitor(attachedWindow, nullptr, windowedPos.x, windowedPos.y,
+                         windowedSize.x, windowedSize.y, GLFW_DONT_CARE);
   } else if (viewportMode == VIEWPORTMODE::BORDERLESS) {
     if (!primaryMonitor || !videoMode) return;
 

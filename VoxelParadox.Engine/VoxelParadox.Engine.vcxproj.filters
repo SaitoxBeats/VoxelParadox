@@ -75,6 +75,7 @@
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_preset.cpp" />
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_preset_defaults.cpp" />
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_registry.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\block_catalog.cpp" />
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\chunk_generator_source.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -143,6 +144,7 @@
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome_preset_internal.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome_registry.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\block.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\block_catalog.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\chunk.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\chunk_generator_source.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\fractal_world.hpp" />
