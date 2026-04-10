@@ -27,33 +27,25 @@
     },
     {
       "blend_mode": "place_on_air",
-      "display_name": "Vox Import",
+      "display_name": "Tree Generator",
       "enabled": true,
       "format_version": 1,
-      "id": "vox_import",
+      "id": "tree_generator",
       "settings": {
-        "cell_size": {
-          "x": 10,
-          "z": 10
-        },
-        "color_mapping": "default",
-        "default_voxel": "membrane_weave",
-        "fixed_rotation": 0,
-        "include_subdirectories": true,
+        "density": 0.14000000059604645,
         "infinite_y": true,
-        "jitter": {
-          "x": 24,
-          "z": 24
-        },
-        "max_y": 40,
+        "leaves_block": "organic",
+        "max_y": 72,
         "min_y": -8,
         "pattern": "random_scatter",
-        "rotation_mode": "random_90",
-        "seed_offset": 0,
-        "source_directory": "Assets/Voxs/waves",
-        "spawn_chance": 0.019999999552965164
+        "spawn_on_blocks": [
+          "membrane",
+          "organic"
+        ],
+        "tree_type": "normal",
+        "trunk_block": "membrane_weave"
       },
-      "type": "import_vox_files"
+      "type": "tree_generator"
     }
   ],
   "preview": {

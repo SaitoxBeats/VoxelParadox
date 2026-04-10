@@ -52,6 +52,9 @@
     <Filter Include="src\Systems\debug">
       <UniqueIdentifier>{52AB9161-2EAA-44E0-AE0C-5CCC76F950E6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Systems\gameplay">
+      <UniqueIdentifier>{A6AA1A8A-1180-4D76-8B0E-1A8832EA6B04}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\UI">
       <UniqueIdentifier>{B910C828-CED8-4587-A9B2-5BBE78B645ED}</UniqueIdentifier>
     </Filter>
@@ -77,6 +80,9 @@
     </ClCompile>
     <ClCompile Include="src\Systems\debug\biome_debug_tools.cpp">
       <Filter>src\Systems\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Systems\gameplay\gameplay_status.cpp">
+      <Filter>src\Systems\gameplay</Filter>
     </ClCompile>
     <ClCompile Include="src\Entities\enemies\enemy_definition.cpp">
       <Filter>src\Entities\enemies</Filter>
@@ -151,6 +157,9 @@
       <Filter>src\Renderer\render\hud</Filter>
     </ClCompile>
     <ClCompile Include="src\Renderer\render\hud\hud_portal_tracker.cpp">
+      <Filter>src\Renderer\render\hud</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderer\render\hud\hud_slider.cpp">
       <Filter>src\Renderer\render\hud</Filter>
     </ClCompile>
     <ClCompile Include="src\Renderer\render\hud\hud_world_launcher.cpp">
@@ -239,6 +248,9 @@
     <ClInclude Include="src\Systems\debug\biome_debug_tools.hpp">
       <Filter>src\Systems\debug</Filter>
     </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\gameplay_status.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
     <ClInclude Include="src\Entities\enemies\enemy_definition.hpp">
       <Filter>src\Entities\enemies</Filter>
     </ClInclude>
@@ -315,6 +327,9 @@
       <Filter>src\Renderer\render\hud</Filter>
     </ClInclude>
     <ClInclude Include="src\Renderer\render\hud\hud_portal_tracker.hpp">
+      <Filter>src\Renderer\render\hud</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderer\render\hud\hud_slider.hpp">
       <Filter>src\Renderer\render\hud</Filter>
     </ClInclude>
     <ClInclude Include="src\Renderer\render\hud\hud_world_launcher.hpp">

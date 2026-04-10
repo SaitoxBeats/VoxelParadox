@@ -15,6 +15,7 @@
 #endif
 
 #include "enemies/enemy_system.hpp"
+#include "gameplay/gameplay_status.hpp"
 #include "world_spawn_locator.hpp"
 
 // WorldStack core:
@@ -160,6 +161,8 @@ void WorldStack::init(uint32_t rootSeed, const BiomeSelection& rootSelection,
                                                  level.biomePreset);
     applyRenderDistancePreset(*activeWorld);
     applyCacheToActive();
+    GameplayStatus::System::instance().setCurrentUniversesCount(
+        countNamedUniverses());
 #if defined(VP_ENABLE_DEV_TOOLS)
     injectStartupStructure();
 #endif
@@ -193,6 +196,7 @@ bool WorldStack::descendInto(glm::ivec3 blockPos, glm::vec3 returnPos,
     if (portalIt == current->portalBlocks.end()) {
         current->portalBlocks[blockPos] = childSeed;
         createdPortal = true;
+        GameplayStatus::System::instance().recordUniverseCreated();
     } else {
         childSeed = portalIt->second;
     }
@@ -239,6 +243,9 @@ bool WorldStack::descendInto(glm::ivec3 blockPos, glm::vec3 returnPos,
     std::cout << "[Dimension Portal] Descended into Depth " << currentDepth()
               << " | Universe ID (Seed): " << childSeed
               << " | Biome: " << level.biomeSelection.displayName << std::endl;
+
+    GameplayStatus::System::instance().setCurrentUniversesCount(
+        countNamedUniverses());
 
     return true;
 }
@@ -292,6 +299,9 @@ bool WorldStack::ascend(glm::vec3& outPlayerPos, glm::quat& outPlayerOrientation
     std::cout << "[Dimension Portal] Ascended to Depth " << currentDepth()
               << " | Universe ID (Seed): " << parentSeed
               << " | Biome: " << parentSelection.displayName << std::endl;
+
+    GameplayStatus::System::instance().setCurrentUniversesCount(
+        countNamedUniverses());
 
     return true;
 }
@@ -394,6 +404,7 @@ bool WorldStack::ensureNestedWorldAtBlock(
         current->portalBlocks[blockPos] = childSeed;
         createdPortal = true;
         current->setBlock(blockPos, BlockType::PORTAL);
+        GameplayStatus::System::instance().recordUniverseCreated();
         saveActiveToCache();
     } else {
         childSeed = it->second;

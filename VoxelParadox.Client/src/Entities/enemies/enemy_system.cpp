@@ -18,6 +18,7 @@
 #include "enemy_definition.hpp"
 #include "enemy_runtime_helpers.hpp"
 #include "enemy_spawn_system.hpp"
+#include "gameplay/gameplay_status.hpp"
 #include "player/player.hpp"
 #include "world/fractal_world.hpp"
 
@@ -118,8 +119,9 @@ namespace {
     // --- 2. Module Update Logic ---
 
     void updateDamagePlayerOnTouchModule(EnemyDamagePlayerOnTouchModule& module,
-        bool touchingPlayer, Player& player) {
+        EnemyType type, bool touchingPlayer, Player& player) {
         if (touchingPlayer && !module.touchingPlayerLastFrame) {
+            GameplayStatus::System::instance().recordEnemyAttack(type);
             player.applyDamage(module.damagePoints);
         }
         module.touchingPlayerLastFrame = touchingPlayer;
@@ -150,7 +152,7 @@ namespace {
 
     bool updateChargePlayerOnLookTriggerModule(EnemyChargePlayerOnLookTriggerModule& module,
         const EnemyDefinition& definition,
-        WorldEnemy& enemy, Player& player,
+        EnemyType type, WorldEnemy& enemy, Player& player,
         GameAudioController& audioController, float dt) {
         const glm::vec3 scaledTriggerHalfExtents = module.triggerHalfExtents * glm::max(module.triggerSizeMultiplier, 0.01f);
 
@@ -194,6 +196,7 @@ namespace {
 
         // --- Damage Logic ---
         if (sphereIntersectsEnemyBox(player, enemy)) {
+            GameplayStatus::System::instance().recordEnemyAttack(type);
             player.applyDamage(module.damagePoints);
             enemy.pendingDestroy = true;
         }
@@ -254,14 +257,14 @@ void updateWorldEnemies(FractalWorld& world, Player& player,
 
         // --- 3. Update Charge Modules ---
         for (EnemyModule& module : enemy.modules) {
-            if (module.type != EnemyModuleType::ChargePlayerOnLookTrigger) {
-                continue;
-            }
+                if (module.type != EnemyModuleType::ChargePlayerOnLookTrigger) {
+                    continue;
+                }
 
-            chargeModuleActive = updateChargePlayerOnLookTriggerModule(
-                module.chargePlayerOnLookTrigger, *definition, enemy,
-                player, audioController, dt
-            ) || chargeModuleActive;
+                chargeModuleActive = updateChargePlayerOnLookTriggerModule(
+                    module.chargePlayerOnLookTrigger, *definition, enemy.type, enemy,
+                    player, audioController, dt
+                ) || chargeModuleActive;
         }
 
         if (enemy.pendingDestroy) {
@@ -276,7 +279,9 @@ void updateWorldEnemies(FractalWorld& world, Player& player,
                 if (module.type != EnemyModuleType::DamagePlayerOnTouch) {
                     continue;
                 }
-                updateDamagePlayerOnTouchModule(module.damagePlayerOnTouch, touchingPlayer, player);
+                updateDamagePlayerOnTouchModule(
+                    module.damagePlayerOnTouch, enemy.type, touchingPlayer, player
+                );
             }
         }
     }

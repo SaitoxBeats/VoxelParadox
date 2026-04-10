@@ -25,10 +25,10 @@ namespace {
 
     // --- 1. Layout Constants & Configuration ---
 
-    constexpr float kPanelWidthRatio = 0.33f;
+    constexpr float kPanelWidthRatio = 0.42f;
     constexpr float kPanelHeightRatio = 0.82f;
-    constexpr float kPanelMinWidth = 420.0f;
-    constexpr float kPanelMaxWidth = 560.0f;
+    constexpr float kPanelMinWidth = 560.0f;
+    constexpr float kPanelMaxWidth = 760.0f;
     constexpr float kPanelMinHeight = 560.0f;
     constexpr float kPanelMaxHeight = 860.0f;
 
@@ -37,12 +37,20 @@ namespace {
     constexpr int kListScrollbarWidth = 16;
     constexpr int kListScrollbarMargin = 6;
 
-    constexpr float kRowHeight = 78.0f;
+    constexpr float kRowHeight = 84.0f;
     constexpr float kRowGap = 8.0f;
     constexpr float kInputHeight = 36.0f;
     constexpr float kButtonHeight = 52.0f;
     constexpr float kSectionGap = 18.0f;
     constexpr float kFooterGap = 14.0f;
+    constexpr int kButtonGap = 12;
+    constexpr float kUtilityButtonWidth = 124.0f;
+    constexpr int kModalPadding = 18;
+    constexpr int kModalButtonGap = 12;
+    constexpr float kModalMinWidth = 420.0f;
+    constexpr float kModalMaxWidth = 560.0f;
+    constexpr float kModalInputHeight = 38.0f;
+    constexpr float kModalButtonHeight = 46.0f;
 
     constexpr double kDoubleClickWindowSeconds = 0.30;
     constexpr int kInputPadding = 10;
@@ -66,6 +74,10 @@ namespace {
             std::snprintf(buffer, sizeof(buffer), "%02d:%02d", minutes, remainingSeconds);
         }
         return buffer;
+    }
+
+    std::string formatSeed(std::uint32_t seed) {
+        return std::to_string(seed);
     }
 
     glm::ivec4 expandRect(const glm::ivec4& rect, int amount) {
@@ -94,10 +106,17 @@ hudWorldLauncher::hudWorldLauncher(const std::string& fontPath) {
     emptyText_ = new hudText("No worlds created yet.", 0, 0, glm::vec2(1.0f), 16, fontPath);
     inputText_ = new hudText("", 0, 0, glm::vec2(1.0f), 18, fontPath);
     actionButtonText_ = new hudText("Generate", 0, 0, glm::vec2(1.0f), 18, fontPath);
+    renameButtonText_ = new hudText("Rename", 0, 0, glm::vec2(1.0f), 18, fontPath);
+    deleteButtonText_ = new hudText("Delete", 0, 0, glm::vec2(1.0f), 18, fontPath);
     exitButtonText_ = new hudText("Exit Game", 0, 0, glm::vec2(1.0f), 18, fontPath);
     statusText_ = new hudText("", 0, 0, glm::vec2(1.0f), 14, fontPath);
     loadingText_ = new hudText("Loading World", 0, 0, glm::vec2(1.0f), 26, fontPath);
     loadingDotsText_ = new hudText("", 0, 0, glm::vec2(1.0f), 20, fontPath);
+    modalTitleText_ = new hudText("", 0, 0, glm::vec2(1.0f), 22, fontPath);
+    modalBodyText_ = new hudText("", 0, 0, glm::vec2(1.0f), 14, fontPath);
+    modalInputText_ = new hudText("", 0, 0, glm::vec2(1.0f), 18, fontPath);
+    modalConfirmButtonText_ = new hudText("", 0, 0, glm::vec2(1.0f), 18, fontPath);
+    modalCancelButtonText_ = new hudText("Cancel", 0, 0, glm::vec2(1.0f), 18, fontPath);
 
     // Apply color theme
     titleText_->setColor(glm::vec3(0.97f, 0.98f, 1.0f));
@@ -107,10 +126,17 @@ hudWorldLauncher::hudWorldLauncher(const std::string& fontPath) {
     emptyText_->setColor(glm::vec3(0.68f, 0.72f, 0.80f));
     inputText_->setColor(glm::vec3(0.95f, 0.97f, 1.0f));
     actionButtonText_->setColor(glm::vec3(0.95f, 0.97f, 1.0f));
+    renameButtonText_->setColor(glm::vec3(0.92f, 0.94f, 1.0f));
+    deleteButtonText_->setColor(glm::vec3(0.98f, 0.90f, 0.90f));
     exitButtonText_->setColor(glm::vec3(0.95f, 0.82f, 0.82f));
     statusText_->setColor(glm::vec3(1.0f, 0.72f, 0.72f));
     loadingText_->setColor(glm::vec3(0.97f, 0.98f, 1.0f));
     loadingDotsText_->setColor(glm::vec3(0.97f, 0.98f, 1.0f));
+    modalTitleText_->setColor(glm::vec3(0.97f, 0.98f, 1.0f));
+    modalBodyText_->setColor(glm::vec3(0.68f, 0.72f, 0.80f));
+    modalInputText_->setColor(glm::vec3(0.95f, 0.97f, 1.0f));
+    modalConfirmButtonText_->setColor(glm::vec3(0.95f, 0.97f, 1.0f));
+    modalCancelButtonText_->setColor(glm::vec3(0.95f, 0.97f, 1.0f));
 }
 
 hudWorldLauncher::~hudWorldLauncher() {
@@ -121,10 +147,17 @@ hudWorldLauncher::~hudWorldLauncher() {
     delete emptyText_;
     delete inputText_;
     delete actionButtonText_;
+    delete renameButtonText_;
+    delete deleteButtonText_;
     delete exitButtonText_;
     delete statusText_;
     delete loadingText_;
     delete loadingDotsText_;
+    delete modalTitleText_;
+    delete modalBodyText_;
+    delete modalInputText_;
+    delete modalConfirmButtonText_;
+    delete modalCancelButtonText_;
 }
 
 // --- 4. State Management ---
@@ -191,7 +224,9 @@ void hudWorldLauncher::updateLayout(int screenWidth, int screenHeight) {
 
     // Component placement
     const int listTop = panelY + kOuterPadding + headerHeight;
-    const int buttonStackHeight = static_cast<int>(std::round(kInputHeight + kSectionGap + kButtonHeight + kFooterGap + kButtonHeight));
+    const int buttonStackHeight = static_cast<int>(std::round(
+        kInputHeight + kSectionGap + kButtonHeight + kFooterGap + kButtonHeight
+    ));
     const int listHeight = std::max(240, static_cast<int>(std::round(panelHeight)) - headerHeight - buttonStackHeight - kOuterPadding * 2 - 20);
 
     layout_.listRect = glm::ivec4(
@@ -211,7 +246,21 @@ void hudWorldLauncher::updateLayout(int screenWidth, int screenHeight) {
     layout_.actionButtonRect = glm::ivec4(
         panelX + kOuterPadding,
         layout_.inputRect.y + layout_.inputRect.w + static_cast<int>(std::round(kSectionGap)),
-        contentWidth,
+        contentWidth - static_cast<int>(std::round(kUtilityButtonWidth * 2.0f)) - kButtonGap * 2,
+        static_cast<int>(std::round(kButtonHeight))
+    );
+
+    layout_.renameButtonRect = glm::ivec4(
+        layout_.actionButtonRect.x + layout_.actionButtonRect.z + kButtonGap,
+        layout_.actionButtonRect.y,
+        static_cast<int>(std::round(kUtilityButtonWidth)),
+        static_cast<int>(std::round(kButtonHeight))
+    );
+
+    layout_.deleteButtonRect = glm::ivec4(
+        layout_.renameButtonRect.x + layout_.renameButtonRect.z + kButtonGap,
+        layout_.actionButtonRect.y,
+        static_cast<int>(std::round(kUtilityButtonWidth)),
         static_cast<int>(std::round(kButtonHeight))
     );
 
@@ -227,6 +276,65 @@ void hudWorldLauncher::updateLayout(int screenWidth, int screenHeight) {
     layout_.visibleRows = std::max(1, static_cast<int>(std::floor(
         (layout_.listRect.w - kListInnerPadding * 2 + layout_.rowGap) / (layout_.rowHeight + layout_.rowGap)
     )));
+}
+
+void hudWorldLauncher::updateModalLayout(int screenWidth, int screenHeight) {
+    const bool renameModal = modalType_ == ModalType::RenameWorld;
+    const float panelWidth = clampFloat(
+        screenWidth * 0.38f, kModalMinWidth, kModalMaxWidth
+    );
+    const float panelHeight = renameModal ? 236.0f : 194.0f;
+
+    const int panelX = static_cast<int>(std::round((screenWidth - panelWidth) * 0.5f));
+    const int panelY = static_cast<int>(std::round((screenHeight - panelHeight) * 0.5f));
+
+    modalLayout_.panelRect = glm::ivec4(
+        panelX,
+        panelY,
+        static_cast<int>(std::round(panelWidth)),
+        static_cast<int>(std::round(panelHeight))
+    );
+
+    modalLayout_.titleRect = glm::ivec4(
+        panelX + kModalPadding,
+        panelY + kModalPadding,
+        modalLayout_.panelRect.z - kModalPadding * 2,
+        28
+    );
+
+    modalLayout_.bodyRect = glm::ivec4(
+        panelX + kModalPadding,
+        modalLayout_.titleRect.y + modalLayout_.titleRect.w + 10,
+        modalLayout_.panelRect.z - kModalPadding * 2,
+        22
+    );
+
+    modalLayout_.inputRect = glm::ivec4(
+        panelX + kModalPadding,
+        modalLayout_.bodyRect.y + modalLayout_.bodyRect.w + 16,
+        modalLayout_.panelRect.z - kModalPadding * 2,
+        static_cast<int>(std::round(kModalInputHeight))
+    );
+
+    const int buttonsY = renameModal
+        ? modalLayout_.inputRect.y + modalLayout_.inputRect.w + 18
+        : modalLayout_.bodyRect.y + modalLayout_.bodyRect.w + 22;
+    const int buttonWidth =
+        (modalLayout_.panelRect.z - kModalPadding * 2 - kModalButtonGap) / 2;
+
+    modalLayout_.confirmButtonRect = glm::ivec4(
+        panelX + kModalPadding,
+        buttonsY,
+        buttonWidth,
+        static_cast<int>(std::round(kModalButtonHeight))
+    );
+
+    modalLayout_.cancelButtonRect = glm::ivec4(
+        modalLayout_.confirmButtonRect.x + modalLayout_.confirmButtonRect.z + kModalButtonGap,
+        buttonsY,
+        buttonWidth,
+        static_cast<int>(std::round(kModalButtonHeight))
+    );
 }
 
 bool hudWorldLauncher::pointInRect(float x, float y, const glm::ivec4& rect) const {
@@ -355,6 +463,61 @@ void hudWorldLauncher::updateTextInput() {
     }
 }
 
+void hudWorldLauncher::placeModalCaretFromMouse(float mouseX) {
+    const float localX = std::max(
+        0.0f,
+        mouseX - static_cast<float>(modalLayout_.inputRect.x + kInputPadding)
+    );
+
+    modalWorldNameInput_.placeCaretFromMouse(localX, [this](std::size_t index) {
+        return modalInputText_->measureText(
+            modalWorldNameInput_.text.substr(0, index)
+        ).x;
+    });
+}
+
+void hudWorldLauncher::updateModalTextInput() {
+    modalDrawCaret_ = false;
+    modalDrawSelection_ = false;
+
+    if (modalType_ != ModalType::RenameWorld || loading_) {
+        Input::consumeTypedChars();
+        modalWorldNameInput_.resetRepeats();
+        return;
+    }
+
+    const double now = ENGINE::GETTIME();
+
+    if ((Input::keyDown(GLFW_KEY_LEFT_CONTROL) ||
+         Input::keyDown(GLFW_KEY_RIGHT_CONTROL)) &&
+        Input::keyPressed(GLFW_KEY_A)) {
+        modalWorldNameInput_.selectAll();
+    }
+
+    if (consumeHeldKey(GLFW_KEY_LEFT, now, modalWorldNameInput_.nextLeftRepeatTime)) {
+        modalWorldNameInput_.moveCaretLeft();
+    }
+
+    if (consumeHeldKey(GLFW_KEY_RIGHT, now, modalWorldNameInput_.nextRightRepeatTime)) {
+        modalWorldNameInput_.moveCaretRight();
+    }
+
+    if (consumeHeldKey(GLFW_KEY_BACKSPACE, now,
+                       modalWorldNameInput_.nextBackspaceRepeatTime)) {
+        modalWorldNameInput_.eraseBackward();
+    }
+
+    if (consumeHeldKey(GLFW_KEY_DELETE, now,
+                       modalWorldNameInput_.nextDeleteRepeatTime)) {
+        modalWorldNameInput_.eraseForward();
+    }
+
+    const std::string typedChars = Input::consumeTypedChars();
+    if (!typedChars.empty()) {
+        modalWorldNameInput_.insertText(typedChars, kMaxWorldNameLength);
+    }
+}
+
 // --- 7. World Actions And Selection ---
 
 void hudWorldLauncher::requestCreateWorld() {
@@ -371,6 +534,74 @@ void hudWorldLauncher::requestLoadWorld(int index) {
     pendingRequest_.type = ActionType::LoadWorld;
     pendingRequest_.worldDirectory = worlds_[static_cast<std::size_t>(index)].paths.worldDirectory;
     pendingRequest_.worldName.clear();
+}
+
+void hudWorldLauncher::requestRenameWorld(int index) {
+    if (index < 0 || index >= static_cast<int>(worlds_.size())) {
+        return;
+    }
+
+    pendingRequest_.type = ActionType::RenameWorld;
+    pendingRequest_.worldDirectory =
+        worlds_[static_cast<std::size_t>(index)].paths.worldDirectory;
+    pendingRequest_.worldName = modalWorldNameInput_.text;
+    closeModal();
+}
+
+void hudWorldLauncher::requestDeleteWorld(int index) {
+    if (index < 0 || index >= static_cast<int>(worlds_.size())) {
+        return;
+    }
+
+    pendingRequest_.type = ActionType::DeleteWorld;
+    pendingRequest_.worldDirectory =
+        worlds_[static_cast<std::size_t>(index)].paths.worldDirectory;
+    pendingRequest_.worldName.clear();
+    closeModal();
+}
+
+void hudWorldLauncher::beginDeleteConfirmation(int index) {
+    if (index < 0 || index >= static_cast<int>(worlds_.size()) || loading_) {
+        return;
+    }
+
+    modalType_ = ModalType::ConfirmDelete;
+    modalWorldIndex_ = index;
+    modalWorldNameInput_ = {};
+    modalDrawCaret_ = false;
+    modalDrawSelection_ = false;
+    textFieldFocused_ = false;
+}
+
+void hudWorldLauncher::beginRenameWorld(int index) {
+    if (index < 0 || index >= static_cast<int>(worlds_.size()) || loading_) {
+        return;
+    }
+
+    modalType_ = ModalType::RenameWorld;
+    modalWorldIndex_ = index;
+    modalWorldNameInput_ = {};
+    modalWorldNameInput_.setText(
+        worlds_[static_cast<std::size_t>(index)].manifest.displayName
+    );
+    modalDrawCaret_ = true;
+    modalDrawSelection_ = false;
+    textFieldFocused_ = false;
+}
+
+void hudWorldLauncher::closeModal() {
+    modalType_ = ModalType::None;
+    modalWorldIndex_ = -1;
+    modalWorldNameInput_ = {};
+    modalCaretPixelOffset_ = 0.0f;
+    modalSelectionPixelStart_ = 0.0f;
+    modalSelectionPixelEnd_ = 0.0f;
+    modalDrawCaret_ = false;
+    modalDrawSelection_ = false;
+}
+
+bool hudWorldLauncher::hasModal() const {
+    return modalType_ != ModalType::None;
 }
 
 void hudWorldLauncher::updateSelection(float mouseX, float mouseY) {
@@ -463,6 +694,18 @@ void hudWorldLauncher::updateButtons(float mouseX, float mouseY) {
             return;
         }
 
+        if (pointInRect(mouseX, mouseY, layout_.renameButtonRect) &&
+            selectedIndex_ >= 0) {
+            beginRenameWorld(selectedIndex_);
+            return;
+        }
+
+        if (pointInRect(mouseX, mouseY, layout_.deleteButtonRect) &&
+            selectedIndex_ >= 0) {
+            beginDeleteConfirmation(selectedIndex_);
+            return;
+        }
+
         if (pointInRect(mouseX, mouseY, layout_.exitButtonRect)) {
             pendingRequest_.type = ActionType::ExitGame;
             pendingRequest_.worldName.clear();
@@ -481,6 +724,55 @@ void hudWorldLauncher::updateButtons(float mouseX, float mouseY) {
     }
 }
 
+void hudWorldLauncher::updateModalButtons(float mouseX, float mouseY) {
+    auto& inputActions = InputMapping::InputActionSystem::instance();
+
+    if (!hasModal() || loading_) {
+        return;
+    }
+
+    const bool renameModal = modalType_ == ModalType::RenameWorld;
+    const bool confirmPressed = inputActions.wasPressed(InputActionIds::kUiAccept);
+    const bool cancelPressed = inputActions.wasPressed(InputActionIds::kUiCancel);
+
+    if (cancelPressed) {
+        closeModal();
+        return;
+    }
+
+    if (Input::mousePressed(GLFW_MOUSE_BUTTON_LEFT)) {
+        if (renameModal && pointInRect(mouseX, mouseY, modalLayout_.inputRect)) {
+            placeModalCaretFromMouse(mouseX);
+            return;
+        }
+    }
+
+    const bool confirmClicked =
+        Input::mousePressed(GLFW_MOUSE_BUTTON_LEFT) &&
+        pointInRect(mouseX, mouseY, modalLayout_.confirmButtonRect);
+    const bool cancelClicked =
+        Input::mousePressed(GLFW_MOUSE_BUTTON_LEFT) &&
+        pointInRect(mouseX, mouseY, modalLayout_.cancelButtonRect);
+
+    if (cancelClicked) {
+        closeModal();
+        return;
+    }
+
+    if (!confirmPressed && !confirmClicked) {
+        return;
+    }
+
+    if (modalType_ == ModalType::ConfirmDelete) {
+        requestDeleteWorld(modalWorldIndex_);
+        return;
+    }
+
+    if (modalType_ == ModalType::RenameWorld) {
+        requestRenameWorld(modalWorldIndex_);
+    }
+}
+
 // --- 8. Per-Frame Update ---
 
 void hudWorldLauncher::update(int screenWidth, int screenHeight) {
@@ -490,6 +782,13 @@ void hudWorldLauncher::update(int screenWidth, int screenHeight) {
     float mouseX = 0.0f;
     float mouseY = 0.0f;
     Input::getMousePosFramebuffer(mouseX, mouseY, screenWidth, screenHeight);
+
+    if (hasModal()) {
+        updateModalLayout(screenWidth, screenHeight);
+        updateModalTextInput();
+        updateModalButtons(mouseX, mouseY);
+        return;
+    }
 
     updateTextInput();
     updateSelection(mouseX, mouseY);
@@ -609,7 +908,11 @@ void hudWorldLauncher::draw(Shader& shader, int screenWidth, int screenHeight) {
             rowTitleText_->draw(shader, screenWidth, screenHeight);
 
             rowDetailText_->setColor(glm::vec3(0.68f, 0.72f, 0.80f));
-            rowDetailText_->setText("Playtime: " + formatPlaytime(summary.totalPlaytimeSeconds));
+            rowDetailText_->setText(
+                "Seed: " + formatSeed(summary.manifest.rootSeed) +
+                " | Playtime: " +
+                formatPlaytime(summary.gameplayStats.playtimeSeconds)
+            );
             rowDetailText_->setPosition(rowRect.x + 12, rowRect.y + 40);
             rowDetailText_->draw(shader, screenWidth, screenHeight);
         }
@@ -698,7 +1001,11 @@ void hudWorldLauncher::draw(Shader& shader, int screenWidth, int screenHeight) {
 
     // --- Draw Action Buttons ---
     const bool actionHovered = pointInRect(mouseX, mouseY, layout_.actionButtonRect);
+    const bool renameHovered = pointInRect(mouseX, mouseY, layout_.renameButtonRect);
+    const bool deleteHovered = pointInRect(mouseX, mouseY, layout_.deleteButtonRect);
     const bool exitHovered = pointInRect(mouseX, mouseY, layout_.exitButtonRect);
+    const bool renameEnabled = selectedIndex_ >= 0;
+    const bool deleteEnabled = selectedIndex_ >= 0;
 
     const std::string actionLabel = selectedIndex_ >= 0 ? "Load" : "Generate";
 
@@ -709,6 +1016,32 @@ void hudWorldLauncher::draw(Shader& shader, int screenWidth, int screenHeight) {
 
     actionButtonText_->setColor(glm::vec3(0.95f, 0.97f, 1.0f));
     drawCenteredText(*actionButtonText_, actionLabel, layout_.actionButtonRect, screenWidth, screenHeight, shader);
+
+    drawRect(shader, expandRect(layout_.renameButtonRect, 2), glm::vec4(0.18f, 0.21f, 0.32f, 1.0f));
+    drawRect(shader, layout_.renameButtonRect,
+        renameEnabled
+            ? (renameHovered && !loading_ ? glm::vec4(0.16f, 0.16f, 0.24f, 1.0f)
+                                          : glm::vec4(0.12f, 0.13f, 0.20f, 1.0f))
+            : glm::vec4(0.10f, 0.10f, 0.12f, 1.0f));
+
+    renameButtonText_->setColor(
+        renameEnabled ? glm::vec3(0.92f, 0.94f, 1.0f)
+                      : glm::vec3(0.46f, 0.44f, 0.48f)
+    );
+    drawCenteredText(*renameButtonText_, "Rename", layout_.renameButtonRect, screenWidth, screenHeight, shader);
+
+    drawRect(shader, expandRect(layout_.deleteButtonRect, 2), glm::vec4(0.18f, 0.21f, 0.32f, 1.0f));
+    drawRect(shader, layout_.deleteButtonRect,
+        deleteEnabled
+            ? (deleteHovered && !loading_ ? glm::vec4(0.18f, 0.11f, 0.13f, 1.0f)
+                                          : glm::vec4(0.13f, 0.08f, 0.10f, 1.0f))
+            : glm::vec4(0.10f, 0.10f, 0.12f, 1.0f));
+
+    deleteButtonText_->setColor(
+        deleteEnabled ? glm::vec3(0.98f, 0.90f, 0.90f)
+                      : glm::vec3(0.46f, 0.44f, 0.48f)
+    );
+    drawCenteredText(*deleteButtonText_, "Delete", layout_.deleteButtonRect, screenWidth, screenHeight, shader);
 
     drawRect(shader, expandRect(layout_.exitButtonRect, 2), glm::vec4(0.18f, 0.21f, 0.32f, 1.0f));
     drawRect(shader, layout_.exitButtonRect,
@@ -744,5 +1077,144 @@ void hudWorldLauncher::draw(Shader& shader, int screenWidth, int screenHeight) {
             loadingRect.y + 58
         );
         loadingDotsText_->draw(shader, screenWidth, screenHeight);
+    }
+
+    if (hasModal()) {
+        const bool renameModal = modalType_ == ModalType::RenameWorld;
+        const bool confirmHovered =
+            pointInRect(mouseX, mouseY, modalLayout_.confirmButtonRect);
+        const bool cancelHovered =
+            pointInRect(mouseX, mouseY, modalLayout_.cancelButtonRect);
+
+        drawRect(shader, glm::ivec4(0, 0, screenWidth, screenHeight),
+                 glm::vec4(0.01f, 0.01f, 0.02f, 0.72f));
+        drawRect(shader, expandRect(modalLayout_.panelRect, 3),
+                 glm::vec4(0.18f, 0.21f, 0.32f, 1.0f));
+        drawRect(shader, modalLayout_.panelRect,
+                 glm::vec4(0.07f, 0.08f, 0.11f, 0.98f));
+
+        modalTitleText_->setText(
+            renameModal ? "Rename World" : "Delete World?"
+        );
+        modalTitleText_->setPosition(
+            modalLayout_.titleRect.x, modalLayout_.titleRect.y
+        );
+        modalTitleText_->draw(shader, screenWidth, screenHeight);
+
+        if (modalWorldIndex_ >= 0 &&
+            modalWorldIndex_ < static_cast<int>(worlds_.size())) {
+            const auto& world =
+                worlds_[static_cast<std::size_t>(modalWorldIndex_)];
+            modalBodyText_->setText(
+                renameModal
+                    ? "Update the world name and world folder for \"" +
+                          world.manifest.displayName + "\"."
+                    : "This permanently deletes \"" +
+                          world.manifest.displayName + "\" from disk."
+            );
+        } else {
+            modalBodyText_->setText("");
+        }
+        modalBodyText_->setPosition(
+            modalLayout_.bodyRect.x, modalLayout_.bodyRect.y
+        );
+        modalBodyText_->draw(shader, screenWidth, screenHeight);
+
+        if (renameModal) {
+            drawRect(shader, expandRect(modalLayout_.inputRect, 2),
+                     glm::vec4(0.86f, 0.80f, 0.40f, 1.0f));
+            drawRect(shader, modalLayout_.inputRect,
+                     glm::vec4(0.08f, 0.09f, 0.12f, 0.98f));
+
+            modalInputText_->setColor(glm::vec3(0.95f, 0.97f, 1.0f));
+            modalInputText_->setText(modalWorldNameInput_.text);
+
+            modalCaretPixelOffset_ = modalInputText_->measureText(
+                modalWorldNameInput_.text.substr(0, modalWorldNameInput_.caretIndex)
+            ).x;
+            modalDrawCaret_ = std::fmod(ENGINE::GETTIME(), 1.0) < 0.5;
+
+            if (modalWorldNameInput_.hasSelection()) {
+                const std::size_t first = std::min(
+                    modalWorldNameInput_.selectionStart,
+                    modalWorldNameInput_.selectionEnd
+                );
+                const std::size_t last = std::max(
+                    modalWorldNameInput_.selectionStart,
+                    modalWorldNameInput_.selectionEnd
+                );
+
+                modalSelectionPixelStart_ = modalInputText_->measureText(
+                    modalWorldNameInput_.text.substr(0, first)
+                ).x;
+                modalSelectionPixelEnd_ = modalInputText_->measureText(
+                    modalWorldNameInput_.text.substr(0, last)
+                ).x;
+                modalDrawSelection_ =
+                    modalSelectionPixelEnd_ > modalSelectionPixelStart_;
+            }
+
+            modalInputText_->setPosition(
+                modalLayout_.inputRect.x + kInputPadding,
+                modalLayout_.inputRect.y + 8
+            );
+
+            if (modalDrawSelection_) {
+                drawRect(shader,
+                         glm::ivec4(
+                             modalInputText_->getX() + static_cast<int>(std::round(modalSelectionPixelStart_)),
+                             modalInputText_->getY(),
+                             static_cast<int>(std::round(modalSelectionPixelEnd_ - modalSelectionPixelStart_)),
+                             static_cast<int>(std::round(modalInputText_->measure().y))
+                         ),
+                         glm::vec4(0.3f, 0.45f, 0.9f, 0.65f));
+            }
+
+            modalInputText_->draw(shader, screenWidth, screenHeight);
+
+            if (modalDrawCaret_) {
+                drawRect(shader,
+                         glm::ivec4(
+                             modalInputText_->getX() + static_cast<int>(std::round(modalCaretPixelOffset_)),
+                             modalInputText_->getY(),
+                             static_cast<int>(std::round(kCaretWidth)),
+                             static_cast<int>(std::round(modalInputText_->measure().y))
+                         ),
+                         glm::vec4(1.0f, 0.9f, 0.2f, 1.0f));
+            }
+        }
+
+        drawRect(shader, expandRect(modalLayout_.confirmButtonRect, 2),
+                 glm::vec4(0.18f, 0.21f, 0.32f, 1.0f));
+        drawRect(shader, modalLayout_.confirmButtonRect,
+                 renameModal
+                     ? (confirmHovered ? glm::vec4(0.15f, 0.17f, 0.25f, 1.0f)
+                                       : glm::vec4(0.12f, 0.14f, 0.21f, 1.0f))
+                     : (confirmHovered ? glm::vec4(0.18f, 0.11f, 0.13f, 1.0f)
+                                       : glm::vec4(0.13f, 0.08f, 0.10f, 1.0f)));
+
+        modalConfirmButtonText_->setColor(
+            renameModal ? glm::vec3(0.95f, 0.97f, 1.0f)
+                        : glm::vec3(0.98f, 0.90f, 0.90f)
+        );
+        drawCenteredText(
+            *modalConfirmButtonText_,
+            renameModal ? "Save" : "Delete",
+            modalLayout_.confirmButtonRect,
+            screenWidth,
+            screenHeight,
+            shader
+        );
+
+        drawRect(shader, expandRect(modalLayout_.cancelButtonRect, 2),
+                 glm::vec4(0.18f, 0.21f, 0.32f, 1.0f));
+        drawRect(shader, modalLayout_.cancelButtonRect,
+                 cancelHovered ? glm::vec4(0.15f, 0.16f, 0.22f, 1.0f)
+                               : glm::vec4(0.11f, 0.12f, 0.17f, 1.0f));
+
+        modalCancelButtonText_->setColor(glm::vec3(0.95f, 0.97f, 1.0f));
+        drawCenteredText(*modalCancelButtonText_, "Cancel",
+                         modalLayout_.cancelButtonRect, screenWidth,
+                         screenHeight, shader);
     }
 }

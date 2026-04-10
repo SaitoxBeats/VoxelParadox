@@ -49,6 +49,85 @@ bool isInvalidFolderChar(unsigned char ch) {
     }
 }
 
+bool isSubdirectoryOf(const std::filesystem::path& root,
+                      const std::filesystem::path& target) {
+    const std::string rootString = root.string();
+    std::string rootPrefix = rootString;
+    if (!rootPrefix.empty() &&
+        rootPrefix.back() != std::filesystem::path::preferred_separator) {
+        rootPrefix.push_back(std::filesystem::path::preferred_separator);
+    }
+
+    const std::string targetString = target.string();
+    return targetString.rfind(rootPrefix, 0) == 0;
+}
+
+bool resolveWorldDirectoryPath(const std::filesystem::path& worldDirectory,
+                              std::filesystem::path& outRoot,
+                              std::filesystem::path& outTarget,
+                              std::string* outError) {
+    std::error_code ec;
+
+    outRoot = std::filesystem::weakly_canonical(worldsRoot(), ec);
+    if (ec) {
+        if (outError) {
+            *outError = "Failed to resolve worlds root directory.";
+        }
+        return false;
+    }
+
+    outTarget = std::filesystem::weakly_canonical(worldDirectory, ec);
+    if (ec) {
+        if (outError) {
+            *outError = "Failed to resolve world directory: " + worldDirectory.string();
+        }
+        return false;
+    }
+
+    if (!isSubdirectoryOf(outRoot, outTarget)) {
+        if (outError) {
+            *outError = "Refusing to modify a directory outside the worlds root.";
+        }
+        return false;
+    }
+
+    return true;
+}
+
+std::filesystem::path uniqueWorldDirectoryForRename(
+    const std::filesystem::path& sourceDirectory,
+    const std::string& displayName) {
+    const std::string sanitized = sanitizeFolderName(displayName);
+    const std::filesystem::path root = worldsRoot();
+    const std::filesystem::path desired = root / sanitized;
+
+    std::error_code ec;
+    if (!std::filesystem::exists(desired, ec)) {
+        return desired;
+    }
+
+    if (!ec && std::filesystem::equivalent(sourceDirectory, desired, ec)) {
+        return desired;
+    }
+    ec.clear();
+
+    for (std::uint32_t suffix = 2; suffix < 10000; ++suffix) {
+        const std::filesystem::path candidate =
+            root / (sanitized + " (" + std::to_string(suffix) + ")");
+
+        ec.clear();
+        if (!std::filesystem::exists(candidate, ec)) {
+            return candidate;
+        }
+
+        if (!ec && std::filesystem::equivalent(sourceDirectory, candidate, ec)) {
+            return candidate;
+        }
+    }
+
+    return uniqueWorldDirectoryFor(displayName);
+}
+
 }  // namespace
 
 json serializeWorldLevel(const WorldLevel& level);
@@ -644,6 +723,93 @@ void logSaveEvent(const std::string& action, const WorldSession& session,
     std::fflush(stdout);
 }
 
+bool tryReadPersistedUniverseName(const std::filesystem::path& path,
+                                  std::string& outUniverseName) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    size_t modifiedBlockCount = 0;
+    file.read(reinterpret_cast<char*>(&modifiedBlockCount), sizeof(modifiedBlockCount));
+    if (!file) {
+        return false;
+    }
+
+    for (size_t index = 0; index < modifiedBlockCount; index++) {
+        glm::ivec3 blockPos{};
+        BlockType blockType = BlockType::AIR;
+        file.read(reinterpret_cast<char*>(&blockPos), sizeof(blockPos));
+        file.read(reinterpret_cast<char*>(&blockType), sizeof(blockType));
+        if (!file) {
+            return false;
+        }
+    }
+
+    size_t portalCount = 0;
+    file.read(reinterpret_cast<char*>(&portalCount), sizeof(portalCount));
+    if (!file) {
+        return false;
+    }
+
+    for (size_t index = 0; index < portalCount; index++) {
+        glm::ivec3 blockPos{};
+        std::uint32_t childSeed = 0;
+        file.read(reinterpret_cast<char*>(&blockPos), sizeof(blockPos));
+        file.read(reinterpret_cast<char*>(&childSeed), sizeof(childSeed));
+        if (!file) {
+            return false;
+        }
+    }
+
+    size_t nameSize = 0;
+    file.read(reinterpret_cast<char*>(&nameSize), sizeof(nameSize));
+    if (!file) {
+        return false;
+    }
+
+    outUniverseName.clear();
+    if (nameSize == 0) {
+        return true;
+    }
+
+    outUniverseName.resize(nameSize);
+    file.read(outUniverseName.data(), static_cast<std::streamsize>(nameSize));
+    return static_cast<bool>(file);
+}
+
+std::uint64_t countNamedUniverseFiles(const WorldPaths& paths) {
+    std::uint64_t namedUniverseCount = 0;
+    std::error_code ec;
+
+    if (!std::filesystem::exists(paths.universesDirectory, ec)) {
+        return 0;
+    }
+
+    for (const auto& entry :
+         std::filesystem::directory_iterator(paths.universesDirectory, ec)) {
+        if (ec || !entry.is_regular_file()) {
+            ec.clear();
+            continue;
+        }
+
+        if (entry.path().extension() != ".dat") {
+            continue;
+        }
+
+        std::string universeName;
+        if (!tryReadPersistedUniverseName(entry.path(), universeName)) {
+            continue;
+        }
+
+        if (!universeName.empty()) {
+            ++namedUniverseCount;
+        }
+    }
+
+    return namedUniverseCount;
+}
+
 std::filesystem::path worldsRoot() {
     return AppPaths::saveWorldsRoot();
 }
@@ -890,47 +1056,137 @@ bool loadPlayerData(const WorldPaths& paths, PlayerData& outPlayerData,
     return true;
 }
 
-bool saveStats(const WorldPaths& paths, double totalPlaytimeSeconds,
-               std::uint32_t deathCount, std::string* outError) {
-    const json value{
-        {"version", kStatsVersion},
-        {"playtimeSeconds", std::max(0.0, totalPlaytimeSeconds)},
-        {"deathCount", deathCount},
+bool readGameplayStatsNumber(const json& value, const char* key,
+                             double& outNumber) {
+    if (!value.is_object() || !value.contains(key) || !value[key].is_number()) {
+        return false;
+    }
+
+    outNumber = std::max(0.0, value[key].get<double>());
+    return true;
+}
+
+bool readGameplayStatsCount(const json& value, const char* key,
+                            std::uint64_t& outCount) {
+    if (!value.is_object() || !value.contains(key) ||
+        !value[key].is_number_integer()) {
+        return false;
+    }
+
+    outCount = value[key].get<std::uint64_t>();
+    return true;
+}
+
+void readGameplayStatsFlatSchema(const json& value,
+                                 GameplayStatus::PersistentState& outStats) {
+    readGameplayStatsNumber(value, "playtimeSeconds", outStats.playtimeSeconds);
+    readGameplayStatsCount(value, "deathCount", outStats.deathCount);
+    readGameplayStatsCount(value, "blocksBrokenCount", outStats.blocksBrokenCount);
+    readGameplayStatsCount(value, "blocksPlacedCount", outStats.blocksPlacedCount);
+    readGameplayStatsCount(value, "universesCreatedCount",
+                           outStats.universesCreatedCount);
+    readGameplayStatsCount(value, "currentUniversesCount",
+                           outStats.currentUniversesCount);
+    readGameplayStatsCount(value, "guySpawnCount", outStats.guySpawnCount);
+    readGameplayStatsCount(value, "guyAttackCount", outStats.guyAttackCount);
+}
+
+void readGameplayStatsCategory(const json& category,
+                               GameplayStatus::PersistentState& outStats) {
+    if (!category.is_object()) {
+        return;
+    }
+
+    readGameplayStatsNumber(category, "playtimeSeconds", outStats.playtimeSeconds);
+    readGameplayStatsCount(category, "deathCount", outStats.deathCount);
+    readGameplayStatsCount(category, "blocksBrokenCount", outStats.blocksBrokenCount);
+    readGameplayStatsCount(category, "blocksPlacedCount", outStats.blocksPlacedCount);
+    readGameplayStatsCount(category, "universesCreatedCount",
+                           outStats.universesCreatedCount);
+    readGameplayStatsCount(category, "currentUniversesCount",
+                           outStats.currentUniversesCount);
+    readGameplayStatsCount(category, "guySpawnCount", outStats.guySpawnCount);
+    readGameplayStatsCount(category, "guyAttackCount", outStats.guyAttackCount);
+}
+
+void readGameplayStatsNestedSchema(const json& value,
+                                   GameplayStatus::PersistentState& outStats) {
+    if (value.contains("player")) {
+        readGameplayStatsCategory(value["player"], outStats);
+    }
+    if (value.contains("blocks")) {
+        readGameplayStatsCategory(value["blocks"], outStats);
+    }
+    if (value.contains("world")) {
+        readGameplayStatsCategory(value["world"], outStats);
+    }
+    if (value.contains("enemies")) {
+        readGameplayStatsCategory(value["enemies"], outStats);
+    }
+}
+
+json serializeGameplayStats(const GameplayStatus::PersistentState& gameplayStats) {
+    const GameplayStatus::PersistentState sanitizedStats =
+        GameplayStatus::sanitizePersistentState(gameplayStats);
+
+    return json{
+        {"version", GameplayStatus::kStatsVersion},
+        {"player", {
+             {"playtimeSeconds", sanitizedStats.playtimeSeconds},
+             {"deathCount", sanitizedStats.deathCount},
+         }},
+        {"blocks", {
+             {"blocksBrokenCount", sanitizedStats.blocksBrokenCount},
+             {"blocksPlacedCount", sanitizedStats.blocksPlacedCount},
+         }},
+        {"world", {
+             {"universesCreatedCount", sanitizedStats.universesCreatedCount},
+             {"currentUniversesCount", sanitizedStats.currentUniversesCount},
+         }},
+        {"enemies", {
+             {"guySpawnCount", sanitizedStats.guySpawnCount},
+             {"guyAttackCount", sanitizedStats.guyAttackCount},
+         }},
     };
+}
+
+bool saveStats(const WorldPaths& paths,
+               const GameplayStatus::PersistentState& gameplayStats,
+               std::string* outError) {
+    const json value = serializeGameplayStats(gameplayStats);
     return writeJsonFile(paths.statsFilePath, value, outError);
 }
 
-bool loadStats(const WorldPaths& paths, double& outTotalPlaytimeSeconds,
-               std::uint32_t& outDeathCount, std::string* outError) {
+bool loadStats(const WorldPaths& paths, std::uint32_t rootUniverseSeed,
+               GameplayStatus::PersistentState& outGameplayStats,
+               std::string* outError) {
+    (void)rootUniverseSeed;
     json value;
     if (!std::filesystem::exists(paths.statsFilePath)) {
-        outTotalPlaytimeSeconds = 0.0;
-        outDeathCount = 0;
+        outGameplayStats = GameplayStatus::sanitizePersistentState(
+            GameplayStatus::PersistentState{});
         return true;
     }
 
     if (!readJsonFile(paths.statsFilePath, value, outError)) {
-        outTotalPlaytimeSeconds = 0.0;
-        outDeathCount = 0;
+        outGameplayStats = GameplayStatus::sanitizePersistentState(
+            GameplayStatus::PersistentState{});
         return false;
     }
 
     if (!value.is_object()) {
-        outTotalPlaytimeSeconds = 0.0;
-        outDeathCount = 0;
+        outGameplayStats = GameplayStatus::sanitizePersistentState(
+            GameplayStatus::PersistentState{});
         return false;
     }
 
-    if (value.contains("playtimeSeconds") && value["playtimeSeconds"].is_number()) {
-        outTotalPlaytimeSeconds = std::max(0.0, value["playtimeSeconds"].get<double>());
-    } else {
-        outTotalPlaytimeSeconds = 0.0;
-    }
-    if (value.contains("deathCount") && value["deathCount"].is_number_integer()) {
-        outDeathCount = value["deathCount"].get<std::uint32_t>();
-    } else {
-        outDeathCount = 0;
-    }
+    GameplayStatus::PersistentState loadedStats{};
+
+    readGameplayStatsFlatSchema(value, loadedStats);
+    readGameplayStatsNestedSchema(value, loadedStats);
+    loadedStats.currentUniversesCount = countNamedUniverseFiles(paths);
+
+    outGameplayStats = GameplayStatus::sanitizePersistentState(loadedStats);
     return true;
 }
 
@@ -947,8 +1203,8 @@ bool createWorld(const std::string& displayName,
     session.manifest.activeUniverseSeed = session.manifest.rootSeed;
     session.manifest.activeUniverseBiomeSelection = rootBiomeSelection;
     session.rootPreset = resolvePreset(rootBiomeSelection);
-    session.totalPlaytimeSeconds = 0.0;
-    session.deathCount = 0;
+    session.gameplayStats = GameplayStatus::sanitizePersistentState(
+        GameplayStatus::PersistentState{});
     session.startUniverseSeed = session.manifest.rootSeed;
     session.startUniverseBiomeSelection = rootBiomeSelection;
     session.hasPlayerData = false;
@@ -979,13 +1235,83 @@ bool createWorld(const std::string& displayName,
     if (!savePlayerData(session.paths, session.playerData, outError)) {
         return false;
     }
-    if (!saveStats(session.paths, session.totalPlaytimeSeconds, session.deathCount,
-                   outError)) {
+    if (!saveStats(session.paths, session.gameplayStats, outError)) {
         return false;
     }
 
-    logSaveEvent("World created and saved", session, session.totalPlaytimeSeconds);
+    logSaveEvent("World created and saved", session,
+                 session.gameplayStats.playtimeSeconds);
     outSession = std::move(session);
+    return true;
+}
+
+bool deleteWorld(const std::filesystem::path& worldDirectory,
+                 std::string* outError) {
+    std::filesystem::path root;
+    std::filesystem::path target;
+    if (!resolveWorldDirectoryPath(worldDirectory, root, target, outError)) {
+        return false;
+    }
+
+    std::error_code ec;
+    if (!std::filesystem::exists(target, ec)) {
+        if (outError) {
+            *outError = "World directory does not exist: " + target.string();
+        }
+        return false;
+    }
+
+    const std::uintmax_t removedCount = std::filesystem::remove_all(target, ec);
+    if (ec || removedCount == 0) {
+        if (outError) {
+            *outError = "Failed to delete world directory: " + target.string();
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool renameWorld(const std::filesystem::path& worldDirectory,
+                 const std::string& displayName,
+                 std::filesystem::path* outRenamedWorldDirectory,
+                 std::string* outError) {
+    std::filesystem::path root;
+    std::filesystem::path sourceDirectory;
+    if (!resolveWorldDirectoryPath(worldDirectory, root, sourceDirectory, outError)) {
+        return false;
+    }
+
+    WorldManifest manifest{};
+    const WorldPaths sourcePaths = buildWorldPaths(sourceDirectory);
+    if (!loadWorldManifest(sourcePaths, manifest, outError)) {
+        return false;
+    }
+
+    manifest.displayName = sanitizeDisplayName(displayName);
+
+    const std::filesystem::path targetDirectory =
+        uniqueWorldDirectoryForRename(sourceDirectory, manifest.displayName);
+    std::error_code ec;
+
+    if (sourceDirectory != targetDirectory) {
+        std::filesystem::rename(sourceDirectory, targetDirectory, ec);
+        if (ec) {
+            if (outError) {
+                *outError = "Failed to rename world directory: " + sourceDirectory.string();
+            }
+            return false;
+        }
+    }
+
+    const WorldPaths targetPaths = buildWorldPaths(targetDirectory);
+    if (!saveWorldManifest(targetPaths, manifest, outError)) {
+        return false;
+    }
+
+    if (outRenamedWorldDirectory) {
+        *outRenamedWorldDirectory = targetDirectory;
+    }
     return true;
 }
 
@@ -1008,11 +1334,8 @@ bool loadPlayerAndWorldSession(const std::filesystem::path& worldDirectory,
             ? session.manifest.rootBiomeSelection
             : session.manifest.activeUniverseBiomeSelection;
 
-    double totalPlaytimeSeconds = 0.0;
-    std::uint32_t deathCount = 0;
-    loadStats(session.paths, totalPlaytimeSeconds, deathCount, nullptr);
-    session.totalPlaytimeSeconds = totalPlaytimeSeconds;
-    session.deathCount = deathCount;
+    loadStats(session.paths, session.manifest.rootSeed, session.gameplayStats,
+              nullptr);
 
     if (!loadPlayerData(session.paths, session.playerData, nullptr)) {
         session.playerData = {};
@@ -1049,7 +1372,7 @@ bool saveSessionWithPlayerState(const WorldSession& session,
                                 const glm::vec3& cameraPosition,
                                 const glm::quat& cameraOrientation,
                                 WorldStack& worldStack,
-                                double totalPlaytimeSeconds,
+                                const GameplayStatus::PersistentState& gameplayStats,
                                 std::string* outError) {
     if (!worldStack.currentWorld()) {
         if (outError) {
@@ -1077,29 +1400,34 @@ bool saveSessionWithPlayerState(const WorldSession& session,
     worldStack.saveActivePlayerState(cameraPosition, cameraOrientation);
     worldStack.saveCurrentWorldEdits();
 
+    GameplayStatus::PersistentState gameplayStatsToSave =
+        GameplayStatus::sanitizePersistentState(gameplayStats);
+    gameplayStatsToSave.currentUniversesCount = worldStack.countNamedUniverses();
+
     if (!saveWorldManifest(session.paths, manifest, outError)) {
         return false;
     }
     if (!savePlayerData(session.paths, playerData, outError)) {
         return false;
     }
-    if (!saveStats(session.paths, totalPlaytimeSeconds, session.deathCount, outError)) {
+    if (!saveStats(session.paths, gameplayStatsToSave, outError)) {
         return false;
     }
 
-    logSaveEvent("World session saved", session, totalPlaytimeSeconds);
+    logSaveEvent("World session saved", session, gameplayStatsToSave.playtimeSeconds);
     return true;
 }
 
 bool saveSession(const WorldSession& session, const Player& player,
-                 WorldStack& worldStack, double totalPlaytimeSeconds,
+                 WorldStack& worldStack,
+                 const GameplayStatus::PersistentState& gameplayStats,
                  std::string* outError) {
     return saveSessionWithPlayerState(session,
                                       player.capturePersistentState(),
                                       player.camera.position,
                                       player.camera.orientation,
                                       worldStack,
-                                      totalPlaytimeSeconds,
+                                      gameplayStats,
                                       outError);
 }
 
@@ -1124,7 +1452,7 @@ std::vector<WorldSummary> listWorlds() {
             continue;
         }
 
-        loadStats(summary.paths, summary.totalPlaytimeSeconds, summary.deathCount,
+        loadStats(summary.paths, summary.manifest.rootSeed, summary.gameplayStats,
                   nullptr);
         summary.lastWriteTime = std::filesystem::last_write_time(
             summary.paths.worldFilePath, ec);

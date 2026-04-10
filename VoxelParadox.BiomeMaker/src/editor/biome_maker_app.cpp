@@ -24,7 +24,7 @@ namespace {
 
 constexpr std::uint32_t kDefaultSeed = 42;
 constexpr const char* kWindowTitle = "VoxelParadox BiomeMaker";
-constexpr const char* kDefaultFontPath = "Assets/Fonts/Minecraft.ttf";
+constexpr const char* kDefaultFontPath = "Assets/Fonts/ChillBitmap.ttf";
 
 std::filesystem::path presetRootDirectory() {
   return AppPaths::biomePresetsRoot();

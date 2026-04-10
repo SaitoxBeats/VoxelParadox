@@ -8,6 +8,7 @@
 
 class Player;
 class WorldStack;
+class hudWatchText;
 
 struct GameChatCommandContext {
   Player& player;
@@ -34,6 +35,8 @@ public:
   std::string historyLineText(int lineIndex) const;
   std::string inputLineText() const;
   std::string suggestionLineText(int lineIndex) const;
+  int visibleHistoryLineCount() const;
+  int visibleSuggestionLineCount() const;
 
 private:
   struct Entry {
@@ -49,6 +52,7 @@ private:
   TextInputState inputState_;
   std::string lastSubmittedInput_;
   std::deque<Entry> history_;
+  hudWatchText* inputLineElement_ = nullptr;
 
   void pushHistory(const std::string& text);
   void submit(GameChatCommandContext& commandContext);
@@ -56,6 +60,9 @@ private:
   bool shouldShowSuggestions() const;
   void autocompleteInput();
   std::vector<std::string> autocompleteCandidates() const;
+  std::vector<std::string> visibleHistoryLines() const;
+  static std::vector<std::string> wrapChatText(const std::string& text,
+                                               std::size_t maxCharactersPerLine);
 
   static std::string trim(const std::string& value);
   static std::string lowercase(std::string value);

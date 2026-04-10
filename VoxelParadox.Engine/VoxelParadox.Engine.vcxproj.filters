@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="18.0">
   <ItemGroup>
     <Filter Include="Client Shared">
@@ -72,18 +72,10 @@
     <ClCompile Include="src\ui\imgui_layer.cpp">
       <Filter>UI</Filter>
     </ClCompile>
-    <ClCompile Include="..\\VoxelParadox.Client\\src\\World\\world\\biome_preset.cpp">
-      <Filter>Client Shared\World</Filter>
-    </ClCompile>
-    <ClCompile Include="..\\VoxelParadox.Client\\src\\World\\world\\biome_preset_defaults.cpp">
-      <Filter>Client Shared\World</Filter>
-    </ClCompile>
-    <ClCompile Include="..\\VoxelParadox.Client\\src\\World\\world\\biome_registry.cpp">
-      <Filter>Client Shared\World</Filter>
-    </ClCompile>
-    <ClCompile Include="..\\VoxelParadox.Client\\src\\World\\world\\chunk_generator_source.cpp">
-      <Filter>Client Shared\World</Filter>
-    </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_preset.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_preset_defaults.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_registry.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\chunk_generator_source.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\audio\audio_data.hpp">
@@ -97,45 +89,6 @@
     </ClInclude>
     <ClInclude Include="src\audio\openal_backend.hpp">
       <Filter>Audio</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\biome.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\biome_preset.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\biome_preset_internal.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\biome_registry.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\block.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\chunk.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\chunk_generator_source.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\fractal_world.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\noise.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\vox_asset.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\vox_structure.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\world_generator.hpp">
-      <Filter>Client Shared\World</Filter>
-    </ClInclude>
-    <ClInclude Include="..\\VoxelParadox.Client\\src\\World\\world\\world_stack.hpp">
-      <Filter>Client Shared\World</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\bootstrap.hpp">
       <Filter>Engine</Filter>
@@ -185,5 +138,18 @@
     <ClInclude Include="src\ui\imgui_layer.hpp">
       <Filter>UI</Filter>
     </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome_preset.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome_preset_internal.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome_registry.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\block.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\chunk.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\chunk_generator_source.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\fractal_world.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\noise.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\vox_asset.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\vox_structure.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\world_generator.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\world_stack.hpp" />
   </ItemGroup>
 </Project>

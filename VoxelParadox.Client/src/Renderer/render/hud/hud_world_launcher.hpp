@@ -18,6 +18,8 @@ public:
         None = 0,
         CreateWorld,
         LoadWorld,
+        RenameWorld,
+        DeleteWorld,
         ExitGame,
     };
 
@@ -45,10 +47,27 @@ private:
         glm::ivec4 listRect{0};
         glm::ivec4 inputRect{0};
         glm::ivec4 actionButtonRect{0};
+        glm::ivec4 renameButtonRect{0};
+        glm::ivec4 deleteButtonRect{0};
         glm::ivec4 exitButtonRect{0};
         float rowHeight = 0.0f;
         float rowGap = 0.0f;
         int visibleRows = 0;
+    };
+
+    enum class ModalType {
+        None = 0,
+        ConfirmDelete,
+        RenameWorld,
+    };
+
+    struct ModalLayout {
+        glm::ivec4 panelRect{0};
+        glm::ivec4 titleRect{0};
+        glm::ivec4 bodyRect{0};
+        glm::ivec4 inputRect{0};
+        glm::ivec4 confirmButtonRect{0};
+        glm::ivec4 cancelButtonRect{0};
     };
 
     static constexpr std::size_t kMaxWorldNameLength = 48;
@@ -70,6 +89,15 @@ private:
     float selectionPixelEnd_ = 0.0f;
     bool drawCaret_ = false;
     bool drawSelection_ = false;
+    ModalType modalType_ = ModalType::None;
+    ModalLayout modalLayout_{};
+    TextInputState modalWorldNameInput_{};
+    int modalWorldIndex_ = -1;
+    float modalCaretPixelOffset_ = 0.0f;
+    float modalSelectionPixelStart_ = 0.0f;
+    float modalSelectionPixelEnd_ = 0.0f;
+    bool modalDrawCaret_ = false;
+    bool modalDrawSelection_ = false;
 
     LayoutMetrics layout_{};
 
@@ -80,18 +108,34 @@ private:
     hudText* emptyText_ = nullptr;
     hudText* inputText_ = nullptr;
     hudText* actionButtonText_ = nullptr;
+    hudText* renameButtonText_ = nullptr;
+    hudText* deleteButtonText_ = nullptr;
     hudText* exitButtonText_ = nullptr;
     hudText* statusText_ = nullptr;
     hudText* loadingText_ = nullptr;
     hudText* loadingDotsText_ = nullptr;
+    hudText* modalTitleText_ = nullptr;
+    hudText* modalBodyText_ = nullptr;
+    hudText* modalInputText_ = nullptr;
+    hudText* modalConfirmButtonText_ = nullptr;
+    hudText* modalCancelButtonText_ = nullptr;
 
     void updateLayout(int screenWidth, int screenHeight);
     void updateTextInput();
+    void updateModalLayout(int screenWidth, int screenHeight);
+    void updateModalTextInput();
     void updateSelection(float mouseX, float mouseY);
     void updateButtons(float mouseX, float mouseY);
+    void updateModalButtons(float mouseX, float mouseY);
     void clampSelection();
     void requestCreateWorld();
     void requestLoadWorld(int index);
+    void requestRenameWorld(int index);
+    void requestDeleteWorld(int index);
+    void beginDeleteConfirmation(int index);
+    void beginRenameWorld(int index);
+    void closeModal();
+    bool hasModal() const;
     bool hasSelection() const;
     void clearSelection();
     void selectAll();
@@ -103,6 +147,7 @@ private:
     void eraseForward();
     bool consumeHeldKey(int key, double now, double& nextRepeatTime);
     void placeCaretFromMouse(float mouseX);
+    void placeModalCaretFromMouse(float mouseX);
 
     int hoveredWorldIndex(float mouseX, float mouseY) const;
     bool pointInRect(float x, float y, const glm::ivec4& rect) const;

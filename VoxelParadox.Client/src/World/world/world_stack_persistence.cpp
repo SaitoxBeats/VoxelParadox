@@ -3,7 +3,64 @@
 #include <algorithm>
 #include <cstdio>
 
+#include "gameplay/gameplay_status.hpp"
+
 namespace {
+
+bool tryReadPersistedUniverseName(const std::filesystem::path& path,
+                                  std::string& outUniverseName) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    size_t modifiedBlockCount = 0;
+    file.read(reinterpret_cast<char*>(&modifiedBlockCount), sizeof(modifiedBlockCount));
+    if (!file) {
+        return false;
+    }
+
+    for (size_t index = 0; index < modifiedBlockCount; index++) {
+        glm::ivec3 blockPos{};
+        BlockType blockType = BlockType::AIR;
+        file.read(reinterpret_cast<char*>(&blockPos), sizeof(blockPos));
+        file.read(reinterpret_cast<char*>(&blockType), sizeof(blockType));
+        if (!file) {
+            return false;
+        }
+    }
+
+    size_t portalCount = 0;
+    file.read(reinterpret_cast<char*>(&portalCount), sizeof(portalCount));
+    if (!file) {
+        return false;
+    }
+
+    for (size_t index = 0; index < portalCount; index++) {
+        glm::ivec3 blockPos{};
+        std::uint32_t childSeed = 0;
+        file.read(reinterpret_cast<char*>(&blockPos), sizeof(blockPos));
+        file.read(reinterpret_cast<char*>(&childSeed), sizeof(childSeed));
+        if (!file) {
+            return false;
+        }
+    }
+
+    size_t nameSize = 0;
+    file.read(reinterpret_cast<char*>(&nameSize), sizeof(nameSize));
+    if (!file) {
+        return false;
+    }
+
+    outUniverseName.clear();
+    if (nameSize == 0) {
+        return true;
+    }
+
+    outUniverseName.resize(nameSize);
+    file.read(outUniverseName.data(), static_cast<std::streamsize>(nameSize));
+    return static_cast<bool>(file);
+}
 
 void writePersistedString(std::ofstream& file, const std::string& value) {
     const size_t size = value.size();
@@ -268,6 +325,8 @@ void WorldStack::setUniverseName(std::uint32_t seed, const BiomeSelection& biome
 
     it->second.universeName = name;
     saveToDisk(seed, biomeSelection, it->second);
+    GameplayStatus::System::instance().setCurrentUniversesCount(
+        countNamedUniverses());
 }
 
 bool WorldStack::deleteUniverseAtPortal(const glm::ivec3& portalBlock) {
@@ -286,7 +345,10 @@ bool WorldStack::deleteUniverseAtPortal(const glm::ivec3& portalBlock) {
     activeWorld->markSparseEditIndexDirty();
     activeWorld->setBlock(portalBlock, BlockType::AIR);
 
-    deleteUniverseRecursive(childSeed);
+    const std::uint64_t deletedUniverseCount = deleteUniverseRecursive(childSeed);
+    GameplayStatus::System::instance().recordUniverseDeleted(deletedUniverseCount);
+    GameplayStatus::System::instance().setCurrentUniversesCount(
+        countNamedUniverses());
 
     saveActiveToCache();
     return true;
@@ -324,6 +386,37 @@ std::vector<WorldStack::NamedPortalEntry> WorldStack::listNamedPortalsInCurrentW
                   return a.block.z < b.block.z;
               });
     return entries;
+}
+
+std::uint64_t WorldStack::countNamedUniverses() const {
+    std::uint64_t namedUniverseCount = 0;
+    std::error_code ec;
+
+    if (!std::filesystem::exists(saveDirectory, ec)) {
+        return 0;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(saveDirectory, ec)) {
+        if (ec || !entry.is_regular_file()) {
+            ec.clear();
+            continue;
+        }
+
+        if (entry.path().extension() != ".dat") {
+            continue;
+        }
+
+        std::string universeName;
+        if (!tryReadPersistedUniverseName(entry.path(), universeName)) {
+            continue;
+        }
+
+        if (!universeName.empty()) {
+            ++namedUniverseCount;
+        }
+    }
+
+    return namedUniverseCount;
 }
 
 std::string WorldStack::presetUniverseFilename(std::uint32_t seed,
@@ -478,15 +571,15 @@ WorldStack::ResolvedBiomeSelection WorldStack::ensurePortalBiomeSelection(
     return resolved;
 }
 
-void WorldStack::deleteUniverseRecursive(std::uint32_t seed) {
+std::uint64_t WorldStack::deleteUniverseRecursive(std::uint32_t seed) {
     std::unordered_set<std::uint32_t> visited;
-    deleteUniverseRecursiveInternal(seed, visited);
+    return deleteUniverseRecursiveInternal(seed, visited);
 }
 
-void WorldStack::deleteUniverseRecursiveInternal(
+std::uint64_t WorldStack::deleteUniverseRecursiveInternal(
     std::uint32_t seed, std::unordered_set<std::uint32_t>& visited) {
     if (visited.find(seed) != visited.end()) {
-        return;
+        return 0;
     }
     visited.insert(seed);
 
@@ -525,8 +618,9 @@ void WorldStack::deleteUniverseRecursiveInternal(
         }
     }
 
+    std::uint64_t deletedCount = 1;
     for (std::uint32_t child : children) {
-        deleteUniverseRecursiveInternal(child, visited);
+        deletedCount += deleteUniverseRecursiveInternal(child, visited);
     }
 
     for (auto it = globalCache.begin(); it != globalCache.end();) {
@@ -550,6 +644,8 @@ void WorldStack::deleteUniverseRecursiveInternal(
             }
         }
     }
+
+    return deletedCount;
 }
 
 std::string WorldStack::universeKey(std::uint32_t seed,

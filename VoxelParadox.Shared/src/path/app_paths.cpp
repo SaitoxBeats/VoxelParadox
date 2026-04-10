@@ -321,10 +321,6 @@ std::filesystem::path savesRoot() {
   return gameDataRoot() / "Saves";
 }
 
-std::filesystem::path screenshotsRoot() {
-  return savesRoot() / "Screenshots";
-}
-
 std::filesystem::path saveWorldsRoot() {
   return savesRoot() / "worlds";
 }

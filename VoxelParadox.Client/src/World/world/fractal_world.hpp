@@ -33,6 +33,7 @@
 #include "biome_preset.hpp"
 #include "chunk.hpp"
 #include "enemies/enemy_definition.hpp"
+#include "gameplay/gameplay_status.hpp"
 #include "items/item_catalog.hpp"
 #include "world_generator.hpp"
 #pragma endregion
@@ -740,6 +741,7 @@ public:
         }
 
         enemies.push_back(std::move(enemy));
+        GameplayStatus::System::instance().recordEnemySpawn(type);
     }
 
     template <typename TryCollectFn>

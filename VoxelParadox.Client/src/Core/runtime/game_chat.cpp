@@ -55,6 +55,9 @@ namespace {
     constexpr float kChatLineSpacing = 24.0f;
     constexpr float kChatSuggestionLineSpacing = 22.0f;
     constexpr float kChatSuggestionBottomMargin = 60.0f;
+    constexpr std::size_t kChatMaxCharactersPerLine = 46;
+    constexpr float kChatInputRightMargin = 12.0f;
+    constexpr float kChatInputHorizontalPadding = 12.0f;
 
     template <typename T>
     T* addGroupedHudElement(T* element, const char* groupName, int layer = 0) {
@@ -311,7 +314,11 @@ void GameChat::setupHud() {
     HUD::createGroup(kChatInputGroup, 71, false);
     HUD::createGroup(kChatSuggestionGroup, 72, false);
 
-    addGroupedHudElement(new hudChatBackground(this), kChatBackgroundGroup, -1);
+    auto* background = new hudChatBackground(this);
+    HUD::add(background, kChatBackgroundGroup);
+    if (background) {
+        background->setLayer(-1);
+    }
 
     // Setup History Lines
     for (int lineIndex = 0; lineIndex < kVisibleHistoryLines; lineIndex++) {
@@ -348,6 +355,8 @@ void GameChat::setupHud() {
     if (inputLine) {
         inputLine->setColor(glm::vec3(1.0f, 0.98f, 0.72f));
     }
+
+    inputLineElement_ = inputLine;
 
     // Setup Suggestion Lines
     for (int lineIndex = 0; lineIndex < kVisibleSuggestionLines; lineIndex++) {
@@ -387,27 +396,12 @@ std::string GameChat::historyLineText(int lineIndex) const {
         return {};
     }
 
-    std::vector<const Entry*> visibleEntries;
-    visibleEntries.reserve(kVisibleHistoryLines);
-
-    const double now = ENGINE::GETTIME();
-    for (auto it = history_.rbegin(); it != history_.rend(); ++it) {
-        if (!open_ && (now - it->timestampSeconds) > kClosedHistoryLifetimeSeconds) {
-            continue;
-        }
-        visibleEntries.push_back(&(*it));
-        if (visibleEntries.size() >= static_cast<std::size_t>(kVisibleHistoryLines)) {
-            break;
-        }
-    }
-
-    std::reverse(visibleEntries.begin(), visibleEntries.end());
-
-    if (lineIndex >= static_cast<int>(visibleEntries.size())) {
+    const std::vector<std::string> lines = visibleHistoryLines();
+    if (lineIndex >= static_cast<int>(lines.size())) {
         return {};
     }
 
-    return visibleEntries[static_cast<std::size_t>(lineIndex)]->text;
+    return lines[static_cast<std::size_t>(lineIndex)];
 }
 
 std::string GameChat::inputLineText() const {
@@ -415,17 +409,59 @@ std::string GameChat::inputLineText() const {
         return {};
     }
 
-    std::string line = "> ";
     const std::size_t caretIndex = std::min(inputState_.caretIndex, inputState_.text.size());
-
-    line += inputState_.text.substr(0, caretIndex);
-
     const int blinkPhase = static_cast<int>(ENGINE::GETTIME() * 2.0);
-    if ((blinkPhase % 2) == 0) {
+    const bool showCaret = (blinkPhase % 2) == 0;
+
+    if (!inputLineElement_) {
+        std::string fallbackLine = "> ";
+        fallbackLine += inputState_.text.substr(0, caretIndex);
+        if (showCaret) {
+            fallbackLine += '_';
+        }
+        fallbackLine += inputState_.text.substr(caretIndex);
+        return fallbackLine;
+    }
+
+    const float viewportWidth = ENGINE::GETVIEWPORTSIZE().x;
+    const float availableWidth = std::max(
+        0.0f,
+        viewportWidth - kChatLeftMargin - kChatInputRightMargin - kChatInputHorizontalPadding * 2.0f
+    );
+
+    const std::string prefix = "> ";
+    std::size_t visibleStart = 0;
+    std::size_t visibleEnd = inputState_.text.size();
+
+    while (visibleStart < caretIndex) {
+        const std::string candidate =
+            prefix + inputState_.text.substr(visibleStart, caretIndex - visibleStart);
+        if (inputLineElement_->measureText(candidate).x <= availableWidth) {
+            break;
+        }
+        ++visibleStart;
+    }
+
+    while (visibleEnd > caretIndex) {
+        std::string candidate = prefix + inputState_.text.substr(visibleStart, visibleEnd - visibleStart);
+        if (showCaret) {
+            candidate.insert(prefix.size() + (caretIndex - visibleStart), 1, '_');
+        }
+
+        if (inputLineElement_->measureText(candidate).x <= availableWidth) {
+            break;
+        }
+        --visibleEnd;
+    }
+
+    std::string line = prefix;
+    line += inputState_.text.substr(visibleStart, caretIndex - visibleStart);
+
+    if (showCaret) {
         line += '_';
     }
 
-    line += inputState_.text.substr(caretIndex);
+    line += inputState_.text.substr(caretIndex, visibleEnd - caretIndex);
 
     return line;
 }
@@ -443,6 +479,14 @@ std::string GameChat::suggestionLineText(int lineIndex) const {
     return displayTextForSuggestion(candidates[static_cast<std::size_t>(lineIndex)]);
 }
 
+int GameChat::visibleHistoryLineCount() const {
+    return static_cast<int>(visibleHistoryLines().size());
+}
+
+int GameChat::visibleSuggestionLineCount() const {
+    return static_cast<int>(autocompleteCandidates().size());
+}
+
 void GameChat::pushHistory(const std::string& text) {
     if (text.empty()) {
         return;
@@ -455,17 +499,7 @@ void GameChat::pushHistory(const std::string& text) {
 }
 
 bool GameChat::shouldShowHistory() const {
-    if (open_) {
-        return true;
-    }
-
-    const double now = ENGINE::GETTIME();
-    for (auto it = history_.rbegin(); it != history_.rend(); ++it) {
-        if ((now - it->timestampSeconds) <= kClosedHistoryLifetimeSeconds) {
-            return true;
-        }
-    }
-    return false;
+    return !visibleHistoryLines().empty();
 }
 
 bool GameChat::shouldShowSuggestions() const {
@@ -539,12 +573,114 @@ std::vector<std::string> GameChat::autocompleteCandidates() const {
         "/help",
         "/get ",
         "/sandbox ",
+        "/seed",
+        "/worldseed",
+        "/health",
+        "/life",
         "/spawnpoint",
         "/summon entity:guy ",
         "/debug wireframe ",
         "/debug camera:culling ",
         "/debug world:mesh ",
         });
+}
+
+std::vector<std::string> GameChat::visibleHistoryLines() const {
+    std::vector<const Entry*> visibleEntries;
+    visibleEntries.reserve(kVisibleHistoryLines);
+
+    const double now = ENGINE::GETTIME();
+    for (auto it = history_.rbegin(); it != history_.rend(); ++it) {
+        if (!open_ && (now - it->timestampSeconds) > kClosedHistoryLifetimeSeconds) {
+            continue;
+        }
+
+        visibleEntries.push_back(&(*it));
+        if (visibleEntries.size() >= static_cast<std::size_t>(kVisibleHistoryLines)) {
+            break;
+        }
+    }
+
+    std::reverse(visibleEntries.begin(), visibleEntries.end());
+
+    std::vector<std::string> lines;
+    lines.reserve(kVisibleHistoryLines);
+
+    for (const Entry* entry : visibleEntries) {
+        if (!entry) {
+            continue;
+        }
+
+        const std::vector<std::string> wrappedLines =
+            wrapChatText(entry->text, kChatMaxCharactersPerLine);
+        lines.insert(lines.end(), wrappedLines.begin(), wrappedLines.end());
+    }
+
+    if (lines.size() > static_cast<std::size_t>(kVisibleHistoryLines)) {
+        lines.erase(
+            lines.begin(),
+            lines.begin() + static_cast<std::size_t>(lines.size() - kVisibleHistoryLines)
+        );
+    }
+
+    return lines;
+}
+
+std::vector<std::string> GameChat::wrapChatText(const std::string& text,
+                                                std::size_t maxCharactersPerLine) {
+    if (text.empty() || maxCharactersPerLine == 0) {
+        return {};
+    }
+
+    std::vector<std::string> wrappedLines;
+    std::istringstream lineStream(text);
+    std::string sourceLine;
+
+    while (std::getline(lineStream, sourceLine)) {
+        if (sourceLine.empty()) {
+            wrappedLines.push_back({});
+            continue;
+        }
+
+        std::istringstream wordStream(sourceLine);
+        std::string currentLine;
+        std::string word;
+
+        while (wordStream >> word) {
+            std::size_t wordOffset = 0;
+            while (wordOffset < word.size()) {
+                const std::size_t remainingWordLength = word.size() - wordOffset;
+                const std::size_t chunkLength =
+                    std::min(maxCharactersPerLine, remainingWordLength);
+                const std::string chunk = word.substr(wordOffset, chunkLength);
+
+                if (currentLine.empty()) {
+                    currentLine = chunk;
+                } else if (currentLine.size() + 1 + chunk.size() <= maxCharactersPerLine) {
+                    currentLine += " " + chunk;
+                } else {
+                    wrappedLines.push_back(currentLine);
+                    currentLine = chunk;
+                }
+
+                wordOffset += chunkLength;
+                if (wordOffset < word.size()) {
+                    wrappedLines.push_back(currentLine);
+                    currentLine.clear();
+                }
+            }
+        }
+
+        if (!currentLine.empty()) {
+            wrappedLines.push_back(currentLine);
+        }
+    }
+
+    if (wrappedLines.empty()) {
+        wrappedLines.push_back(text);
+    }
+
+    return wrappedLines;
 }
 
 std::string GameChat::trim(const std::string& value) {
@@ -731,10 +867,31 @@ bool GameChat::executeCommand(GameChatCommandContext& commandContext, const std:
         return true;
     }
 
+    if (commandName == "seed" || commandName == "worldseed") {
+        if (tokens.size() != 1) {
+            pushHistory("[Debug] Usage: /seed");
+            return true;
+        }
+
+        FractalWorld* world = commandContext.worldStack.currentWorld();
+        if (!world) {
+            pushHistory("[Debug] There is no active world.");
+            return true;
+        }
+
+        char buffer[128];
+        std::snprintf(buffer, sizeof(buffer), "[Debug] World Seed: %u", world->seed);
+
+        std::printf("%s\n", buffer);
+        pushHistory(buffer);
+        return true;
+    }
+
     if (commandName == "help") {
         pushHistory("[Debug] /get <item> [amount]");
         pushHistory("[Debug] /sandbox [true|false]");
         pushHistory("[Debug] /spawnpoint");
+        pushHistory("[Debug] /seed or /worldseed");
         pushHistory("[Debug] /summon entity:guy <normal|lookat>");
         pushHistory("[Debug] /health or /life <1-20>");
         pushHistory("[Debug] /debug wireframe <true|false>");

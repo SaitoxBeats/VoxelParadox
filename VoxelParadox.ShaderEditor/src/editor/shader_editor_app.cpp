@@ -15,7 +15,7 @@ namespace ShaderEditor {
 namespace {
 
 constexpr const char* kWindowTitle = "VoxelParadox Shader Editor";
-constexpr const char* kDefaultFontPath = "Assets/Fonts/Minecraft.ttf";
+constexpr const char* kDefaultFontPath = "Assets/Fonts/ChillBitmap.ttf";
 
 void clearMainFramebuffer(GLFWwindow* window) {
   if (!window) {

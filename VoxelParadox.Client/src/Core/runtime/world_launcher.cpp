@@ -31,6 +31,7 @@ struct LauncherTaskResult {
   bool success = false;
   std::string error;
   WorldSaveService::WorldSession session{};
+  std::filesystem::path worldDirectory{};
 };
 
 LauncherTaskResult runCreateTask(
@@ -50,6 +51,28 @@ LauncherTaskResult runLoadTask(const std::filesystem::path& worldDirectory) {
   LauncherTaskResult result;
   if (!WorldSaveService::loadPlayerAndWorldSession(worldDirectory,
                                                    result.session, &result.error)) {
+    return result;
+  }
+
+  result.success = true;
+  return result;
+}
+
+LauncherTaskResult runDeleteTask(const std::filesystem::path& worldDirectory) {
+  LauncherTaskResult result;
+  if (!WorldSaveService::deleteWorld(worldDirectory, &result.error)) {
+    return result;
+  }
+
+  result.success = true;
+  return result;
+}
+
+LauncherTaskResult runRenameTask(const std::filesystem::path& worldDirectory,
+                                 const std::string& worldName) {
+  LauncherTaskResult result;
+  if (!WorldSaveService::renameWorld(worldDirectory, worldName,
+                                     &result.worldDirectory, &result.error)) {
     return result;
   }
 
@@ -87,6 +110,8 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
   LauncherTaskResult completedTask{};
   bool hasCompletedTask = false;
   double loadingStartedAt = 0.0;
+  hudWorldLauncher::ActionType loadingAction =
+      hudWorldLauncher::ActionType::None;
   std::string statusMessage;
 
   Input::setFocusMode(Input::FocusMode::UI);
@@ -120,6 +145,20 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
       loading = false;
       launcherHud->setLoading(false);
       if (completedTask.success) {
+        if (loadingAction == hudWorldLauncher::ActionType::DeleteWorld ||
+            loadingAction == hudWorldLauncher::ActionType::RenameWorld) {
+          statusMessage.clear();
+          launcherHud->setStatusMessage(statusMessage);
+          launcherHud->setWorlds(WorldSaveService::listWorlds());
+          if (loadingAction == hudWorldLauncher::ActionType::RenameWorld &&
+              !completedTask.worldDirectory.empty()) {
+            launcherHud->setSelectedWorldDirectory(completedTask.worldDirectory);
+          }
+          hasCompletedTask = false;
+          loadingAction = hudWorldLauncher::ActionType::None;
+          continue;
+        }
+
         outSession = std::move(completedTask.session);
         if (outError) {
           outError->clear();
@@ -133,6 +172,7 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
       launcherHud->setStatusMessage(statusMessage);
       launcherHud->setWorlds(WorldSaveService::listWorlds());
       hasCompletedTask = false;
+      loadingAction = hudWorldLauncher::ActionType::None;
     }
 
     if (!loading) {
@@ -142,6 +182,7 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
         loading = true;
         loadingStartedAt = currentTime;
         hasCompletedTask = false;
+        loadingAction = request.type;
         statusMessage.clear();
         launcherHud->setStatusMessage(statusMessage);
         launcherHud->setLoading(true);
@@ -153,11 +194,36 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
         loading = true;
         loadingStartedAt = currentTime;
         hasCompletedTask = false;
+        loadingAction = request.type;
         statusMessage.clear();
         launcherHud->setStatusMessage(statusMessage);
         launcherHud->setLoading(true);
         taskFuture = std::async(std::launch::async, [request]() {
           return runLoadTask(request.worldDirectory);
+        });
+        break;
+      case hudWorldLauncher::ActionType::DeleteWorld:
+        loading = true;
+        loadingStartedAt = currentTime;
+        hasCompletedTask = false;
+        loadingAction = request.type;
+        statusMessage.clear();
+        launcherHud->setStatusMessage(statusMessage);
+        launcherHud->setLoading(true);
+        taskFuture = std::async(std::launch::async, [request]() {
+          return runDeleteTask(request.worldDirectory);
+        });
+        break;
+      case hudWorldLauncher::ActionType::RenameWorld:
+        loading = true;
+        loadingStartedAt = currentTime;
+        hasCompletedTask = false;
+        loadingAction = request.type;
+        statusMessage.clear();
+        launcherHud->setStatusMessage(statusMessage);
+        launcherHud->setLoading(true);
+        taskFuture = std::async(std::launch::async, [request]() {
+          return runRenameTask(request.worldDirectory, request.worldName);
         });
         break;
       case hudWorldLauncher::ActionType::ExitGame:

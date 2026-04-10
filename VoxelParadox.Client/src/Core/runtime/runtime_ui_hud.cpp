@@ -42,7 +42,27 @@ namespace RuntimeUI::Detail {
         }
 
         HUDLayout makePlayerStatusLayout() {
-            return makeHUDLayout(HUDAnchor::BOTTOM_CENTER, glm::vec2(0.0f, -50.0f));
+            return makeHUDLayout(HUDAnchor::BOTTOM_CENTER, glm::vec2(-120.0f, -50.0f));
+        }
+
+        HUDLayout makePlayerLifeSliderLayout() {
+            const HotbarHUDLayout& layout = HUDHotbarPreview::config.layout;
+
+            const int barWidth =
+                layout.padding.x * 2 +
+                layout.slotSize.x * PlayerHotbar::SLOT_COUNT +
+                layout.slotSpacing * (PlayerHotbar::SLOT_COUNT - 1);
+            const int barHeight = layout.padding.y * 2 + layout.slotSize.y;
+
+            return makeHUDLayout(
+                HUDAnchor::BOTTOM_CENTER,
+                HUDAnchor::TOP_LEFT,
+                glm::vec2(
+                    -static_cast<float>(barWidth) * 0.5f,
+                    -(static_cast<float>(barHeight + layout.offset.y +
+                                         layout.lifeBarGap + layout.lifeBarHeight))
+                )
+            );
         }
 
         HUDLayout makePortalCooldownLayout() {
@@ -420,7 +440,7 @@ namespace RuntimeUI::Detail {
                         player.getLifePoints(), player.getMaxLifePoints());
                     out = buffer;
                 },
-                makePlayerStatusLayout(), glm::vec2(1.0f), 18, 0.0f
+                makePlayerStatusLayout(), glm::vec2(1.0f), 30, 0.0f
             ),
             RuntimeHudIds::kPlayerStatus)) {
 
@@ -440,24 +460,71 @@ namespace RuntimeUI::Detail {
 
     // Bottom hotbar widgets: background, selection, item previews, and counts.
     void addHotbarHUD(Player& player, Renderer& renderer, WorldStack& worldStack) {
+        const HotbarHUDLayout& hotbarLayout = HUDHotbarPreview::config.layout;
+        const int clampedLifeBarWidthSlots = glm::clamp(
+            hotbarLayout.lifeBarWidthSlots, 1, PlayerHotbar::SLOT_COUNT
+        );
+        const int lifeBarWidth =
+            hotbarLayout.slotSize.x * clampedLifeBarWidthSlots +
+            hotbarLayout.slotSpacing * (clampedLifeBarWidthSlots - 1);
+
+        auto* lifeSlider = new hudSlider(
+            makePlayerLifeSliderLayout(),
+            glm::vec2(
+                static_cast<float>(lifeBarWidth),
+                static_cast<float>(hotbarLayout.lifeBarHeight)
+            ),
+            [&player]() {
+                const int maxLifePoints = player.getMaxLifePoints();
+                if (maxLifePoints <= 0) {
+                    return 0.0f;
+                }
+
+                return glm::clamp(
+                    static_cast<float>(player.getLifePoints()) /
+                        static_cast<float>(maxLifePoints),
+                    0.0f,
+                    1.0f
+                );
+            },
+            HudSliderStyle{},
+            hotbarLayout.lifeBarBorderThickness,
+            hotbarLayout.lifeBarFillInset,
+            [&player]() {
+                return !player.isInventoryOpen();
+            }
+        );
+        lifeSlider->setStyleBinder([&player]() {
+            HudSliderStyle style;
+            style.borderColor = glm::vec4(0.08f, 0.09f, 0.13f, 1.00f);
+            style.trackColor = glm::vec4(2.37f, 1.16f, 1.16f, 1.00f);
+            style.fillColor = glm::vec4(0.92f, 0.08f, 0.08f, 1.00f);
+            return style;
+        });
+
         HUD::add(attachToHUDGroup(
             new hudHotbar(&player, HotbarVisualPart::BACKGROUND),
             RuntimeHudIds::kHotbar, 0
         ));
 
         HUD::add(attachToHUDGroup(
-            new hudHotbar(&player, HotbarVisualPart::SELECTION),
+            lifeSlider,
             RuntimeHudIds::kHotbar, 1
         ));
 
         HUD::add(attachToHUDGroup(
-            new hudHotbarPreview(&renderer, &player, &worldStack),
+            new hudHotbar(&player, HotbarVisualPart::SELECTION),
             RuntimeHudIds::kHotbar, 2
         ));
 
         HUD::add(attachToHUDGroup(
-            new hudHotbar(&player, HotbarVisualPart::COUNTS),
+            new hudHotbarPreview(&renderer, &player, &worldStack),
             RuntimeHudIds::kHotbar, 3
+        ));
+
+        HUD::add(attachToHUDGroup(
+            new hudHotbar(&player, HotbarVisualPart::COUNTS),
+            RuntimeHudIds::kHotbar, 4
         ));
 
         if (auto* portalCooldown = attachToHUDGroup(
@@ -467,7 +534,7 @@ namespace RuntimeUI::Detail {
                 },
                 makePortalCooldownLayout(), glm::vec2(1.0f), 16, 0.0f
             ),
-            RuntimeHudIds::kHotbar, 4)) {
+            RuntimeHudIds::kHotbar, 5)) {
 
             portalCooldown->setVisualBinder(
                 [&player](hudWatchText& watchText) {

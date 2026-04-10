@@ -5,6 +5,10 @@
       <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="dev-release|x64">
+      <Configuration>dev-release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|x64">
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
@@ -25,13 +29,21 @@
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='dev-release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
   <Import Project="..\build\msbuild\VoxelParadox.Initial.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup>
     <TargetName>VoxelParadox</TargetName>
     <VpProjectIncludeDirs>$(VpRootDir)VoxelParadox.Engine\src;$(VpRootDir)VoxelParadox.Client\src;$(VpRootDir)VoxelParadox.Client\src\Core;$(VpRootDir)VoxelParadox.Client\src\Core\config;$(VpRootDir)VoxelParadox.Client\src\Core\input;$(VpRootDir)VoxelParadox.Client\src\Core\support;$(VpRootDir)VoxelParadox.Client\src\Systems;$(VpRootDir)VoxelParadox.Client\src\Entities;$(VpRootDir)VoxelParadox.Client\src\Renderer;$(VpRootDir)VoxelParadox.Client\src\UI;$(VpRootDir)VoxelParadox.Client\src\World</VpProjectIncludeDirs>
     <VpPchHeader>game_pch.hpp</VpPchHeader>
+    <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
     <LocalDebuggerWorkingDirectory>$(VpRootDir)</LocalDebuggerWorkingDirectory>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='dev-release|x64'">
+    <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <ImportGroup Label="PropertySheets">
     <Import Project="..\build\msbuild\VoxelParadox.Settings.props" />
@@ -40,6 +52,9 @@
   <ItemDefinitionGroup>
     <Link>
       <AdditionalDependencies>avrt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateDebugInformation Condition="'$(Configuration)|$(Platform)'=='dev-release|x64'">false</GenerateDebugInformation>
+      <OptimizeReferences Condition="'$(Configuration)|$(Platform)'=='dev-release|x64'">false</OptimizeReferences>
+      <EnableCOMDATFolding Condition="'$(Configuration)|$(Platform)'=='dev-release|x64'">false</EnableCOMDATFolding>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -51,6 +66,7 @@
     <ClCompile Include="src\Core\input\input_action_system.cpp" />
     <ClCompile Include="src\Systems\audio\game_audio_controller.cpp" />
     <ClCompile Include="src\Systems\debug\biome_debug_tools.cpp" />
+    <ClCompile Include="src\Systems\gameplay\gameplay_status.cpp" />
     <ClCompile Include="src\Entities\enemies\enemy_definition.cpp" />
     <ClCompile Include="src\Entities\enemies\enemy_spawn_system.cpp" />
     <ClCompile Include="src\Entities\enemies\enemy_system.cpp" />
@@ -76,6 +92,7 @@
     <ClCompile Include="src\Renderer\render\hud\hud_panel.cpp" />
     <ClCompile Include="src\Renderer\render\hud\hud_portal_info.cpp" />
     <ClCompile Include="src\Renderer\render\hud\hud_portal_tracker.cpp" />
+    <ClCompile Include="src\Renderer\render\hud\hud_slider.cpp" />
     <ClCompile Include="src\Renderer\render\hud\hud_world_launcher.cpp" />
     <ClCompile Include="src\Renderer\render\hud\hud_text.cpp" />
     <ClCompile Include="src\Renderer\render\hud\hud_watch_text.cpp" />
@@ -106,6 +123,7 @@
     <ClInclude Include="src\Core\support\crash_handler.hpp" />
     <ClInclude Include="src\Systems\audio\game_audio_controller.hpp" />
     <ClInclude Include="src\Systems\debug\biome_debug_tools.hpp" />
+    <ClInclude Include="src\Systems\gameplay\gameplay_status.hpp" />
     <ClInclude Include="src\Entities\enemies\enemy_definition.hpp" />
     <ClInclude Include="src\Entities\enemies\enemy_runtime_helpers.hpp" />
     <ClInclude Include="src\Entities\enemies\enemy_spawn_system.hpp" />
@@ -132,6 +150,7 @@
     <ClInclude Include="src\Renderer\render\hud\hud_panel.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_portal_info.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_portal_tracker.hpp" />
+    <ClInclude Include="src\Renderer\render\hud\hud_slider.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_world_launcher.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_text.hpp" />
     <ClInclude Include="src\Renderer\render\hud\hud_watch_text.hpp" />

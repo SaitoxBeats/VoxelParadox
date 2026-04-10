@@ -15,6 +15,11 @@ struct HotbarHUDLayout {
     int slotSpacing = 6;
     glm::ivec2 padding{5, 5};
     glm::ivec2 offset{0, 0};
+    int lifeBarWidthSlots = 4;
+    int lifeBarHeight = 30;
+    int lifeBarGap = 8;
+    int lifeBarBorderThickness = 2;
+    int lifeBarFillInset = 2;
     int slotPreviewInset = 4;
     int slotBorderThickness = 2;
     int selectedBorderThickness = 3;

@@ -141,6 +141,7 @@ public:
                          const std::string& name);
     bool deleteUniverseAtPortal(const glm::ivec3& portalBlock);
     std::vector<NamedPortalEntry> listNamedPortalsInCurrentWorld();
+    std::uint64_t countNamedUniverses() const;
 
     // Global cache mirrors serialized world edits.
     std::unordered_map<std::string, WorldEdits> globalCache;
@@ -187,9 +188,10 @@ private:
                                                              bool persistIfMissing);
 
     // Recursive cleanup and cache/disk syncing.
-    void deleteUniverseRecursive(std::uint32_t seed);
-    void deleteUniverseRecursiveInternal(std::uint32_t seed,
-                                         std::unordered_set<std::uint32_t>& visited);
+    std::uint64_t deleteUniverseRecursive(std::uint32_t seed);
+    std::uint64_t deleteUniverseRecursiveInternal(
+        std::uint32_t seed,
+        std::unordered_set<std::uint32_t>& visited);
     static std::string universeKey(std::uint32_t seed,
                                    const BiomeSelection& biomeSelection);
     glm::vec3 resolveSpawnPositionForWorld(FractalWorld& world,

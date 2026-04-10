@@ -32,6 +32,7 @@
 #include "audio/game_audio_controller.hpp"
 #include "client_defaults.hpp"
 #include "debug/biome_debug_tools.hpp"
+#include "gameplay/gameplay_status.hpp"
 #include "input/input_action_ids.hpp"
 #include "input/input_action_system.hpp"
 #include "player/player.hpp"
@@ -278,15 +279,7 @@ bool canCaptureGameplayScreenshot(const Player& player, const GameChat& gameChat
 }
 
 std::filesystem::path makeScreenshotPath() {
-  std::filesystem::path screenshotDir = AppPaths::savesRoot() / "Screenshots";
-  const std::string& saveDirectory = WorldStack::getSaveWorldDirectory();
-  if (!saveDirectory.empty()) {
-    const std::filesystem::path universesDirectory(saveDirectory);
-    const std::filesystem::path worldDirectory = universesDirectory.parent_path();
-    if (!worldDirectory.empty()) {
-      screenshotDir = worldDirectory / "screenshots";
-    }
-  }
+  const std::filesystem::path screenshotDir = AppPaths::screenshotsRoot();
   std::error_code ec;
   std::filesystem::create_directories(screenshotDir, ec);
   if (ec) {
@@ -351,7 +344,8 @@ bool saveCurrentWorldSession(WorldSaveService::WorldSession& worldSession,
                              Player& player, WorldStack& worldStack,
                              hudPortalTracker* portalTracker,
                              RuntimeUI::RuntimeUiState& uiState,
-                             double totalPlaytimeSeconds, bool showToast,
+                             const GameplayStatus::PersistentState& gameplayStats,
+                             bool showToast,
                              const Player::PersistentState* overriddenPlayerState = nullptr,
                              std::string* outError = nullptr) {
   if (portalTracker) {
@@ -367,14 +361,14 @@ bool saveCurrentWorldSession(WorldSaveService::WorldSession& worldSession,
                          ? WorldSaveService::saveSessionWithPlayerState(
                                worldSession, *overriddenPlayerState,
                                player.camera.position, player.camera.orientation,
-                               worldStack, totalPlaytimeSeconds, outError)
+                               worldStack, gameplayStats, outError)
                          : WorldSaveService::saveSession(worldSession, player, worldStack,
-                                                         totalPlaytimeSeconds, outError);
+                                                         gameplayStats, outError);
   if (!saved) {
     return false;
   }
 
-  worldSession.totalPlaytimeSeconds = totalPlaytimeSeconds;
+  worldSession.gameplayStats = gameplayStats;
   if (showToast) {
     RuntimeUI::triggerSaveToast(uiState);
   }
@@ -436,8 +430,7 @@ void ensureDeathScreenHud(DeathSequenceState& deathState) {
 void startDeathSequence(DeathSequenceState& deathState, Player& player,
                         WorldStack& worldStack, GameAudioController& audioController,
                         hudPortalInfo* portalInfo, hudPortalTracker* portalTracker,
-                        GameChat& gameChat, RuntimeUI::RuntimeUiState& uiState,
-                        WorldSaveService::WorldSession& worldSession) {
+                        GameChat& gameChat, RuntimeUI::RuntimeUiState& uiState) {
   if (deathState.active) {
     return;
   }
@@ -485,7 +478,7 @@ void startDeathSequence(DeathSequenceState& deathState, Player& player,
   player.applyPersistentState(deathStateData);
   player.setDeathSequenceState(true, deathState.elapsedSeconds, deathState.message);
   player.setAudioController(&audioController);
-  ++worldSession.deathCount;
+  GameplayStatus::System::instance().recordDeath();
 
   audioController.onDeathSequenceStarted();
 }
@@ -494,7 +487,7 @@ bool finalizeDeathSequence(WorldSaveService::WorldSession& worldSession, Player&
                            WorldStack& worldStack, GameAudioController& audioController,
                            GameChat& gameChat, hudPortalTracker* portalTracker,
                            RuntimeUI::RuntimeUiState& uiState,
-                           double totalPlaytimeSeconds,
+                           const GameplayStatus::PersistentState& gameplayStats,
                            std::string* outError) {
   (void)audioController;
 
@@ -523,7 +516,7 @@ bool finalizeDeathSequence(WorldSaveService::WorldSession& worldSession, Player&
 
   std::string saveError;
   if (!saveCurrentWorldSession(worldSession, player, worldStack, portalTracker,
-                               uiState, totalPlaytimeSeconds, false, nullptr,
+                               uiState, gameplayStats, false, nullptr,
                                &saveError)) {
     if (outError) {
       *outError = saveError;
@@ -715,12 +708,14 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
     printBootstrapSuccess("Bootstrap complete!");
   }
 
-  double totalPlaytimeSeconds = worldSession.totalPlaytimeSeconds;
-  double lastAutosavePlaytimeSeconds = totalPlaytimeSeconds;
+  auto& gameplayStatus = GameplayStatus::System::instance();
+  gameplayStatus.applyPersistentState(worldSession.gameplayStats);
+
+  double lastAutosavePlaytimeSeconds = gameplayStatus.playtimeSeconds();
   std::string autosaveError;
   const std::uint64_t pauseListenerId = ENGINE::ADDPAUSELISTENER(
       [&worldSession, &player, &worldStack, &settingsBundle,
-       &totalPlaytimeSeconds, &lastAutosavePlaytimeSeconds, &autosaveError,
+       &gameplayStatus, &lastAutosavePlaytimeSeconds, &autosaveError,
        portalTracker](
           bool paused) {
         if (!paused) {
@@ -729,7 +724,8 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
 
         if (!saveCurrentWorldSession(worldSession, player, worldStack,
                                      portalTracker, settingsBundle.uiState,
-                                     totalPlaytimeSeconds, true, nullptr,
+                                     gameplayStatus.capturePersistentState(),
+                                     true, nullptr,
                                      &autosaveError)) {
           if (!autosaveError.empty()) {
             RuntimeAppInternal::printBootstrapError(autosaveError.c_str());
@@ -737,7 +733,7 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
           return;
         }
 
-        lastAutosavePlaytimeSeconds = totalPlaytimeSeconds;
+        lastAutosavePlaytimeSeconds = gameplayStatus.playtimeSeconds();
       });
 
   DeathSequenceState deathState;
@@ -777,7 +773,7 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
     }
 
     if (!ENGINE::ISPAUSED() && !deathSequencePaused) {
-      totalPlaytimeSeconds += static_cast<double>(simDt);
+      gameplayStatus.addPlaytimeSeconds(static_cast<double>(simDt));
     }
 
     // --- 2.2 UI Commands & Global Shortcuts ---
@@ -821,7 +817,7 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
 
     if (!deathState.active && !player.isAlive()) {
       startDeathSequence(deathState, player, worldStack, audioController, portalInfo,
-                         portalTracker, gameChat, settingsBundle.uiState, worldSession);
+                         portalTracker, gameChat, settingsBundle.uiState);
     }
 
     if (deathState.active && deathState.messageText) {
@@ -865,12 +861,13 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
     }
 
     if (!deathSequenceActive && !ENGINE::ISPAUSED() &&
-        totalPlaytimeSeconds - lastAutosavePlaytimeSeconds >= 300.0) {
+        gameplayStatus.playtimeSeconds() - lastAutosavePlaytimeSeconds >= 300.0) {
       autosaveError.clear();
       if (saveCurrentWorldSession(worldSession, player, worldStack, portalTracker,
-                                  settingsBundle.uiState, totalPlaytimeSeconds,
-                                  true, nullptr, &autosaveError)) {
-        lastAutosavePlaytimeSeconds = totalPlaytimeSeconds;
+                                  settingsBundle.uiState,
+                                  gameplayStatus.capturePersistentState(), true,
+                                  nullptr, &autosaveError)) {
+        lastAutosavePlaytimeSeconds = gameplayStatus.playtimeSeconds();
       } else if (!autosaveError.empty()) {
         RuntimeAppInternal::printBootstrapError(autosaveError.c_str());
       }
@@ -896,7 +893,8 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
       std::string respawnError;
       if (!finalizeDeathSequence(worldSession, player, worldStack, audioController,
                                  gameChat, portalTracker, settingsBundle.uiState,
-                                 totalPlaytimeSeconds, &respawnError)) {
+                                 gameplayStatus.capturePersistentState(),
+                                 &respawnError)) {
         if (!respawnError.empty()) {
           RuntimeAppInternal::printBootstrapError(respawnError.c_str());
         }
@@ -916,7 +914,7 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
         deathState.messageText->setOpacity(0.0f);
       }
       player.setDeathSequenceState(false, 0.0f);
-      lastAutosavePlaytimeSeconds = totalPlaytimeSeconds;
+      lastAutosavePlaytimeSeconds = gameplayStatus.playtimeSeconds();
     }
 
     rebuildHudIfRequested(player, worldStack, renderer, audioController, window,
@@ -926,7 +924,8 @@ RuntimeLoopExitReason runMainLoop(GLFWwindow* window, Renderer& renderer,
 
   autosaveError.clear();
   if (!saveCurrentWorldSession(worldSession, player, worldStack, portalTracker,
-                               settingsBundle.uiState, totalPlaytimeSeconds, false,
+                               settingsBundle.uiState,
+                               gameplayStatus.capturePersistentState(), false,
                                nullptr, &autosaveError) &&
       !autosaveError.empty()) {
     RuntimeAppInternal::printBootstrapError(autosaveError.c_str());

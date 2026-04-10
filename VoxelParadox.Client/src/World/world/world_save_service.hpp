@@ -13,6 +13,7 @@
 
 #include <glm/glm.hpp>
 
+#include "gameplay/gameplay_status.hpp"
 #include "biome.hpp"
 #include "player/player.hpp"
 #include "world_stack.hpp"
@@ -23,7 +24,6 @@ namespace WorldSaveService {
 
 inline constexpr std::uint32_t kWorldManifestVersion = 1;
 inline constexpr std::uint32_t kPlayerDataVersion = 6;
-inline constexpr std::uint32_t kStatsVersion = 2;
 
 inline constexpr const char* kWorldFileName = "world.dat";
 inline constexpr const char* kPlayerDataDirectoryName = "playerdata";
@@ -74,8 +74,7 @@ struct PlayerData {
 struct WorldSummary {
     WorldPaths paths;
     WorldManifest manifest{};
-    double totalPlaytimeSeconds = 0.0;
-    std::uint32_t deathCount = 0;
+    GameplayStatus::PersistentState gameplayStats{};
     std::filesystem::file_time_type lastWriteTime{};
 };
 
@@ -84,8 +83,7 @@ struct WorldSession {
     WorldManifest manifest{};
     PlayerData playerData{};
     bool hasPlayerData = false;
-    double totalPlaytimeSeconds = 0.0;
-    std::uint32_t deathCount = 0;
+    GameplayStatus::PersistentState gameplayStats{};
     std::uint32_t startUniverseSeed = 0;
     BiomeSelection startUniverseBiomeSelection{};
     std::shared_ptr<const VoxelGame::BiomePreset> rootPreset{};
@@ -102,6 +100,12 @@ bool createWorld(const std::string& displayName,
                  const BiomeSelection& rootBiomeSelection,
                  WorldSession& outSession,
                  std::string* outError = nullptr);
+bool deleteWorld(const std::filesystem::path& worldDirectory,
+                 std::string* outError = nullptr);
+bool renameWorld(const std::filesystem::path& worldDirectory,
+                 const std::string& displayName,
+                 std::filesystem::path* outRenamedWorldDirectory = nullptr,
+                 std::string* outError = nullptr);
 bool loadWorld(const std::filesystem::path& worldDirectory,
                WorldSession& outSession,
                std::string* outError = nullptr);
@@ -116,22 +120,23 @@ bool savePlayerData(const WorldPaths& paths, const PlayerData& playerData,
 bool loadPlayerData(const WorldPaths& paths, PlayerData& outPlayerData,
                     std::string* outError = nullptr);
 
-bool saveStats(const WorldPaths& paths, double totalPlaytimeSeconds,
-               std::uint32_t deathCount,
+bool saveStats(const WorldPaths& paths,
+               const GameplayStatus::PersistentState& gameplayStats,
                std::string* outError = nullptr);
-bool loadStats(const WorldPaths& paths, double& outTotalPlaytimeSeconds,
-               std::uint32_t& outDeathCount,
+bool loadStats(const WorldPaths& paths, std::uint32_t rootUniverseSeed,
+               GameplayStatus::PersistentState& outGameplayStats,
                std::string* outError = nullptr);
 
 bool saveSession(const WorldSession& session, const Player& player,
-                 WorldStack& worldStack, double totalPlaytimeSeconds,
+                 WorldStack& worldStack,
+                 const GameplayStatus::PersistentState& gameplayStats,
                  std::string* outError = nullptr);
 bool saveSessionWithPlayerState(const WorldSession& session,
                                 const Player::PersistentState& playerState,
                                 const glm::vec3& cameraPosition,
                                 const glm::quat& cameraOrientation,
                                 WorldStack& worldStack,
-                                double totalPlaytimeSeconds,
+                                const GameplayStatus::PersistentState& gameplayStats,
                                 std::string* outError = nullptr);
 bool loadPlayerAndWorldSession(const std::filesystem::path& worldDirectory,
                                WorldSession& outSession,

@@ -406,7 +406,7 @@ private:
     static constexpr float kLifeFlashDuration = 0.30f;
     static constexpr int kLifeFlashPulseCount = 3;
     static constexpr int kMaxLifePoints = 20;
-    static constexpr glm::vec3 kLifeTextBaseColor{ 1.0f, 0.42f, 0.42f };
+    static constexpr glm::vec3 kLifeTextBaseColor{ 0.0f, 0.0f, 0.0f };
 
     GameAudioController* audioController = nullptr;
     int lifePoints = kMaxLifePoints;

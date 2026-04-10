@@ -35,7 +35,6 @@ std::filesystem::path recipesRoot();
 std::filesystem::path shadersRoot();
 std::filesystem::path voxsRoot();
 std::filesystem::path savesRoot();
-std::filesystem::path screenshotsRoot();
 std::filesystem::path saveWorldsRoot();
 std::filesystem::path biomeMakerSavesRoot();
 std::filesystem::path seedsRoot();

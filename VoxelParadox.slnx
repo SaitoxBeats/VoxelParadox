@@ -1,6 +1,9 @@
 
 <Solution>
   <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="dev-release" />
+    <BuildType Name="Release" />
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/res/" />

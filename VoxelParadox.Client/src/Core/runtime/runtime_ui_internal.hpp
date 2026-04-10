@@ -17,6 +17,7 @@
 #include "render/hud/hud_panel.hpp"
 #include "render/hud/hud_portal_info.hpp"
 #include "render/hud/hud_portal_tracker.hpp"
+#include "render/hud/hud_slider.hpp"
 #include "render/hud/hud_text.hpp"
 #include "render/hud/hud_watch_text.hpp"
 #include "render/renderer.hpp"

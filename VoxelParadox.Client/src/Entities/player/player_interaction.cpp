@@ -14,6 +14,7 @@
 // 3. Local Project Modules
 #include "player.hpp"
 #include "audio/game_audio_controller.hpp"
+#include "gameplay/gameplay_status.hpp"
 #include "input/input_action_ids.hpp"
 #include "input/input_action_system.hpp"
 
@@ -191,6 +192,7 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
     // --- 2. Portal Destruction Logic ---
     if (brokenType == BlockType::PORTAL) {
         if (worldStack.deleteUniverseAtPortal(targetBlock)) {
+            GameplayStatus::System::instance().recordBlocksBroken();
 
             if (audioController) {
                 audioController->onBlockBroken(brokenType, targetBlock);
@@ -212,6 +214,7 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
 
     // --- 3. Standard Block Destruction Logic ---
     world->setBlock(targetBlock, BlockType::AIR);
+    GameplayStatus::System::instance().recordBlocksBroken();
 
     if (audioController) {
         audioController->onBlockBroken(brokenType, targetBlock);
@@ -230,6 +233,7 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
 
     if (world->getBlock(supportedBlockPos) == BlockType::MEMBRANE_WIRE) {
         world->setBlock(supportedBlockPos, BlockType::AIR);
+        GameplayStatus::System::instance().recordBlocksBroken();
 
         if (audioController) {
             audioController->onBlockBroken(BlockType::MEMBRANE_WIRE, supportedBlockPos);
@@ -302,6 +306,7 @@ void Player::placeBlockAtTarget(WorldStack& worldStack) {
 
     world->setBlock(placePos, placedBlockType);
     hotbar.consumeSelected(1);
+    GameplayStatus::System::instance().recordBlocksPlaced();
 
     if (audioController) {
         audioController->onBlockPlaced(placedBlockType, placePos);
