@@ -4,8 +4,8 @@
 #pragma once
 
 #include "hud_element.hpp"
-#include "world/world_save_service.hpp"
-#include "world/biome.hpp"
+#include "world/persistence/world_save_service.hpp"
+#include "world/biome/biome.hpp"
 
 #include <cstdint>
 #include <string>

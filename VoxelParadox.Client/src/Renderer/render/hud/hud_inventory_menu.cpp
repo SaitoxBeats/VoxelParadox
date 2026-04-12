@@ -16,10 +16,10 @@
 #include "engine/input.hpp"
 #include "items/item_catalog.hpp"
 #include "player/player.hpp"
-#include "world/world_stack.hpp"
-#include "render/inventory_menu_layout.hpp"
-#include "render/inventory_menu_preview_config.hpp"
-#include "render/renderer.hpp"
+#include "world/persistence/world_stack.hpp"
+#include "render/config/inventory_menu_layout.hpp"
+#include "render/config/inventory_menu_preview_config.hpp"
+#include "render/core/renderer.hpp"
 #include "hud.hpp"
 #pragma endregion
 

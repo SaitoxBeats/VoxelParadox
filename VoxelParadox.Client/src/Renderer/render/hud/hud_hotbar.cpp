@@ -14,9 +14,9 @@
 
 #include "engine/engine.hpp"
 #include "player/player.hpp"
-#include "world/world_stack.hpp"
-#include "render/hotbar_preview_config.hpp"
-#include "render/renderer.hpp"
+#include "world/persistence/world_stack.hpp"
+#include "render/config/hotbar_preview_config.hpp"
+#include "render/core/renderer.hpp"
 #include "hud.hpp"
 #pragma endregion
 

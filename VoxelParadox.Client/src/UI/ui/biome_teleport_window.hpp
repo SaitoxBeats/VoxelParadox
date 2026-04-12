@@ -8,7 +8,7 @@
 #pragma region Includes
 #include <vector>
 
-#include "world/biome.hpp"
+#include "world/biome/biome.hpp"
 #pragma endregion
 
 #pragma region BiomeTeleportWindowApi

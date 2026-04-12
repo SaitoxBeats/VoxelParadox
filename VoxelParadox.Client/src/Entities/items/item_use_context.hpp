@@ -12,6 +12,7 @@
 
 class FractalWorld;
 class GameAudioController;
+class GameChat;
 class Player;
 class WorldStack;
 class hudPortalTracker;
@@ -21,6 +22,7 @@ struct ItemUseContext {
     WorldStack* worldStack = nullptr;
     FractalWorld* world = nullptr;
     GameAudioController* audioController = nullptr;
+    GameChat* gameChat = nullptr;
     hudPortalTracker* portalTracker = nullptr;
     bool hasTarget = false;
     glm::ivec3 targetBlock{ 0 };

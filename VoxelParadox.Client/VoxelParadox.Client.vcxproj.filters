@@ -16,6 +16,21 @@
     <Filter Include="src\Core\runtime">
       <UniqueIdentifier>{0BD83A6E-F15A-48F4-8BE3-981CB525B586}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Core\runtime\App">
+      <UniqueIdentifier>{57145378-C6B9-4A60-B1F5-CB8E44D73A7D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Core\runtime\Entry">
+      <UniqueIdentifier>{3C0EC4D6-BE7F-41F6-B6D1-3EFC3B9A712C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Core\runtime\Launcher">
+      <UniqueIdentifier>{DAA33B06-9713-475D-8D7B-611D04F141A8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Core\runtime\State">
+      <UniqueIdentifier>{EDE4D34E-0D2B-42D1-B244-5DB9ACF74D6E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Core\runtime\UI">
+      <UniqueIdentifier>{2A61648D-C7FD-49AA-8B8F-A59D2E8FC60A}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\Core\support">
       <UniqueIdentifier>{8CBA572E-A5F9-4590-8577-0CFF7610DA17}</UniqueIdentifier>
     </Filter>
@@ -40,11 +55,26 @@
     <Filter Include="src\Renderer\render">
       <UniqueIdentifier>{35D664DB-D11E-4477-91D4-870B6850B33F}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Renderer\render\Cache">
+      <UniqueIdentifier>{D4BAF7E1-205D-4282-B66F-2D8B0F4058B6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Renderer\render\Config">
+      <UniqueIdentifier>{6613D1A3-CE62-4AA6-AEB9-B27F89EA3653}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Renderer\render\Core">
+      <UniqueIdentifier>{8EAAE4A7-6A20-4495-8E6A-AD31680D68B7}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\Renderer\render\hud">
       <UniqueIdentifier>{493E5BB2-AE75-43B3-B6C6-B8D4A64A322A}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\Renderer\render\hud\styles">
       <UniqueIdentifier>{7E06ED7D-B99C-43C4-BAF7-16952B3D66F2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Renderer\render\Models">
+      <UniqueIdentifier>{57D7A654-E6F9-49A5-A8AD-B593426F0BDC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Renderer\render\Passes">
+      <UniqueIdentifier>{A1D233EB-856E-4A0A-BBFE-24D41F7435BE}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\Systems">
       <UniqueIdentifier>{7537A1F6-64BC-408D-954C-C994F657468E}</UniqueIdentifier>
@@ -67,6 +97,21 @@
     <Filter Include="src\World">
       <UniqueIdentifier>{D7D7C404-7309-4A9D-AA30-948AC9138806}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\World\Biome">
+      <UniqueIdentifier>{0D36A745-A5D9-4E53-89D0-8356D1BAF1C3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\World\Block">
+      <UniqueIdentifier>{9CFA5A0E-18E1-4F8C-8F2D-6F1963A06C7E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\World\Generation">
+      <UniqueIdentifier>{E671CB34-F52A-4CD1-B255-4567D02DF7C9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\World\Persistence">
+      <UniqueIdentifier>{6DB8B5B0-A6E4-45E2-A5DB-6EF7E1B50574}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\World\Voxel Assets">
+      <UniqueIdentifier>{451DC1A4-687D-43F7-A245-F35B545176DE}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Core\support\game_pch.cpp">
@@ -78,8 +123,8 @@
     <ClCompile Include="src\Core\input\input_action_system.cpp">
       <Filter>src\Core\input</Filter>
     </ClCompile>
-    <ClCompile Include="src\World\world\block_catalog.cpp">
-      <Filter>src\World</Filter>
+    <ClCompile Include="src\World\world\block\block_catalog.cpp">
+      <Filter>src\World\Block</Filter>
     </ClCompile>
     <ClCompile Include="src\Systems\audio\game_audio_controller.cpp">
       <Filter>src\Systems\audio</Filter>
@@ -135,23 +180,23 @@
     <ClCompile Include="src\Entities\player\player_portal.cpp">
       <Filter>src\Entities\player</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderer\render\item_texture_cache.cpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClCompile Include="src\Renderer\render\cache\item_texture_cache.cpp">
+      <Filter>src\Renderer\render\Cache</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderer\render\obj_block_model.cpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClCompile Include="src\Renderer\render\models\obj_block_model.cpp">
+      <Filter>src\Renderer\render\Models</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderer\render\renderer.cpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClCompile Include="src\Renderer\render\core\renderer.cpp">
+      <Filter>src\Renderer\render\Core</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderer\render\renderer_entities.cpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClCompile Include="src\Renderer\render\passes\renderer_entities.cpp">
+      <Filter>src\Renderer\render\Passes</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderer\render\renderer_items.cpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClCompile Include="src\Renderer\render\passes\renderer_items.cpp">
+      <Filter>src\Renderer\render\Passes</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderer\render\renderer_portals.cpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClCompile Include="src\Renderer\render\passes\renderer_portals.cpp">
+      <Filter>src\Renderer\render\Passes</Filter>
     </ClCompile>
     <ClCompile Include="src\Renderer\render\hud\hud.cpp">
       <Filter>src\Renderer\render\hud</Filter>
@@ -192,65 +237,65 @@
     <ClCompile Include="src\Renderer\render\hud\hud_watch_text.cpp">
       <Filter>src\Renderer\render\hud</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\game_chat.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\state\game_chat.cpp">
+      <Filter>src\Core\runtime\State</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\game_settings.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\state\game_settings.cpp">
+      <Filter>src\Core\runtime\State</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\main.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\entry\main.cpp">
+      <Filter>src\Core\runtime\Entry</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_app.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\app\runtime_app.cpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_app_bootstrap.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\app\runtime_app_bootstrap.cpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_app_loop.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\app\runtime_app_loop.cpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\world_launcher.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\launcher\world_launcher.cpp">
+      <Filter>src\Core\runtime\Launcher</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_ui_common.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\ui\runtime_ui_common.cpp">
+      <Filter>src\Core\runtime\UI</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_ui_hud.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\ui\runtime_ui_hud.cpp">
+      <Filter>src\Core\runtime\UI</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_ui_hotbar.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\ui\runtime_ui_hotbar.cpp">
+      <Filter>src\Core\runtime\UI</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_ui.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\ui\runtime_ui.cpp">
+      <Filter>src\Core\runtime\UI</Filter>
     </ClCompile>
     <ClCompile Include="src\UI\ui\biome_teleport_window.cpp">
       <Filter>src\UI\ui</Filter>
     </ClCompile>
-    <ClCompile Include="src\World\world\biome_preset.cpp">
-      <Filter>src\World</Filter>
+    <ClCompile Include="src\World\world\biome\biome_preset.cpp">
+      <Filter>src\World\Biome</Filter>
     </ClCompile>
-    <ClCompile Include="src\World\world\biome_preset_defaults.cpp">
-      <Filter>src\World</Filter>
+    <ClCompile Include="src\World\world\biome\biome_preset_defaults.cpp">
+      <Filter>src\World\Biome</Filter>
     </ClCompile>
-    <ClCompile Include="src\World\world\world_save_service.cpp">
-      <Filter>src\World</Filter>
+    <ClCompile Include="src\World\world\persistence\world_save_service.cpp">
+      <Filter>src\World\Persistence</Filter>
     </ClCompile>
-    <ClCompile Include="src\World\world\world_spawn_locator.cpp">
-      <Filter>src\World</Filter>
+    <ClCompile Include="src\World\world\generation\world_spawn_locator.cpp">
+      <Filter>src\World\Generation</Filter>
     </ClCompile>
-    <ClCompile Include="src\World\world\world_stack.cpp">
-      <Filter>src\World</Filter>
+    <ClCompile Include="src\World\world\persistence\world_stack.cpp">
+      <Filter>src\World\Persistence</Filter>
     </ClCompile>
-    <ClCompile Include="src\World\world\world_stack_persistence.cpp">
-      <Filter>src\World</Filter>
+    <ClCompile Include="src\World\world\persistence\world_stack_persistence.cpp">
+      <Filter>src\World\Persistence</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_app_death_sequence.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\app\runtime_app_death_sequence.cpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\runtime\runtime_app_screenshot.cpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClCompile Include="src\Core\runtime\app\runtime_app_screenshot.cpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -332,17 +377,17 @@
     <ClInclude Include="src\Entities\player\player.hpp">
       <Filter>src\Entities\player</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\dust_particle_config.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\config\dust_particle_config.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\held_block_preview_config.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\config\held_block_preview_config.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\hotbar_layout.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\config\hotbar_layout.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\hotbar_preview_config.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\config\hotbar_preview_config.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
     <ClInclude Include="src\Renderer\render\hud\hud.hpp">
       <Filter>src\Renderer\render\hud</Filter>
@@ -407,53 +452,53 @@
     <ClInclude Include="src\Renderer\render\hud\hud_watch_text.hpp">
       <Filter>src\Renderer\render\hud</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\hud_3d_preview.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\config\hud_3d_preview.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\inventory_menu_layout.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\config\inventory_menu_layout.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\inventory_menu_preview_config.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\config\inventory_menu_preview_config.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\item_preview_config.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\config\item_preview_config.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\item_texture_cache.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\cache\item_texture_cache.hpp">
+      <Filter>src\Renderer\render\Cache</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\obj_block_model.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\models\obj_block_model.hpp">
+      <Filter>src\Renderer\render\Models</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\renderer.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\core\renderer.hpp">
+      <Filter>src\Renderer\render\Core</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\render\renderer_internal.hpp">
-      <Filter>src\Renderer\render</Filter>
+    <ClInclude Include="src\Renderer\render\core\renderer_internal.hpp">
+      <Filter>src\Renderer\render\Core</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\game_chat.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\state\game_chat.hpp">
+      <Filter>src\Core\runtime\State</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\game_settings.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\state\game_settings.hpp">
+      <Filter>src\Core\runtime\State</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\runtime_app.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\app\runtime_app.hpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\runtime_app_internal.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\app\runtime_app_internal.hpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\runtime_hud_ids.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\ui\runtime_hud_ids.hpp">
+      <Filter>src\Core\runtime\UI</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\runtime_ui_internal.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\ui\runtime_ui_internal.hpp">
+      <Filter>src\Core\runtime\UI</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\runtime_ui.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\ui\runtime_ui.hpp">
+      <Filter>src\Core\runtime\UI</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\world_launcher.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\launcher\world_launcher.hpp">
+      <Filter>src\Core\runtime\Launcher</Filter>
     </ClInclude>
     <ClInclude Include="src\UI\ui\biome_teleport_window.hpp">
       <Filter>src\UI\ui</Filter>
@@ -461,68 +506,68 @@
     <ClInclude Include="src\UI\ui\imgui_layer.hpp">
       <Filter>src\UI\ui</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\biome.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\biome\biome.hpp">
+      <Filter>src\World\Biome</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\biome_preset.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\biome\biome_preset.hpp">
+      <Filter>src\World\Biome</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\biome_preset_internal.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\biome\biome_preset_internal.hpp">
+      <Filter>src\World\Biome</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\biome_registry.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\biome\biome_registry.hpp">
+      <Filter>src\World\Biome</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\block.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\block\block.hpp">
+      <Filter>src\World\Block</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\block_catalog.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\block\block_catalog.hpp">
+      <Filter>src\World\Block</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\chunk.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\generation\chunk.hpp">
+      <Filter>src\World\Generation</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\chunk_generator_source.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\generation\chunk_generator_source.hpp">
+      <Filter>src\World\Generation</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\fractal_world.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\generation\fractal_world.hpp">
+      <Filter>src\World\Generation</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\noise.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\generation\noise.hpp">
+      <Filter>src\World\Generation</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\vox_asset.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\voxel_assets\vox_asset.hpp">
+      <Filter>src\World\Voxel Assets</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\vox_structure.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\voxel_assets\vox_structure.hpp">
+      <Filter>src\World\Voxel Assets</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\world_generator.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\generation\world_generator.hpp">
+      <Filter>src\World\Generation</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\world_save_service.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\persistence\world_save_service.hpp">
+      <Filter>src\World\Persistence</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\world_spawn_locator.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\generation\world_spawn_locator.hpp">
+      <Filter>src\World\Generation</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\world_stack.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\persistence\world_stack.hpp">
+      <Filter>src\World\Persistence</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\runtime_app_death_sequence.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\app\runtime_app_death_sequence.hpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\runtime_app_loop_shared.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\app\runtime_app_loop_shared.hpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\runtime\runtime_app_screenshot.hpp">
-      <Filter>src\Core\runtime</Filter>
+    <ClInclude Include="src\Core\runtime\app\runtime_app_screenshot.hpp">
+      <Filter>src\Core\runtime\App</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\block_registry.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\block\block_registry.hpp">
+      <Filter>src\World\Block</Filter>
     </ClInclude>
-    <ClInclude Include="src\World\world\block_types.hpp">
-      <Filter>src\World</Filter>
+    <ClInclude Include="src\World\world\block\block_types.hpp">
+      <Filter>src\World\Block</Filter>
     </ClInclude>
     <ClInclude Include="item_use_context.hpp">
       <Filter>src\Entities\items</Filter>
@@ -532,11 +577,11 @@
     <None Include="src\UI\ui\imgui_layer.cpp">
       <Filter>src\UI\ui</Filter>
     </None>
-    <None Include="src\World\world\biome_registry.cpp">
-      <Filter>src\World</Filter>
+    <None Include="src\World\world\biome\biome_registry.cpp">
+      <Filter>src\World\Biome</Filter>
     </None>
-    <None Include="src\World\world\chunk_generator_source.cpp">
-      <Filter>src\World</Filter>
+    <None Include="src\World\world\generation\chunk_generator_source.cpp">
+      <Filter>src\World\Generation</Filter>
     </None>
   </ItemGroup>
 </Project>

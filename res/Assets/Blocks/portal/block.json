@@ -12,7 +12,7 @@
     "interactable": false,
     "emits_light": true,
     "has_entity": false,
-    "tags": 0,
+    "tags": 2,
     "hardness": 25.0
   },
   "data": {

@@ -1,0 +1,48 @@
+{
+  "display_name": "Rocky",
+  "format_version": 3,
+  "id": "rocky",
+  "modules": [
+    {
+      "blend_mode": "place_solids",
+      "display_name": "Vox Import",
+      "enabled": true,
+      "format_version": 1,
+      "id": "vox_import",
+      "settings": {
+        "cell_size": {
+          "x": 24,
+          "z": 24
+        },
+        "color_mapping": "ancient_ruins",
+        "default_voxel": "stone",
+        "fixed_rotation": 0,
+        "include_subdirectories": true,
+        "infinite_y": true,
+        "jitter": {
+          "x": 0,
+          "z": 0
+        },
+        "max_y": 40,
+        "min_y": -8,
+        "pattern": "random_scatter",
+        "rotation_mode": "random_90",
+        "seed_offset": 0,
+        "source_directory": "Assets/Voxs/rocky",
+        "spawn_chance": 0.029999999329447746
+      },
+      "type": "import_vox_files"
+    }
+  ],
+  "preview": {
+    "default_mode": "streaming",
+    "depth": 0,
+    "sandbox_radius": {
+      "x": 2,
+      "y": 1,
+      "z": 2
+    },
+    "seed": 42,
+    "stream_render_distance": 5
+  }
+}

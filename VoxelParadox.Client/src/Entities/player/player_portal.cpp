@@ -15,7 +15,7 @@ float Player::smoothstep01(float t) {
 }
 
 void Player::buildPortalBasis(glm::ivec3 faceNormal, glm::vec3& normal,
-                              glm::vec3& tangent, glm::vec3& bitangent) {
+    glm::vec3& tangent, glm::vec3& bitangent) {
     normal = glm::normalize(glm::vec3(faceNormal));
     const glm::vec3 helper = std::abs(normal.y) > 0.99f
         ? glm::vec3(1.0f, 0.0f, 0.0f)
@@ -47,17 +47,17 @@ Player::NestedPreviewFrame Player::defaultNestedPreviewFrame() {
 }
 
 glm::vec3 Player::toPortalLocal(const NestedPreviewFrame& frame,
-                                const glm::vec3& worldVec) {
+    const glm::vec3& worldVec) {
     return glm::vec3(glm::dot(worldVec, frame.right),
-                     glm::dot(worldVec, frame.up),
-                     glm::dot(worldVec, frame.front));
+        glm::dot(worldVec, frame.up),
+        glm::dot(worldVec, frame.front));
 }
 
 glm::vec3 Player::fromPortalLocal(const NestedPreviewFrame& frame,
-                                  const glm::vec3& localVec) {
+    const glm::vec3& localVec) {
     return frame.right * localVec.x +
-           frame.up * localVec.y +
-           frame.front * localVec.z;
+        frame.up * localVec.y +
+        frame.front * localVec.z;
 }
 
 Player::NestedPreviewFrame Player::buildPreviewOverrideFrame(
@@ -79,7 +79,8 @@ Player::NestedPreviewFrame Player::buildPreviewOverrideFrame(
     glm::vec3 localRight = glm::cross(mappedForward, mappedUp);
     if (glm::dot(localRight, localRight) < 1e-6f) {
         localRight = glm::vec3(1.0f, 0.0f, 0.0f);
-    } else {
+    }
+    else {
         localRight = glm::normalize(localRight);
     }
     mappedUp = glm::normalize(glm::cross(localRight, mappedForward));
@@ -131,8 +132,8 @@ void Player::showNestedPreviewImmediately(glm::ivec3 block, glm::ivec3 normal) {
 }
 
 void Player::updateNestedPreviewAnchorFromSavedState(WorldStack& worldStack,
-                                                     glm::ivec3 block,
-                                                     glm::ivec3 normal) {
+    glm::ivec3 block,
+    glm::ivec3 normal) {
     glm::vec3 savedChildPos(0.0f);
     glm::quat savedChildOrientation(1.0f, 0.0f, 0.0f, 0.0f);
     if (!worldStack.tryGetNestedPlayerState(block, savedChildPos, savedChildOrientation)) {
@@ -177,7 +178,7 @@ bool Player::tryPrepareNestedWorld(
     BiomeSelection* outChildBiome,
     std::shared_ptr<const VoxelGame::BiomePreset>* outChildPreset) {
     if (!worldStack.ensureNestedWorldAtBlock(blockPos, outChildSeed, outChildBiome,
-                                            outChildPreset)) {
+        outChildPreset)) {
         return false;
     }
 
@@ -218,7 +219,7 @@ void Player::handleTransition(float dt, WorldStack& worldStack) {
 
 void Player::finishDiveIn(WorldStack& worldStack) {
     if (worldStack.descendInto(enterNested.block, enterNested.parentReturnPos,
-                               enterNested.parentReturnOrientation, enterNested.normal)) {
+        enterNested.parentReturnOrientation, enterNested.normal)) {
         camera.position = enterNested.childPos;
         camera.orientation = enterNested.childOrientation;
     }
@@ -269,7 +270,7 @@ void Player::updatePreviewVisibility(WorldStack& worldStack, bool lookingAtPorta
 }
 
 void Player::preloadNearbyNestedWorld(WorldStack& worldStack, FractalWorld* world,
-                                      bool lookingAtPortal) {
+    bool lookingAtPortal) {
     (void)world;
     if (!lookingAtPortal) {
         if (!nestedPreview.active) {
@@ -295,7 +296,7 @@ void Player::preloadNearbyNestedWorld(WorldStack& worldStack, FractalWorld* worl
 }
 
 void Player::enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& blockPos,
-                                    Camera& nestedCamera, bool requireSupportBelow) {
+    Camera& nestedCamera, bool requireSupportBelow) {
     FractalWorld* nestedWorld = worldStack.getOrCreateNestedPreviewWorld(blockPos);
     if (!nestedWorld) {
         nestedCamera.position = nestedWorldSpawnPosition();
@@ -314,9 +315,9 @@ void Player::enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& bl
     nestedCamera.position = nestedWorldSpawnPosition();
 }
 
-void Player::beginAscendTransition(WorldStack& worldStack) {
+bool Player::beginAscendTransition(WorldStack& worldStack) {
     if (!worldStack.canAscend()) {
-        return;
+        return false;
     }
 
     const Camera childCamera = camera;
@@ -329,7 +330,7 @@ void Player::beginAscendTransition(WorldStack& worldStack) {
 
     if (!worldStack.ascend(returnPos, returnOrientation, portalBlock, portalNormal)) {
         transition = PlayerTransition::NONE;
-        return;
+        return false;
     }
 
     showNestedPreviewImmediately(portalBlock, portalNormal);
@@ -367,12 +368,13 @@ void Player::beginAscendTransition(WorldStack& worldStack) {
     transitionEndOrientation = returnOrientation;
     velocity = glm::vec3(0.0f);
     clearTargetSelection();
+    return true;
 }
 
 void Player::beginNestedEntryTransition(WorldStack& worldStack) {
     BiomeSelection nextBiomeSelection{};
     if (!tryPrepareNestedWorld(worldStack, targetBlock, nullptr,
-                               &nextBiomeSelection)) {
+        &nextBiomeSelection)) {
         return;
     }
     beginNestedPreviewFadeIn(targetBlock, targetNormal);
@@ -403,7 +405,8 @@ void Player::beginNestedEntryTransition(WorldStack& worldStack) {
         enforceSafeNestedSpawn(worldStack, targetBlock, savedChildCamera, false);
         setNestedPreviewOverrideFrame(
             buildPreviewOverrideFrame(targetCamera, nestedPreview, savedChildCamera));
-    } else {
+    }
+    else {
         nestedPreview.hasOverrideFrame = false;
         nestedPreview.overrideFrame = NestedPreviewFrame{};
     }

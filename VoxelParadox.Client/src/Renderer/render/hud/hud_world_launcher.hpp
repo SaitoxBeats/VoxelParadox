@@ -8,7 +8,7 @@
 
 #include "core/support/text_input.hpp"
 #include "hud_element.hpp"
-#include "world/world_save_service.hpp"
+#include "world/persistence/world_save_service.hpp"
 
 class hudText;
 

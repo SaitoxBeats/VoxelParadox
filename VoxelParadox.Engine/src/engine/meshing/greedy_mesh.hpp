@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 #include "mesh_types.hpp"
-#include "world/block.hpp"
+#include "world/block/block.hpp"
 
 namespace ENGINE::Meshing {
 

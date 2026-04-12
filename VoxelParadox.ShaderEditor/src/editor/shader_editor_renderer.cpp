@@ -1,11 +1,15 @@
 #include "shader_editor_renderer.hpp"
 
+// 1. Standard Library
 #include <array>
 #include <cstddef>
+#include <filesystem>
+#include <string>
 
-// 1. Local Project Modules
-#include "render/item_texture_cache.hpp"
-#include "world/block_registry.hpp"
+// 2. Local Project Modules
+#include "path/app_paths.hpp"
+#include "render/cache/item_texture_cache.hpp"
+#include "world/block/block_registry.hpp"
 
 namespace ShaderEditor {
 namespace {
@@ -80,6 +84,9 @@ void ShaderEditorRenderer::render(const Shader* activeShader, const Camera& came
   if (!ensureFramebuffer(viewportSize) || !ensureCubeGeometry()) {
     return;
   }
+  if (!ensureBlockAtlasTextureUpToDate()) {
+    return;
+  }
 
   if (settings.blockType != currentBlockType_) {
     updateCubeGeometry(settings.blockType);
@@ -134,6 +141,17 @@ bool ShaderEditorRenderer::setupBlockAtlasTexture() {
   cleanupBlockAtlasTexture();
 
   const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
+  loadedBlockAtlasPath_ = atlasAssetPath;
+  loadedBlockAtlasWriteTime_ = {};
+
+  std::error_code ec;
+  if (!atlasAssetPath.empty()) {
+    const std::filesystem::path atlasPath = AppPaths::resolve(atlasAssetPath);
+    if (std::filesystem::exists(atlasPath, ec)) {
+      loadedBlockAtlasWriteTime_ = std::filesystem::last_write_time(atlasPath, ec);
+    }
+  }
+
   blockAtlasTexture_ = loadTexture2DFromFile(atlasAssetPath.c_str(), false);
 
   if (blockAtlasTexture_ != 0) {
@@ -166,11 +184,37 @@ bool ShaderEditorRenderer::setupBlockAtlasTexture() {
 
 void ShaderEditorRenderer::cleanupBlockAtlasTexture() {
   if (blockAtlasTexture_ == 0) {
+    loadedBlockAtlasPath_.clear();
+    loadedBlockAtlasWriteTime_ = {};
     return;
   }
 
   glDeleteTextures(1, &blockAtlasTexture_);
   blockAtlasTexture_ = 0;
+  loadedBlockAtlasPath_.clear();
+  loadedBlockAtlasWriteTime_ = {};
+}
+
+bool ShaderEditorRenderer::ensureBlockAtlasTextureUpToDate() {
+  const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
+  if (atlasAssetPath.empty()) {
+    return setupBlockAtlasTexture();
+  }
+
+  const std::filesystem::path atlasPath = AppPaths::resolve(atlasAssetPath);
+  std::error_code ec;
+  const bool exists = std::filesystem::exists(atlasPath, ec);
+  const std::filesystem::file_time_type writeTime =
+      (!ec && exists) ? std::filesystem::last_write_time(atlasPath, ec)
+                      : std::filesystem::file_time_type{};
+
+  if (blockAtlasTexture_ == 0 ||
+      atlasAssetPath != loadedBlockAtlasPath_ ||
+      (exists && writeTime != loadedBlockAtlasWriteTime_)) {
+    return setupBlockAtlasTexture();
+  }
+
+  return true;
 }
 
 void ShaderEditorRenderer::bindBlockAtlasTexture(const Shader& shader) {

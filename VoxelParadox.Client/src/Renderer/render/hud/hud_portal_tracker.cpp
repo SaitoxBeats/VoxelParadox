@@ -14,7 +14,7 @@
 #include "input/input_action_ids.hpp"
 #include "input/input_action_system.hpp"
 #include "player/player.hpp"
-#include "world/world_stack.hpp"
+#include "world/persistence/world_stack.hpp"
 
 namespace {
 

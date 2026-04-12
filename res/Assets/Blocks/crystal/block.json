@@ -16,7 +16,8 @@
     "hardness": 250.0
   },
   "data": {
-    "can_drop_item": false
+    "can_drop_item": false,
+    "break_experience_multiplier": 50.0
   },
   "render": {
     "base_color": [0.15, 0.85, 0.95],

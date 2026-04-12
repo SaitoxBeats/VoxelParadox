@@ -28,11 +28,7 @@ std::vector<ItemCatalogEntry> makeFallbackEntries() {
         { 0, "none", "none" },
         { 1, "axe", "axe" },
         { 2, "pickaxe", "pickaxe" },
-        { 3, "portal_tracker", "portal_tracker" },
-        { 4, "curio_shard", "curio_shard" },
-        { 5, "debug_charm", "debug_charm" },
-        { 6, "healing_capsule", "healing_capsule" },
-        { 7, "lua_totem", "lua_totem" }
+        { 3, "portal_tracker", "portal_tracker" }
     };
 }
 

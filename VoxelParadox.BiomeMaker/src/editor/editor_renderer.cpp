@@ -5,8 +5,8 @@
 
 // 2. Local Project Modules
 #include "engine/engine.hpp"
-#include "render/item_texture_cache.hpp"
-#include "world/block_registry.hpp"
+#include "render/cache/item_texture_cache.hpp"
+#include "world/block/block_registry.hpp"
 
 namespace BiomeMaker {
 

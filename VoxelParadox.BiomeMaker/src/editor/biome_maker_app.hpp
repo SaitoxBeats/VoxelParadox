@@ -10,7 +10,7 @@
 
 #include "engine/bootstrap.hpp"
 #include "engine/camera.hpp"
-#include "world/biome_preset.hpp"
+#include "world/biome/biome_preset.hpp"
 
 #include "editor_camera_controller.hpp"
 #include "editor_renderer.hpp"

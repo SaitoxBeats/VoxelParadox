@@ -12,7 +12,7 @@
 #include "audio/game_audio_controller.hpp"
 #include "player/player.hpp"
 #include "render/hud/hud_portal_tracker.hpp"
-#include "world/fractal_world.hpp"
+#include "world/generation/fractal_world.hpp"
 
 namespace {
 

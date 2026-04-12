@@ -7,7 +7,7 @@
 
 #pragma region Includes
 #include "hud_element.hpp"
-#include "world/biome.hpp"
+#include "world/biome/biome.hpp"
 #include "core/support/text_input.hpp"
 #include <cstdint>
 #include <string>

@@ -8,8 +8,8 @@
 #include <cstdint>
 
 // 2. Local Project Modules
-#include "world/block_catalog.hpp"
-#include "world/block_types.hpp"
+#include "world/block/block_catalog.hpp"
+#include "world/block/block_types.hpp"
 
 using ItemId = std::uint16_t;
 

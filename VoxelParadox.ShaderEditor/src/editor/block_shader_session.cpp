@@ -9,7 +9,7 @@
 #include <sstream>
 
 #include "path/app_paths.hpp"
-#include "world/block_registry.hpp"
+#include "world/block/block_registry.hpp"
 
 namespace ShaderEditor {
 namespace {

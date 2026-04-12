@@ -25,6 +25,21 @@
     <Filter Include="Client Shared\World">
       <UniqueIdentifier>{C3EEF52F-F741-502B-9D1B-0CC4F0D54088}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Client Shared\World\Biome">
+      <UniqueIdentifier>{2E9EF9D9-2EE5-4CA1-B56A-35B6D8802FD5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Client Shared\World\Block">
+      <UniqueIdentifier>{D3B4F80B-5736-4CE6-A55D-FA8C2FD7779E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Client Shared\World\Generation">
+      <UniqueIdentifier>{08B24CFA-2409-4635-A56E-CB5268B46B13}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Client Shared\World\Persistence">
+      <UniqueIdentifier>{8CA39030-CDB4-4DB3-9C56-2F373B1D18A8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Client Shared\World\Voxel Assets">
+      <UniqueIdentifier>{4D00E3F6-6800-4B8D-B5C2-2F06B5F97B70}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\engine_pch.cpp">
@@ -72,11 +87,24 @@
     <ClCompile Include="src\ui\imgui_layer.cpp">
       <Filter>UI</Filter>
     </ClCompile>
-    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_preset.cpp" />
-    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_preset_defaults.cpp" />
-    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome_registry.cpp" />
-    <ClCompile Include="..\VoxelParadox.Client\src\World\world\block_catalog.cpp" />
-    <ClCompile Include="..\VoxelParadox.Client\src\World\world\chunk_generator_source.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome\biome_preset.cpp">
+      <Filter>Client Shared\World\Biome</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome\biome_preset_defaults.cpp">
+      <Filter>Client Shared\World\Biome</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome\biome_registry.cpp">
+      <Filter>Client Shared\World\Biome</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\block\block_catalog.cpp">
+      <Filter>Client Shared\World\Block</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\block\block_registry.cpp">
+      <Filter>Client Shared\World\Block</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\generation\chunk_generator_source.cpp">
+      <Filter>Client Shared\World\Generation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\audio\audio_data.hpp">
@@ -139,19 +167,53 @@
     <ClInclude Include="src\ui\imgui_layer.hpp">
       <Filter>UI</Filter>
     </ClInclude>
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome_preset.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome_preset_internal.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome_registry.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\block.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\block_catalog.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\chunk.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\chunk_generator_source.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\fractal_world.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\noise.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\vox_asset.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\vox_structure.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\world_generator.hpp" />
-    <ClInclude Include="..\VoxelParadox.Client\src\World\world\world_stack.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome\biome.hpp">
+      <Filter>Client Shared\World\Biome</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome\biome_preset.hpp">
+      <Filter>Client Shared\World\Biome</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome\biome_preset_internal.hpp">
+      <Filter>Client Shared\World\Biome</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\biome\biome_registry.hpp">
+      <Filter>Client Shared\World\Biome</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\block\block.hpp">
+      <Filter>Client Shared\World\Block</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\block\block_catalog.hpp">
+      <Filter>Client Shared\World\Block</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\block\block_registry.hpp">
+      <Filter>Client Shared\World\Block</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\block\block_types.hpp">
+      <Filter>Client Shared\World\Block</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\chunk.hpp">
+      <Filter>Client Shared\World\Generation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\chunk_generator_source.hpp">
+      <Filter>Client Shared\World\Generation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\fractal_world.hpp">
+      <Filter>Client Shared\World\Generation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\noise.hpp">
+      <Filter>Client Shared\World\Generation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\voxel_assets\vox_asset.hpp">
+      <Filter>Client Shared\World\Voxel Assets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\voxel_assets\vox_structure.hpp">
+      <Filter>Client Shared\World\Voxel Assets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\world_generator.hpp">
+      <Filter>Client Shared\World\Generation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\persistence\world_stack.hpp">
+      <Filter>Client Shared\World\Persistence</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

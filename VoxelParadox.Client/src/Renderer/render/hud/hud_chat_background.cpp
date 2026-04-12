@@ -12,7 +12,7 @@
 
 // 3. Project
 #include "hud.hpp"
-#include "runtime/game_chat.hpp"
+#include "runtime/state/game_chat.hpp"
 
 namespace {
 

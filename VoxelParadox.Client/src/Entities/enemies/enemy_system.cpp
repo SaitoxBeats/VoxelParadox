@@ -20,7 +20,7 @@
 #include "enemy_spawn_system.hpp"
 #include "gameplay/gameplay_status.hpp"
 #include "player/player.hpp"
-#include "world/fractal_world.hpp"
+#include "world/generation/fractal_world.hpp"
 
 #pragma endregion
 

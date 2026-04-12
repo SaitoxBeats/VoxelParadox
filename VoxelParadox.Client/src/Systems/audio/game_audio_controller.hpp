@@ -16,7 +16,7 @@
 // 3. Local Project Modules
 #include "audio/audio_manager.hpp"
 #include "audio/audio_types.hpp"
-#include "world/block.hpp"
+#include "world/block/block.hpp"
 
 #pragma endregion
 

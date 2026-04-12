@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "engine/shader.hpp"
-#include "world/block.hpp"
+#include "world/block/block.hpp"
 
 namespace ShaderEditor {
 

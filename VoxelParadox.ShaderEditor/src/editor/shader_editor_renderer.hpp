@@ -1,11 +1,17 @@
 #pragma once
 
+// 1. Standard Library
+#include <filesystem>
+#include <string>
+
+// 2. External Libraries
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 
+// 3. Project Headers
 #include "engine/camera.hpp"
 #include "engine/shader.hpp"
-#include "world/block.hpp"
+#include "world/block/block.hpp"
 
 namespace ShaderEditor {
 
@@ -49,8 +55,11 @@ private:
   GLuint cubeVbo_ = 0;
   glm::ivec2 viewportSize_{0};
   BlockId currentBlockType_ = BlockIds::AIR;
+  std::string loadedBlockAtlasPath_{};
+  std::filesystem::file_time_type loadedBlockAtlasWriteTime_{};
 
   bool setupBlockAtlasTexture();
+  bool ensureBlockAtlasTextureUpToDate();
   void cleanupBlockAtlasTexture();
   void bindBlockAtlasTexture(const Shader& shader);
   void destroyFramebuffer();

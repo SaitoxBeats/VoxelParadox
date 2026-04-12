@@ -5,6 +5,8 @@
 // 1. Standard Library
 #include <cstdio>
 #include <string>
+#include <utility>
+#include <vector>
 
 // 2. Third-party Libraries
 extern "C" {
@@ -18,9 +20,10 @@ extern "C" {
 
 #include "audio/game_audio_controller.hpp"
 #include "items/item_catalog.hpp"
+#include "runtime/state/game_chat.hpp"
 #include "player/player.hpp"
 #include "render/hud/hud_portal_tracker.hpp"
-#include "world/fractal_world.hpp"
+#include "world/generation/fractal_world.hpp"
 
 namespace {
 
@@ -30,6 +33,97 @@ ItemUseContext* getLuaContext(lua_State* luaState) {
     ItemUseContext* context =
         static_cast<ItemUseContext*>(lua_touserdata(luaState, lua_upvalueindex(1)));
     return context;
+}
+
+bool readLuaNotificationColor(lua_State* luaState, int index, glm::vec3& outColor) {
+    const int absIndex = lua_absindex(luaState, index);
+    if (!lua_istable(luaState, absIndex)) {
+        return false;
+    }
+
+    bool hasComponent = false;
+    auto readComponent = [&](const char* fieldName, float& component) {
+        lua_getfield(luaState, absIndex, fieldName);
+        if (lua_isnumber(luaState, -1)) {
+            component = static_cast<float>(lua_tonumber(luaState, -1));
+            hasComponent = true;
+        }
+        lua_pop(luaState, 1);
+    };
+
+    readComponent("r", outColor.r);
+    readComponent("g", outColor.g);
+    readComponent("b", outColor.b);
+
+    if (hasComponent) {
+        return true;
+    }
+
+    for (int channel = 0; channel < 3; ++channel) {
+        lua_rawgeti(luaState, absIndex, channel + 1);
+        if (lua_isnumber(luaState, -1)) {
+            outColor[channel] = static_cast<float>(lua_tonumber(luaState, -1));
+            hasComponent = true;
+        }
+        lua_pop(luaState, 1);
+    }
+
+    return hasComponent;
+}
+
+bool readLuaNotificationSegment(lua_State* luaState, int index,
+                                GameChatTextSegment& outSegment) {
+    const int absIndex = lua_absindex(luaState, index);
+
+    if (lua_isstring(luaState, absIndex)) {
+        outSegment.text = lua_tostring(luaState, absIndex);
+        outSegment.color = GameChatTheme::kDefaultHistoryColor;
+        return !outSegment.text.empty();
+    }
+
+    if (!lua_istable(luaState, absIndex)) {
+        return false;
+    }
+
+    lua_getfield(luaState, absIndex, "text");
+    if (!lua_isstring(luaState, -1)) {
+        lua_pop(luaState, 1);
+        return false;
+    }
+
+    outSegment.text = lua_tostring(luaState, -1);
+    lua_pop(luaState, 1);
+    outSegment.color = GameChatTheme::kDefaultHistoryColor;
+
+    lua_getfield(luaState, absIndex, "color");
+    if (lua_istable(luaState, -1)) {
+        glm::vec3 color = outSegment.color;
+        if (readLuaNotificationColor(luaState, -1, color)) {
+            outSegment.color = color;
+        }
+    }
+    lua_pop(luaState, 1);
+
+    return !outSegment.text.empty();
+}
+
+std::vector<GameChatTextSegment> readLuaNotificationSegments(lua_State* luaState, int index) {
+    std::vector<GameChatTextSegment> segments;
+    const int absIndex = lua_absindex(luaState, index);
+    const std::size_t segmentCount = lua_rawlen(luaState, absIndex);
+
+    for (std::size_t segmentIndex = 1; segmentIndex <= segmentCount; ++segmentIndex) {
+        lua_rawgeti(luaState, absIndex, static_cast<lua_Integer>(segmentIndex));
+
+        GameChatTextSegment segment{};
+        if (readLuaNotificationSegment(luaState, -1, segment)) {
+            segments.push_back(std::move(segment));
+        }
+
+        lua_pop(luaState, 1);
+    }
+
+    return segments;
 }
 
 int luaContextLog(lua_State* luaState) {
@@ -68,6 +162,83 @@ int luaContextHealPlayer(lua_State* luaState) {
 
     if (context && context->player) {
         context->player->setLifePoints(context->player->getLifePoints() + amount);
+    }
+
+    return 0;
+}
+
+int luaContextPushNotification(lua_State* luaState) {
+    ItemUseContext* context = getLuaContext(luaState);
+    if (!context || !context->gameChat) {
+        return 0;
+    }
+
+    const int valueType = lua_type(luaState, 1);
+    if (valueType == LUA_TSTRING) {
+        context->gameChat->pushNotification(std::string(lua_tostring(luaState, 1)));
+        return 0;
+    }
+
+    if (valueType != LUA_TTABLE) {
+        return luaL_error(
+            luaState,
+            "push_notification expects a string or a table of segments."
+        );
+    }
+
+    GameChatTextSegment singleSegment{};
+    if (readLuaNotificationSegment(luaState, 1, singleSegment)) {
+        context->gameChat->pushNotification(
+            std::vector<GameChatTextSegment>{ std::move(singleSegment) }
+        );
+        return 0;
+    }
+
+    const std::vector<GameChatTextSegment> segments = readLuaNotificationSegments(luaState, 1);
+    if (!segments.empty()) {
+        context->gameChat->pushNotification(std::move(segments));
+        return 0;
+    }
+
+    return luaL_error(
+        luaState,
+        "push_notification expects a string or a table of segments."
+    );
+}
+
+int luaContextGetPlayerXp(lua_State* luaState) {
+    ItemUseContext* context = getLuaContext(luaState);
+    const float experiencePoints =
+        (context && context->player) ? context->player->getExperiencePoints() : 0.0f;
+    lua_pushnumber(luaState, static_cast<lua_Number>(experiencePoints));
+    return 1;
+}
+
+int luaContextGetPlayerLevel(lua_State* luaState) {
+    ItemUseContext* context = getLuaContext(luaState);
+    const int experienceLevel =
+        (context && context->player) ? context->player->getExperienceLevel() : 0;
+    lua_pushinteger(luaState, experienceLevel);
+    return 1;
+}
+
+int luaContextSetPlayerXp(lua_State* luaState) {
+    ItemUseContext* context = getLuaContext(luaState);
+    const float experiencePoints = static_cast<float>(luaL_checknumber(luaState, 1));
+
+    if (context && context->player) {
+        context->player->setExperiencePoints(experiencePoints);
+    }
+
+    return 0;
+}
+
+int luaContextAddPlayerXp(lua_State* luaState) {
+    ItemUseContext* context = getLuaContext(luaState);
+    const float experiencePoints = static_cast<float>(luaL_checknumber(luaState, 1));
+
+    if (context && context->player) {
+        context->player->addExperiencePoints(experiencePoints, context->worldStack);
     }
 
     return 0;
@@ -264,10 +435,15 @@ void buildContextTable(lua_State* luaState, ItemUseContext& context) {
     pushContextSnapshot(luaState, context);
 
     pushContextFunction(luaState, &context, "log", luaContextLog);
+    pushContextFunction(luaState, &context, "push_notification", luaContextPushNotification);
     pushContextFunction(luaState, &context, "get_player_life", luaContextGetPlayerLife);
     pushContextFunction(luaState, &context, "get_player_max_life", luaContextGetPlayerMaxLife);
     pushContextFunction(luaState, &context, "is_player_alive", luaContextIsPlayerAlive);
     pushContextFunction(luaState, &context, "heal_player", luaContextHealPlayer);
+    pushContextFunction(luaState, &context, "get_player_xp", luaContextGetPlayerXp);
+    pushContextFunction(luaState, &context, "get_player_level", luaContextGetPlayerLevel);
+    pushContextFunction(luaState, &context, "set_player_xp", luaContextSetPlayerXp);
+    pushContextFunction(luaState, &context, "add_player_xp", luaContextAddPlayerXp);
     pushContextFunction(luaState, &context, "add_item", luaContextAddItem);
     pushContextFunction(luaState, &context, "remove_item", luaContextRemoveItem);
     pushContextFunction(luaState, &context, "count_item", luaContextCountItem);

@@ -17,7 +17,7 @@
 // 3. Engine & Core Modules
 #include "engine/engine.hpp"
 #include "engine/input.hpp"
-#include "world/world_stack.hpp"
+#include "world/persistence/world_stack.hpp"
 
 // 4. Local Project Headers (Player/HUD)
 #include "player/player.hpp"

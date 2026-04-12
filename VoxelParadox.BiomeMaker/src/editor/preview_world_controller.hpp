@@ -13,10 +13,10 @@
 #include <glm/glm.hpp>
 
 #include "engine/thread_pool.hpp"
-#include "world/biome_preset.hpp"
-#include "world/chunk.hpp"
-#include "world/chunk_generator_source.hpp"
-#include "world/fractal_world.hpp"
+#include "world/biome/biome_preset.hpp"
+#include "world/generation/chunk.hpp"
+#include "world/generation/chunk_generator_source.hpp"
+#include "world/generation/fractal_world.hpp"
 
 namespace BiomeMaker {
 

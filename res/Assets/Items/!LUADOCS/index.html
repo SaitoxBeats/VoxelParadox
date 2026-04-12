@@ -37,7 +37,7 @@
                 <p>
                     The current runtime exposes a controlled gameplay API. Scripts can inspect player state,
                     interact with inventory, open some HUD screens, play audio events, inspect the current target,
-                    and print messages to the terminal.
+                    print messages to the terminal, and send rich notifications to the in-game chat.
                 </p>
                 <p>
                     Scripts do <strong>not</strong> get access to save data, files, or arbitrary engine internals.
@@ -152,6 +152,11 @@ end</code></pre>
                             <td>Prints a message to the game terminal.</td>
                         </tr>
                         <tr>
+                            <td><code>push_notification</code></td>
+                            <td><code>context.push_notification(message_or_segments)</code></td>
+                            <td>Sends a chat notification. Pass a plain string for simple text or a segment table / array of segment tables for colored text.</td>
+                        </tr>
+                        <tr>
                             <td><code>get_player_life</code></td>
                             <td><code>context.get_player_life()</code></td>
                             <td>Returns current player health.</td>
@@ -170,6 +175,26 @@ end</code></pre>
                             <td><code>heal_player</code></td>
                             <td><code>context.heal_player(amount)</code></td>
                             <td>Adds health to the player, clamped by the game.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_xp</code></td>
+                            <td><code>context.get_player_xp()</code></td>
+                            <td>Returns the player's current XP as a decimal number.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_level</code></td>
+                            <td><code>context.get_player_level()</code></td>
+                            <td>Returns the player's current experience level as an integer.</td>
+                        </tr>
+                        <tr>
+                            <td><code>set_player_xp</code></td>
+                            <td><code>context.set_player_xp(value)</code></td>
+                            <td>Sets the player's current XP using a decimal number.</td>
+                        </tr>
+                        <tr>
+                            <td><code>add_player_xp</code></td>
+                            <td><code>context.add_player_xp(value)</code></td>
+                            <td>Adds decimal XP and uses the game's normal XP reward logic.</td>
                         </tr>
                         <tr>
                             <td><code>add_item</code></td>
@@ -255,6 +280,7 @@ end</code></pre>
                     <li><code>play_audio_event</code> needs a valid audio event id such as <code>ui.menu.click</code> or <code>player.item.pickup</code>.</li>
                     <li><code>add_item</code>, <code>remove_item</code>, and <code>count_item</code> accept the same textual ids used by chat commands and crafting.</li>
                     <li><code>create_portal_for_target_block</code> respects the same portal creation cooldown and target rules used by the game.</li>
+                    <li><code>push_notification</code> accepts either a string, a single segment table, or an array of segment tables. Each segment table uses <code>text</code> and optional <code>color = { r, g, b }</code> with normalized RGB values.</li>
                 </ul>
             </section>
 
@@ -397,6 +423,31 @@ end</code></pre>
 
     context.log("[Items][Lua] Could not create a portal right now.")
     return false
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>10. Add player XP from an item</h3>
+<pre><code>function on_use(context)
+    local before = context.get_player_xp()
+    context.add_player_xp(2.5)
+    local after = context.get_player_xp()
+
+    context.log("[Items][Lua] XP changed from " .. tostring(before) .. " to " .. tostring(after))
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>11. Send a colored chat notification</h3>
+<pre><code>function on_use(context)
+    context.push_notification({
+        { text = "You found your first " },
+        { text = "versal", color = { 1.0, 0.82, 0.36 } },
+        { text = "." }
+    })
+
+    return true
 end</code></pre>
                 </article>
             </section>

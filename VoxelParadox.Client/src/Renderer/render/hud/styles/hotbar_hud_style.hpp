@@ -17,6 +17,12 @@ struct HotbarHUDStyle {
         glm::vec4(0.06f, 0.06f, 0.10f, 0.55f),
         glm::vec4(1.77f, 0.00f, 0.03f, 1.00f) //fill
     };
+    HudSliderStyle experienceBarStyle{
+        glm::vec4(0.02f, 0.02f, 0.04f, 0.70f),
+        glm::vec4(0.06f, 0.06f, 0.10f, 0.55f),
+        glm::vec4(0.10f, 0.42f, 1.00f, 0.96f)
+    };
+    glm::vec3 experienceTextColor{0.92f, 0.96f, 1.0f};
     glm::vec3 portalCooldownTextColor{0.78f, 0.84f, 0.94f};
     glm::vec3 portalReadyTextColor{1.0f, 0.94f, 0.58f};
     glm::vec3 portalSandboxTextColor{0.55f, 1.0f, 0.68f};

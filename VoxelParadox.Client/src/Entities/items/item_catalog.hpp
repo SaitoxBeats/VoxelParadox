@@ -12,7 +12,7 @@
 
 // 2. Local Project Modules
 #include "items/item_registry.hpp"
-#include "world/block.hpp"
+#include "world/block/block.hpp"
 
 struct ItemCatalogEntry {
     ItemId value = 0;

@@ -27,7 +27,7 @@
 // 4. Local Project Modules
 #include "biome_maker_app.hpp"
 #include "ui/imgui_layer.hpp"
-#include "world/chunk_generator_source.hpp"
+#include "world/generation/chunk_generator_source.hpp"
 
 #pragma endregion
 

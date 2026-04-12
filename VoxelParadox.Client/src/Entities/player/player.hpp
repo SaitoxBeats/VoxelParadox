@@ -10,9 +10,12 @@
 
 // 1. Standard Library
 #include <cmath>
-#include <cstdlib>
 #include <cstdint>
+#include <cstdlib>
+#include <memory>
+#include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 // 2. Third-party Libraries
@@ -26,7 +29,7 @@
 #include "enemies/enemy_types.hpp"
 #include "hotbar.hpp"
 #include "items/item_catalog.hpp"
-#include "world/world_stack.hpp"
+#include "world/persistence/world_stack.hpp"
 
 #pragma endregion
 
@@ -38,7 +41,17 @@ enum class PlayerUpdateMode {
     Frozen,
 };
 
+enum class PlayerMovementState {
+    Idle,
+    Walking,
+    Running,
+    Crouching,
+    Jumping,
+    Falling,
+};
+
 class GameAudioController;
+class GameChat;
 class hudPortalTracker;
 
 class Player {
@@ -74,6 +87,10 @@ public:
 
 #pragma region 2. Nested Data Structures
     // --- 2. Nested Data Structures ---
+
+    enum class NotificationEvent {
+        FirstVersalAcquired,
+    };
 
     struct NestedPreviewFrame {
         glm::vec3 center{ 0.0f };
@@ -135,6 +152,9 @@ public:
         glm::quat cameraOrientation{ 1.0f, 0.0f, 0.0f, 0.0f };
         glm::vec3 velocity{ 0.0f };
         int lifePoints = 20;
+        float experiencePoints = 0.0f;
+        int experienceLevel = 0;
+        float experiencePerBlock = kDefaultExperiencePerBlock;
         bool sandboxModeEnabled = false;
         double universeCreationCooldownRemainingSeconds = 0.0;
         double doubleJumpCooldownRemainingSeconds = 0.0;
@@ -230,12 +250,18 @@ public:
 
     // Main frame update entry point.
     void update(float dt, WorldStack& worldStack, hudPortalTracker* portalTracker,
+        GameChat* gameChat,
         PlayerUpdateMode updateMode = PlayerUpdateMode::FullGameplay);
 
     PersistentState capturePersistentState() const;
     void applyPersistentState(const PersistentState& state);
 
     void setLifePoints(int value) { lifePoints = glm::clamp(value, 1, kMaxLifePoints); };
+    void setExperiencePoints(float value);
+    void setExperienceLevel(int value);
+    void setExperiencePerBlock(float value);
+    void addExperiencePoints(float value, WorldStack* worldStack = nullptr);
+    std::vector<NotificationEvent> consumeNotificationEvents();
 #pragma endregion
 
 #pragma region 5. Accessors & State Checks
@@ -245,6 +271,10 @@ public:
 
     int getLifePoints() const { return lifePoints; }
     int getMaxLifePoints() const { return kMaxLifePoints; }
+    float getExperiencePoints() const { return experiencePoints; }
+    float getMaxExperiencePoints() const { return kMaxExperiencePoints; }
+    int getExperienceLevel() const { return experienceLevel; }
+    float getExperiencePerBlock() const { return experiencePerBlock; }
     bool isAlive() const { return lifePoints > 0; }
     bool hasSpawnpoint() const { return spawnpointDefined; }
     bool isDeathSequenceActive() const { return deathSequenceActive; }
@@ -255,6 +285,7 @@ public:
     float getStandingHeight() const { return standingHeight; }
     bool isGrounded() const { return grounded; }
     bool isCrouching() const { return crouching; }
+    PlayerMovementState getMovementState() const { return movementState; }
 
     bool isSandboxModeEnabled() const { return sandboxModeEnabled; }
     void setSandboxModeEnabled(bool enabled) { sandboxModeEnabled = enabled; }
@@ -377,9 +408,7 @@ public:
         return hotbar.clickCraftResult(clickType, craftAll);
     }
 
-    bool tryAddItemToInventory(const InventoryItem& item, int amount = 1) {
-        return hotbar.addItem(item, amount);
-    }
+    bool tryAddItemToInventory(const InventoryItem& item, int amount = 1);
 
     bool canAcceptInventoryItem(const InventoryItem& item, int amount = 1) const {
         return hotbar.canAccept(item, amount);
@@ -423,7 +452,13 @@ private:
     // --- 8. Internal Constants & State ---
 
     static constexpr float kPhysicsMaxStep = 1.0f / 120.0f;
-    static constexpr float kSafeFaceDistance = 0.10f;
+    static constexpr float kSafeFaceDistance = 0.10f; //distancia da camera ao portal.
+    static constexpr float kGroundProbeDistance = 0.05f;
+    static constexpr float kMaxStepHeight = 0.60f;
+    static constexpr float kGroundSnapDistance = 0.05f;
+    static constexpr float kCoyoteTimeSeconds = 0.0f;
+    static constexpr float kJumpBufferSeconds = 0.0f;
+    static constexpr float kMovementStateSpeedThreshold = 0.05f;
     static constexpr float kBreakHitRepeatInterval = 0.23f;
     static constexpr float kDroppedItemThrowSpeed = 3.75f;
     static constexpr float kDroppedItemSpawnDistance = 1.55f;
@@ -435,10 +470,17 @@ private:
     static constexpr float kHeadEmbeddedDamageIntervalSeconds = 0.35f;
     static constexpr int kHeadEmbeddedDamagePoints = 1;
     static constexpr int kMaxLifePoints = 20;
+    static constexpr float kMaxExperiencePoints = 100.0f;
+    static constexpr float kDefaultExperiencePerBlock = 10.00f;
+    static constexpr float kExperiencePerBlockLevelMultiplier = 0.2f;
+    static constexpr const char* kExperienceRewardItemId = "versal";
     static constexpr glm::vec3 kLifeTextBaseColor{ 0.0f, 0.0f, 0.0f };
 
     GameAudioController* audioController = nullptr;
     int lifePoints = kMaxLifePoints;
+    float experiencePoints = 0.0f;
+    int experienceLevel = 0;
+    float experiencePerBlock = kDefaultExperiencePerBlock;
     bool deathSequenceActive = false;
     float deathSequenceElapsedSeconds = 0.0f;
     std::string deathSequenceMessage{};
@@ -448,7 +490,11 @@ private:
     float headEmbeddedDamageTimer = kHeadEmbeddedDamageIntervalSeconds;
     bool grounded = false;
     bool crouching = false;
+    bool sneakKeyHeld = false;
+    PlayerMovementState movementState = PlayerMovementState::Idle;
     float currentEyeHeight = kDefaultStandingEyeHeight;
+    float coyoteTimeRemainingSeconds = 0.0f;
+    float jumpBufferRemainingSeconds = 0.0f;
     float headBobPhase = 0.0f;
     float headBobBlend = 0.0f;
     glm::vec3 headBobLocalOffset{ 0.0f };
@@ -456,6 +502,7 @@ private:
     float lastFootstepPhase = 0.0f;
     bool sandboxModeEnabled = false;
     std::unordered_map<ItemId, double> itemUseCooldownExpiryTimesSeconds{};
+    std::vector<NotificationEvent> notificationEvents{};
     bool spawnpointDefined = false;
     glm::vec3 spawnpointPosition{ 0.0f };
     std::uint32_t spawnpointUniverseSeed = 0;
@@ -506,7 +553,7 @@ private:
     void enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& blockPos,
                                 Camera& nestedCamera, bool requireSupportBelow = true);
 
-    void beginAscendTransition(WorldStack& worldStack);
+    bool beginAscendTransition(WorldStack& worldStack);
     void beginNestedEntryTransition(WorldStack& worldStack);
 #pragma endregion
 
@@ -523,7 +570,12 @@ private:
     void notifyInventoryStateChanged();
 
     void triggerDamageFeedback();
+    void executeExperienceRewardCommands(WorldStack* worldStack);
+    void executeLevelUpCommands(int previousLevel, int newLevel);
+    void grantExperienceRewardItem(WorldStack* worldStack);
+    void syncExperienceStats() const;
     void updateDamageFeedback(float dt);
+    void updateMovementState();
 
     void updateHeadBob(float dt, FractalWorld* world, bool active);
     void applyCameraVisualEffects();
@@ -551,7 +603,24 @@ private:
                               float bodyHeight) const;
     bool doesBlockOverlapCurrentBody(const glm::ivec3& blockPos) const;
     bool hasSupportBelow(FractalWorld* world, const glm::vec3& feetPosition, float inset, bool requireAllSamples) const;
-    void resolveBodyPenetration(FractalWorld* world, glm::vec3& feetPosition, float bodyHeight);
+    std::pair<float, bool> sweepBodyAxis(FractalWorld* world,
+                                         const glm::vec3& feetPosition,
+                                         float bodyHeight,
+                                         int axis,
+                                         float delta) const;
+    bool hasGroundSupport(FractalWorld* world, const glm::vec3& feetPosition) const;
+    bool snapToGround(FractalWorld* world,
+                      glm::vec3& feetPosition,
+                      float bodyHeight) const;
+    bool tryStepUp(FractalWorld* world,
+                   const glm::vec3& startFeetPosition,
+                   float bodyHeight,
+                   const glm::vec3& desiredHorizontalDelta,
+                   glm::vec3& outFeetPosition) const;
+    void resolveBodyPenetration(FractalWorld* world,
+                                glm::vec3& feetPosition,
+                                float bodyHeight,
+                                bool allowUpwardCorrection);
     void updateEmbeddedHeadDamage(FractalWorld* world, float dt);
 #pragma endregion
 
@@ -559,7 +628,12 @@ private:
     // --- 11. Block Interaction ---
 
     // Block interaction and targeting.
-    void handleBlockInteraction(WorldStack& worldStack, hudPortalTracker* portalTracker, float dt);
+    void handleBlockInteraction(
+        WorldStack& worldStack,
+        hudPortalTracker* portalTracker,
+        GameChat* gameChat,
+        float dt
+    );
     void updateBlockBreaking(WorldStack& worldStack, float dt);
     void breakTargetBlock(WorldStack& worldStack);
     void placeBlockAtTarget(WorldStack& worldStack);

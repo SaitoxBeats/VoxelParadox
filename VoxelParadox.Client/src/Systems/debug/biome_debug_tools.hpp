@@ -10,7 +10,7 @@
 
 #include <glm/glm.hpp>
 
-#include "world/biome.hpp"
+#include "world/biome/biome.hpp"
 
 
 class Player;

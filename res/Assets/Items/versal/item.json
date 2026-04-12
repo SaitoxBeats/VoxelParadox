@@ -2,7 +2,7 @@
   "id": "versal",
   "display_name": "Versal",
   "categories": [ "utility" ],
-  "stack_limit": 4,
+  "stack_limit": 64,
   "icon_asset": "Assets/Textures/Items/versal.png",
   "on_use": {
     "cooldown": 0.2,

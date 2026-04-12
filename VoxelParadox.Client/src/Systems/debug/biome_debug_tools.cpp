@@ -14,9 +14,9 @@
 
 // Client
 #include "player/player.hpp"
-#include "world/biome_registry.hpp"
-#include "world/fractal_world.hpp"
-#include "world/world_stack.hpp"
+#include "world/biome/biome_registry.hpp"
+#include "world/generation/fractal_world.hpp"
+#include "world/persistence/world_stack.hpp"
 #include "render/hud/hud_portal_info.hpp"
 
 namespace DebugBiomeTools {

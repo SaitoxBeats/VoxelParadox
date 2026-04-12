@@ -18,6 +18,7 @@
 #include "input/input_action_ids.hpp"
 #include "input/input_action_system.hpp"
 #include "items/item_use_context.hpp"
+#include "world/block/block.hpp"
 
 #pragma endregion
 
@@ -88,8 +89,12 @@ namespace {
 #pragma region 2. Block Interaction Input
 // --- 2. Block Interaction Input ---
 
-void Player::handleBlockInteraction(WorldStack& worldStack, hudPortalTracker* portalTracker,
-                                    float dt) {
+void Player::handleBlockInteraction(
+    WorldStack& worldStack,
+    hudPortalTracker* portalTracker,
+    GameChat* gameChat,
+    float dt
+) {
     auto& inputActions = InputMapping::InputActionSystem::instance();
 
     // --- 1. Get Initial State ---
@@ -133,6 +138,7 @@ void Player::handleBlockInteraction(WorldStack& worldStack, hudPortalTracker* po
                 useContext.worldStack = &worldStack;
                 useContext.world = world;
                 useContext.audioController = audioController;
+                useContext.gameChat = gameChat;
                 useContext.portalTracker = portalTracker;
                 useContext.hasTarget = hasTarget;
                 useContext.targetBlock = targetBlock;
@@ -162,7 +168,27 @@ void Player::handleBlockInteraction(WorldStack& worldStack, hudPortalTracker* po
 
     if (inputActions.wasPressed(InputActionIds::kAscendDimension)) {
         resetBlockBreaking();
-        beginAscendTransition(worldStack);
+
+        if (sandboxModeEnabled) {
+            beginAscendTransition(worldStack);
+            return;
+        }
+
+        const InventoryItem& selectedItem = hotbar.getSelectedItem();
+        const bool hasVersalReady =
+            selectedItem.isItem() &&
+            hotbar.getSelectedCount() > 0 &&
+            std::string(getItemId(selectedItem.itemId)) == kExperienceRewardItemId;
+
+        if (!hasVersalReady) {
+            return;
+        }
+
+        if (!beginAscendTransition(worldStack)) {
+            return;
+        }
+
+        hotbar.consumeSelected(1);
     }
 }
 
@@ -250,6 +276,15 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
         if (worldStack.deleteUniverseAtPortal(targetBlock)) {
             GameplayStatus::System::instance().recordBlocksBroken();
 
+            const float experienceMultiplier =
+                getBlockBreakExperienceMultiplier(brokenType);
+            if (experienceMultiplier > 0.0f) {
+                addExperiencePoints(
+                    getExperiencePerBlock() * experienceMultiplier,
+                    &worldStack
+                );
+            }
+
             if (audioController) {
                 audioController->onBlockBroken(brokenType, targetBlock);
             }
@@ -272,6 +307,15 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
     world->setBlock(targetBlock, BlockIds::AIR);
     GameplayStatus::System::instance().recordBlocksBroken();
 
+    const float brokenBlockExperienceMultiplier =
+        getBlockBreakExperienceMultiplier(brokenType);
+    if (brokenBlockExperienceMultiplier > 0.0f) {
+        addExperiencePoints(
+            getExperiencePerBlock() * brokenBlockExperienceMultiplier,
+            &worldStack
+        );
+    }
+
     if (audioController) {
         audioController->onBlockBroken(brokenType, targetBlock);
     }
@@ -293,6 +337,15 @@ void Player::breakTargetBlock(WorldStack& worldStack) {
     if (attachedTopBlockDefinition.supportRule.mode == BlockSupportMode::ALLOW_LIST) {
         world->setBlock(supportedBlockPos, BlockIds::AIR);
         GameplayStatus::System::instance().recordBlocksBroken();
+
+        const float attachedBlockExperienceMultiplier =
+            getBlockBreakExperienceMultiplier(attachedTopBlockType);
+        if (attachedBlockExperienceMultiplier > 0.0f) {
+            addExperiencePoints(
+                getExperiencePerBlock() * attachedBlockExperienceMultiplier,
+                &worldStack
+            );
+        }
 
         if (audioController) {
             audioController->onBlockBroken(attachedTopBlockType, supportedBlockPos);
@@ -529,13 +582,44 @@ bool Player::tryTargetOverlappingBodyBlock(FractalWorld* world) {
         return false;
     }
 
+    const glm::vec3 origin = camera.position;
+    const glm::vec3 dir = camera.getForward();
+
+    auto trySelectOverlappingBlock = [&](const glm::ivec3& blockPos,
+                                         bool overlapsBody) {
+        if (!overlapsBody) {
+            return false;
+        }
+
+        const BlockId blockType = world->getBlock(blockPos);
+        if (!canTargetBlock(blockType)) {
+            return false;
+        }
+
+        glm::vec3 selectionMin(0.0f);
+        glm::vec3 selectionMax(1.0f);
+        if (!getBlockSelectionBounds(blockType, selectionMin, selectionMax)) {
+            return false;
+        }
+
+        const glm::vec3 blockMin = glm::vec3(blockPos) + selectionMin;
+        const glm::vec3 blockMax = glm::vec3(blockPos) + selectionMax;
+        if (!rayIntersectsAabb(origin, dir, blockMin, blockMax, breakRange)) {
+            return false;
+        }
+
+        hasTarget = true;
+        targetBlock = blockPos;
+        targetNormal = targetNormalFromViewDirection(dir);
+        return true;
+    };
+
     const glm::ivec3 headBlock = glm::ivec3(glm::floor(camera.position));
     const BlockId headBlockType = world->getBlock(headBlock);
-    if (canTargetBlock(headBlockType) &&
-        doesBlockOverlapCurrentBody(headBlock)) {
-        hasTarget = true;
-        targetBlock = headBlock;
-        targetNormal = targetNormalFromViewDirection(camera.getForward());
+    if (trySelectOverlappingBlock(
+            headBlock,
+            canTargetBlock(headBlockType) && doesBlockOverlapCurrentBody(headBlock)
+        )) {
         return true;
     }
 
@@ -553,16 +637,12 @@ bool Player::tryTargetOverlappingBodyBlock(FractalWorld* world) {
         for (int bx = minBlock.x; bx <= maxBlock.x; ++bx) {
             for (int bz = minBlock.z; bz <= maxBlock.z; ++bz) {
                 const glm::ivec3 blockPos(bx, by, bz);
-                const BlockId blockType = world->getBlock(blockPos);
-                if (!canTargetBlock(blockType) ||
-                    !doesBlockOverlapBody(blockPos, feetPosition, bodyHeight)) {
-                    continue;
+                if (trySelectOverlappingBlock(
+                        blockPos,
+                        doesBlockOverlapBody(blockPos, feetPosition, bodyHeight)
+                    )) {
+                    return true;
                 }
-
-                hasTarget = true;
-                targetBlock = blockPos;
-                targetNormal = targetNormalFromViewDirection(camera.getForward());
-                return true;
             }
         }
     }
