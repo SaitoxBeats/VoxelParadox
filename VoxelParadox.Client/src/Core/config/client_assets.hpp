@@ -17,7 +17,7 @@ inline constexpr char kRecipesDirectory[] = "Assets/Recipes";
 inline constexpr char kVoxDirectory[] = "Assets/Voxs";
 inline constexpr char kControlsConfig[] = "Assets/Config/controls.lua";
 inline constexpr char kMotivationalMessagesFile[] = "Assets/texts/motivational.txt";
-inline constexpr char kUnicodeFallbackFont[] = "Assets/Fonts/ChillBitmap.ttf";
+inline constexpr char kUnicodeFallbackFont[] = "Assets/Fonts/zpix.ttf";
 inline constexpr char kSaveWorldDirectory[] = "Saves/worlds";
 
 inline constexpr char kAxeTexture[] = "Assets/Textures/Items/axe.png";

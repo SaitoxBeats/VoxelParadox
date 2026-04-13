@@ -6,6 +6,7 @@
 
 // 1. Standard Library
 #include <cstdint>
+#include <string>
 
 using BlockId = std::uint8_t;
 
@@ -46,6 +47,7 @@ struct BlockProperties {
 };
 
 struct BlockData {
-    bool canDropItem = false;
+    std::string dropItemId{};
+    bool dropWithoutTool = true;
     float breakExperienceMultiplier = 0.0f;
 };

@@ -16,6 +16,6 @@ bool canCaptureGameplayScreenshot(const Player& player, const GameChat& gameChat
                                   hudPortalInfo* portalInfo,
                                   hudPortalTracker* portalTracker);
 
-bool captureGameplayScreenshot(GLFWwindow* window);
+bool captureGameplayScreenshot(GLFWwindow* window, GameChat* gameChat = nullptr);
 
 }  // namespace RuntimeAppInternal

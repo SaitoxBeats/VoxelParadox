@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 
 // 2. Third-party Libraries
 #include <nlohmann/json.hpp>
@@ -324,6 +325,33 @@ bool tryParseItemId(const std::string& rawValue, ItemId& outItemId) {
 }
 
 bool tryParseInventoryItem(const std::string& rawValue, InventoryItem& outItem) {
+    constexpr std::string_view kBlockPrefix = "block:";
+    constexpr std::string_view kItemPrefix = "item:";
+
+    if (rawValue.rfind(kBlockPrefix, 0) == 0) {
+        BlockId parsedBlock = BlockIds::AIR;
+        if (tryParseBlockType(rawValue.substr(kBlockPrefix.size()), parsedBlock) &&
+            parsedBlock != BlockIds::AIR) {
+            outItem = makeInventoryBlock(parsedBlock);
+            return true;
+        }
+
+        outItem = {};
+        return false;
+    }
+
+    if (rawValue.rfind(kItemPrefix, 0) == 0) {
+        ItemId parsedItem = ItemIds::NONE;
+        if (tryParseItemId(rawValue.substr(kItemPrefix.size()), parsedItem) &&
+            parsedItem != ItemIds::NONE) {
+            outItem = makeInventoryItem(parsedItem);
+            return true;
+        }
+
+        outItem = {};
+        return false;
+    }
+
     BlockId parsedBlock = BlockIds::AIR;
     if (tryParseBlockType(rawValue, parsedBlock) && parsedBlock != BlockIds::AIR) {
         outItem = makeInventoryBlock(parsedBlock);
@@ -386,13 +414,15 @@ float getToolAdjustedBreakTimeSeconds(
 }
 
 bool shouldDropBlockItemForTool(const InventoryItem& toolItem, BlockId brokenType) {
-    if (canBlockDropItem(brokenType)) {
+    if (!hasConfiguredBlockDropItem(brokenType)) {
+        return false;
+    }
+
+    if (canBlockDropWithoutTool(brokenType)) {
         return true;
     }
 
-    return brokenType == BlockIds::STONE &&
-        toolItem.isItem() &&
-        toolItem.itemId == ItemIds::PICKAXE;
+    return isToolEffectiveForBlock(toolItem, brokenType);
 }
 
 bool isPlaceableInventoryItem(const InventoryItem& item) {

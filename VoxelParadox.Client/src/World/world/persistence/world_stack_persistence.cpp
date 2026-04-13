@@ -1,9 +1,13 @@
-#include "world/persistence/world_stack.hpp"
-
+// 1. Standard
 #include <algorithm>
 #include <cstdio>
 
+// 2. Project
+#include "world/persistence/world_stack.hpp"
+
 #include "gameplay/gameplay_status.hpp"
+#include "items/item_catalog.hpp"
+#include "world/persistence/world_save_service.hpp"
 
 namespace {
 
@@ -227,6 +231,59 @@ bool readWorldEnemy(std::ifstream& file, WorldEnemy& outEnemy) {
         outEnemy.modules.push_back(std::move(module));
     }
 
+    return true;
+}
+
+std::string persistedInventoryItemId(const InventoryItem& item) {
+    if (item.isBlock()) {
+        return "block:" + std::string(getBlockId(item.blockType));
+    }
+
+    if (item.isItem()) {
+        return "item:" + std::string(getItemId(item.itemId));
+    }
+
+    return "none";
+}
+
+void writeDroppedItem(std::ofstream& file, const FractalWorld::DroppedItem& item) {
+    writePersistedString(file, persistedInventoryItemId(item.item));
+    file.write(reinterpret_cast<const char*>(&item.position), sizeof(item.position));
+    file.write(reinterpret_cast<const char*>(&item.velocity), sizeof(item.velocity));
+    file.write(reinterpret_cast<const char*>(&item.spinPhase), sizeof(item.spinPhase));
+    file.write(reinterpret_cast<const char*>(&item.attracting), sizeof(item.attracting));
+    file.write(reinterpret_cast<const char*>(&item.pickupDelaySeconds),
+               sizeof(item.pickupDelaySeconds));
+}
+
+bool readDroppedItem(std::ifstream& file, FractalWorld::DroppedItem& outItem) {
+    std::string itemId;
+    if (!readPersistedString(file, itemId)) {
+        return false;
+    }
+
+    InventoryItem item{};
+    if (!tryParseInventoryItem(itemId, item)) {
+        return false;
+    }
+
+    FractalWorld::DroppedItem droppedItem{};
+    droppedItem.item = item;
+    file.read(reinterpret_cast<char*>(&droppedItem.position),
+              sizeof(droppedItem.position));
+    file.read(reinterpret_cast<char*>(&droppedItem.velocity),
+              sizeof(droppedItem.velocity));
+    file.read(reinterpret_cast<char*>(&droppedItem.spinPhase),
+              sizeof(droppedItem.spinPhase));
+    file.read(reinterpret_cast<char*>(&droppedItem.attracting),
+              sizeof(droppedItem.attracting));
+    file.read(reinterpret_cast<char*>(&droppedItem.pickupDelaySeconds),
+              sizeof(droppedItem.pickupDelaySeconds));
+    if (!file || droppedItem.item.empty()) {
+        return false;
+    }
+
+    outItem = droppedItem;
     return true;
 }
 
@@ -696,6 +753,7 @@ void WorldStack::saveActiveToCache() {
     globalCache[key].portalBlocks = activeWorld->portalBlocks;
     globalCache[key].portalBiomeSelections = activeWorld->portalBiomeSelections;
     globalCache[key].enemies = activeWorld->enemies;
+    globalCache[key].droppedItems = activeWorld->droppedItems;
     globalCache[key].universeName = universeName;
     globalCache[key].hasSavedPlayerState = hasSavedPlayerState;
     globalCache[key].savedPlayerPosition = savedPlayerPosition;
@@ -721,6 +779,7 @@ void WorldStack::applyCacheToWorld(FractalWorld& world) {
         world.portalBlocks = it->second.portalBlocks;
         world.portalBiomeSelections = it->second.portalBiomeSelections;
         world.enemies = it->second.enemies;
+        world.droppedItems = it->second.droppedItems;
         world.rebuildSparseEditIndex();
     } else {
         WorldEdits edits;
@@ -730,6 +789,7 @@ void WorldStack::applyCacheToWorld(FractalWorld& world) {
             world.portalBlocks = edits.portalBlocks;
             world.portalBiomeSelections = edits.portalBiomeSelections;
             world.enemies = edits.enemies;
+            world.droppedItems = edits.droppedItems;
             world.rebuildSparseEditIndex();
         }
     }
@@ -784,6 +844,20 @@ void WorldStack::saveToDisk(uint32_t seed, const BiomeSelection& biomeSelection,
     file.write(reinterpret_cast<const char*>(&enemyCount), sizeof(enemyCount));
     for (const WorldEnemy& enemy : edits.enemies) {
         writeWorldEnemy(file, enemy);
+    }
+
+    const size_t droppedItemCount = edits.droppedItems.size();
+    file.write(reinterpret_cast<const char*>(&droppedItemCount), sizeof(droppedItemCount));
+    for (const FractalWorld::DroppedItem& item : edits.droppedItems) {
+        writeDroppedItem(file, item);
+    }
+
+    const size_t droppedItemExperienceCount = edits.droppedItems.size();
+    file.write(reinterpret_cast<const char*>(&droppedItemExperienceCount),
+               sizeof(droppedItemExperienceCount));
+    for (const FractalWorld::DroppedItem& item : edits.droppedItems) {
+        file.write(reinterpret_cast<const char*>(&item.experiencePoints),
+                   sizeof(item.experiencePoints));
     }
 }
 
@@ -906,6 +980,63 @@ bool WorldStack::loadFromDisk(uint32_t seed, const BiomeSelection& biomeSelectio
             }
         }
     }
+
+    std::streampos droppedItemsSectionPos = file.tellg();
+    if (droppedItemsSectionPos != std::streampos(-1)) {
+        file.seekg(0, std::ios::end);
+        const std::streampos endPos = file.tellg();
+        if (endPos != std::streampos(-1) &&
+            endPos - droppedItemsSectionPos >= static_cast<std::streamoff>(sizeof(size_t))) {
+            file.seekg(droppedItemsSectionPos);
+            size_t droppedItemCount = 0;
+            file.read(reinterpret_cast<char*>(&droppedItemCount), sizeof(droppedItemCount));
+            if (file) {
+                edits.droppedItems.clear();
+                edits.droppedItems.reserve(droppedItemCount);
+                for (size_t index = 0; index < droppedItemCount; index++) {
+                    FractalWorld::DroppedItem droppedItem{};
+                    if (!readDroppedItem(file, droppedItem)) {
+                        edits.droppedItems.clear();
+                        return true;
+                    }
+                    edits.droppedItems.push_back(droppedItem);
+                }
+            }
+        }
+    }
+
+    std::streampos droppedItemExperienceSectionPos = file.tellg();
+    if (droppedItemExperienceSectionPos != std::streampos(-1)) {
+        file.seekg(0, std::ios::end);
+        const std::streampos endPos = file.tellg();
+        if (endPos != std::streampos(-1) &&
+            endPos - droppedItemExperienceSectionPos >=
+                static_cast<std::streamoff>(sizeof(size_t))) {
+            file.seekg(droppedItemExperienceSectionPos);
+            size_t droppedItemExperienceCount = 0;
+            file.read(
+                reinterpret_cast<char*>(&droppedItemExperienceCount),
+                sizeof(droppedItemExperienceCount)
+            );
+            if (file) {
+                for (size_t index = 0; index < droppedItemExperienceCount; index++) {
+                    float experiencePoints = 0.0f;
+                    file.read(
+                        reinterpret_cast<char*>(&experiencePoints),
+                        sizeof(experiencePoints)
+                    );
+                    if (!file) {
+                        break;
+                    }
+
+                    if (index < edits.droppedItems.size()) {
+                        edits.droppedItems[index].experiencePoints =
+                            std::max(0.0f, experiencePoints);
+                    }
+                }
+            }
+        }
+    }
     return true;
 }
 
@@ -918,4 +1049,14 @@ uint32_t WorldStack::deriveChildSeed(uint32_t parentSeed, glm::ivec3 blockPos) {
     h = ((h >> 16) ^ h) * 0x45d9f3b;
     h = (h >> 16) ^ h;
     return h;
+}
+
+int WorldStack::deriveChildDepth(uint32_t parentSeed, glm::ivec3 blockPos) {
+    const std::uint32_t childSeed = deriveChildSeed(parentSeed, blockPos);
+    const std::uint32_t depthHash = hashSeed(childSeed ^ 0xA53A9D1Bu);
+    const int depthRange = WorldSaveService::kMaximumRandomRootDepth -
+                           WorldSaveService::kMinimumRandomRootDepth + 1;
+
+    return WorldSaveService::kMinimumRandomRootDepth +
+           static_cast<int>(depthHash % static_cast<std::uint32_t>(depthRange));
 }

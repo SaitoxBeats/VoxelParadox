@@ -8,8 +8,8 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstdint>
 #include <string>
-#include <vector>
 
 // 2. Third-party Libraries
 #include <glad/glad.h>
@@ -28,6 +28,8 @@
 #include "runtime/app/runtime_app_screenshot.hpp"
 #include "audio/game_audio_controller.hpp"
 #include "debug/biome_debug_tools.hpp"
+#include "gameplay/gameplay_context.hpp"
+#include "gameplay/gameplay_runtime_system.hpp"
 #include "gameplay/gameplay_status.hpp"
 #include "player/player.hpp"
 #include "render/hud/hud.hpp"
@@ -56,54 +58,6 @@ namespace {
 
 #pragma region 1. Core Frame Routines
     // --- 1. Core Frame Routines ---
-
-    void updateGame(Player& player, WorldStack& worldStack,
-        GameAudioController& audioController, hudPortalInfo* portalInfo,
-        hudPortalTracker* portalTracker, GameChat& gameChat,
-        bool deathSequenceActive, bool deathSequencePaused, float dt) {
-
-        if (ENGINE::ISPAUSED() || deathSequencePaused) {
-            return;
-        }
-
-        PlayerUpdateMode playerUpdateMode = PlayerUpdateMode::FullGameplay;
-
-        if (deathSequenceActive || Input::hasUiFocus() || (portalInfo && portalInfo->isEditing()) ||
-            (portalTracker && portalTracker->isMenuOpen())) {
-            playerUpdateMode = PlayerUpdateMode::Frozen;
-        }
-        else if (player.isInventoryOpen() || gameChat.isOpen()) {
-            playerUpdateMode = PlayerUpdateMode::SimulationOnly;
-        }
-
-        player.update(dt, worldStack, portalTracker, &gameChat, playerUpdateMode);
-        worldStack.update(player.camera.position, player.camera.getForward(), dt);
-        worldStack.updateEnemies(player, audioController, dt);
-
-        worldStack.updateDroppedItems(
-            player.camera.position, dt,
-            [&player, &audioController](const InventoryItem& pickedItem) {
-                if (!player.tryAddItemToInventory(pickedItem, 1)) {
-                    return false;
-                }
-                audioController.onItemCollected();
-                return true;
-            }
-        );
-    }
-
-    void dispatchPlayerNotifications(Player& player, GameChat& gameChat) {
-        const std::vector<Player::NotificationEvent> events =
-            player.consumeNotificationEvents();
-
-        for (const Player::NotificationEvent event : events) {
-            switch (event) {
-            case Player::NotificationEvent::FirstVersalAcquired:
-                gameChat.pushFirstVersalNotification();
-                break;
-            }
-        }
-    }
 
     void renderFrame(GLFWwindow* window, Renderer& renderer, WorldStack& worldStack,
         Player& player, float currentTime,
@@ -345,6 +299,7 @@ namespace RuntimeAppInternal {
         gameplayStatus.applyPersistentState(worldSession.gameplayStats);
         gameplayStatus.setPlayerXp(player.getExperiencePoints());
         gameplayStatus.setPlayerLevel(player.getExperienceLevel());
+        Gameplay::EventQueue gameplayEventQueue;
 
         double lastAutosavePlaytimeSeconds = gameplayStatus.playtimeSeconds();
         std::string autosaveError;
@@ -389,6 +344,7 @@ namespace RuntimeAppInternal {
 
             const auto cpuFrameStart = std::chrono::steady_clock::now();
             Input::update();
+            gameplayEventQueue.clear();
 
             auto& inputActions = InputMapping::InputActionSystem::instance();
             const bool deathSequenceActive = deathState.active;
@@ -435,6 +391,7 @@ namespace RuntimeAppInternal {
                 worldStack,
                 debugFlags.wireframeMode,
                 debugFlags.debugThirdPersonView,
+                &gameplayEventQueue,
             };
 
             const bool chatConsumedInput = deathSequenceActive
@@ -453,32 +410,51 @@ namespace RuntimeAppInternal {
             RuntimeUI::syncDebugHudState(settingsBundle.uiState, settingsBundle.applied);
             RuntimeUI::updateSaveToast(settingsBundle.uiState, rawDt);
             RuntimeUI::syncSaveToastState(settingsBundle.uiState);
-        RuntimeUI::syncCursorVisibility(player, portalTracker, gameChat.isOpen());
+            RuntimeUI::syncCursorVisibility(player, portalTracker, gameChat.isOpen());
 
             if (deathSequenceActive) {
                 Input::setCursorVisible(false);
             }
 
             // --- 2.3 Gameplay & Audio ---
-            updateGame(player, worldStack, audioController, portalInfo, portalTracker,
-                gameChat, deathSequenceActive, deathSequencePaused, simDt);
-            dispatchPlayerNotifications(player, gameChat);
+            Gameplay::Context gameplayContext{
+                player,
+                worldStack,
+                gameplayStatus,
+                &audioController,
+                &gameChat,
+                portalTracker,
+                &gameplayEventQueue,
+                simDt,
+            };
+
+            Gameplay::RuntimeSystem::updateGame(
+                gameplayContext,
+                portalInfo,
+                deathSequenceActive,
+                deathSequencePaused
+            );
+            Gameplay::RuntimeSystem::dispatchEvents(
+                gameplayEventQueue,
+                gameplayStatus,
+                gameChat,
+                &audioController
+            );
             gameChat.syncHudState();
 
             if (!deathState.active && !player.isAlive()) {
                 startDeathSequence(deathState, player, worldStack, audioController, portalInfo,
                     portalTracker, gameChat, settingsBundle.uiState);
+                gameplayEventQueue.emitPlayerDied();
+                Gameplay::RuntimeSystem::dispatchEvents(
+                    gameplayEventQueue,
+                    gameplayStatus,
+                    gameChat,
+                    &audioController
+                );
             }
 
-            if (deathState.active && deathState.messageText) {
-                deathState.elapsedSeconds = deathState.paused
-                    ? deathState.elapsedSeconds
-                    : glm::min(DeathSequenceState::kDurationSeconds,
-                        deathState.elapsedSeconds + rawDt);
-
-                player.setDeathSequenceState(true, deathState.elapsedSeconds, deathState.message);
-                deathState.messageText->setOpacity(deathScreenTextOpacity(deathState.elapsedSeconds));
-            }
+            updateDeathSequenceFrame(deathState, player, rawDt);
 
             audioController.syncFrame(
                 buildListenerState(player),
@@ -504,7 +480,7 @@ namespace RuntimeAppInternal {
 
             if (InputMapping::InputActionSystem::instance().wasPressed(InputActionIds::kTakeScreenshot) &&
                 canCaptureGameplayScreenshot(player, gameChat, portalInfo, portalTracker)) {
-                if (!captureGameplayScreenshot(window)) {
+                if (!captureGameplayScreenshot(window, &gameChat)) {
                     std::printf("[Screenshot] Failed to capture screenshot.\n");
                 }
             }
@@ -537,7 +513,7 @@ namespace RuntimeAppInternal {
             // --- 2.6 Present & Deferred HUD Work ---
             glfwSwapBuffers(window);
 
-            if (deathState.active && deathState.elapsedSeconds >= DeathSequenceState::kDurationSeconds) {
+            if (deathSequenceFinished(deathState)) {
                 std::string respawnError;
                 if (!finalizeDeathSequence(worldSession, player, worldStack, audioController,
                     gameChat, portalTracker, deathState, settingsBundle.uiState,
@@ -551,10 +527,17 @@ namespace RuntimeAppInternal {
                 }
 
                 resetDeathSequenceState(deathState, player);
+                gameplayEventQueue.emitPlayerRespawned();
+                Gameplay::RuntimeSystem::dispatchEvents(
+                    gameplayEventQueue,
+                    gameplayStatus,
+                    gameChat,
+                    &audioController
+                );
                 lastAutosavePlaytimeSeconds = gameplayStatus.playtimeSeconds();
             }
 
-        rebuildHudIfRequested(player, worldStack, renderer, audioController, window,
+            rebuildHudIfRequested(player, worldStack, renderer, audioController, window,
                 settingsBundle, gameChat, deathState, portalInfo,
                 portalTracker);
         }

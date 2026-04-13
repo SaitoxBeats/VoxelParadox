@@ -27,6 +27,7 @@ struct GameSettings {
   WorldStack::RenderDistancePreset renderDistance =
       WorldStack::RenderDistancePreset::NORMAL;
   float mouseSensitivity = 0.002f;
+  float fieldOfView = ClientDefaults::kDefaultFieldOfView;
   float renderScale = ClientDefaults::kDefaultRenderScale;
   ENGINE::VIEWPORTMODE windowMode = ENGINE::VIEWPORTMODE::WINDOWMODE;
   bool vSyncEnabled = false;

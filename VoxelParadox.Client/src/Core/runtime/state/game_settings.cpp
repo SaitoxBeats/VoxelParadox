@@ -202,6 +202,9 @@ void GameSettings::sanitize(
   mouseSensitivity = std::clamp(mouseSensitivity,
                                 ClientDefaults::kMinMouseSensitivity,
                                 ClientDefaults::kMaxMouseSensitivity);
+  fieldOfView = std::clamp(fieldOfView,
+                           ClientDefaults::kMinFieldOfView,
+                           ClientDefaults::kMaxFieldOfView);
   renderScale = std::clamp(renderScale, ClientDefaults::kMinRenderScale,
                            ClientDefaults::kMaxRenderScale);
   audioSettings.sanitize();
@@ -254,6 +257,8 @@ bool GameSettings::save(std::string* outError) const {
   };
   json["mouseSensitivity"] =
       std::round(static_cast<double>(mouseSensitivity) * 1000000.0) / 1000000.0;
+  json["fieldOfView"] =
+      std::round(static_cast<double>(fieldOfView) * 10.0) / 10.0;
   json["renderScale"] =
       std::round(static_cast<double>(renderScale) * 1000.0) / 1000.0;
   json["windowMode"] = windowModeToken(windowMode);
@@ -355,6 +360,9 @@ GameSettings GameSettings::load(std::string* outError) {
                json["mouseSensitivity"].is_number_integer()) {
       settings.mouseSensitivity =
           static_cast<float>(json["mouseSensitivity"].get<int>());
+    }
+    if (json.contains("fieldOfView") && json["fieldOfView"].is_number()) {
+      settings.fieldOfView = json["fieldOfView"].get<float>();
     }
     if (json.contains("renderScale") && json["renderScale"].is_number()) {
       settings.renderScale = json["renderScale"].get<float>();

@@ -38,6 +38,13 @@ struct BlockTopDecorationRule {
     std::string seedKey{};
 };
 
+struct BlockScriptDefinition {
+    bool enabled = false;
+    std::string relativePath{ "script.lua" };
+    std::string source{};
+    std::string loadError{};
+};
+
 struct BlockDefinition {
     BlockId idValue = BlockIds::AIR;
     std::string id{};
@@ -62,6 +69,7 @@ struct BlockDefinition {
     glm::vec4 atlasUvTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
     std::string customModelAssetPath{};
     BlockTopDecorationRule topDecoration{};
+    BlockScriptDefinition script{};
 };
 
 struct BlockShaderSources {

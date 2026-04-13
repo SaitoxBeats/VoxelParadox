@@ -247,7 +247,7 @@ bool prepareWorldFromSession(
   printBootstrapInfo("Preparing the selected world...");
   WorldStack::setSaveWorldDirectory(session.paths.universesDirectory.string());
   worldStack.init(session.manifest.rootSeed, session.manifest.rootBiomeSelection,
-                  session.rootPreset);
+                  session.rootPreset, session.manifest.rootDepth);
   worldStack.setRenderDistancePreset(renderDistancePreset);
 
   FractalWorld* world = worldStack.currentWorld();

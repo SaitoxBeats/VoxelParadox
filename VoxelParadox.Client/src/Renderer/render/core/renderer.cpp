@@ -834,20 +834,20 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
     float highlightActive = 0.0f;
     glm::vec3 highlightBlockCenter(0.0f);
 
-    if (world && player.hasTarget && player.isBreakingBlock &&
-        player.breakingBlock == player.targetBlock) {
-        const BlockId targetType = world->getBlock(player.targetBlock);
+    if (world && player.hasTargetBlock() && player.isBreakingTargetBlock() &&
+        player.getBreakingBlock() == player.getTargetBlock()) {
+        const BlockId targetType = world->getBlock(player.getTargetBlock());
         if (canTargetBlock(targetType)) {
-            breakProgress = player.breakingProgress;
-            breakBlockCenter = glm::vec3(player.targetBlock) + glm::vec3(0.5f);
+            breakProgress = player.getBreakingProgress();
+            breakBlockCenter = glm::vec3(player.getTargetBlock()) + glm::vec3(0.5f);
         }
     }
 
-    if (world && player.hasTarget && HUD::isVisible()) {
-        const BlockId targetType = world->getBlock(player.targetBlock);
+    if (world && player.hasTargetBlock() && HUD::isVisible()) {
+        const BlockId targetType = world->getBlock(player.getTargetBlock());
         if (canTargetBlock(targetType)) {
             highlightActive = 1.0f;
-            highlightBlockCenter = glm::vec3(player.targetBlock) + glm::vec3(0.5f);
+            highlightBlockCenter = glm::vec3(player.getTargetBlock()) + glm::vec3(0.5f);
         }
     }
 
@@ -907,7 +907,7 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
             time, 1.0f);
     }
 
-    if (world && player.hasTarget && HUD::isVisible()) {
+    if (world && player.hasTargetBlock() && HUD::isVisible()) {
         renderTargetSelectionWireframe(*world, player, vp);
     }
 

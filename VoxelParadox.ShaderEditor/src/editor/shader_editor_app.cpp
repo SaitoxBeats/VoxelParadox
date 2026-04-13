@@ -30,7 +30,7 @@ namespace ShaderEditor {
     namespace {
 
         constexpr const char* kWindowTitle = "VoxelParadox Shader Editor";
-        constexpr const char* kDefaultFontPath = "Assets/Fonts/ChillBitmap.ttf";
+        constexpr const char* kDefaultFontPath = "Assets/Fonts/zpix.ttf";
 
         constexpr BlockCategory kEditorBlockCategoryOrder[] = {
             BlockCategory::TERRAIN,

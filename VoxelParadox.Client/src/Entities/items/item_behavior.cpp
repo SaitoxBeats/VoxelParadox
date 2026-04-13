@@ -96,7 +96,15 @@ bool LuaScriptItemBehavior::onUse(const ItemDefinition& definition, ItemUseConte
         return false;
     }
 
-    const bool scriptConsumed = runItemScriptOnUse(definition, context);
+    // Prefer the active persistent session so on_use shares globals with on_update/on_pickup.
+    // Fall back to a stateless one-shot call when no session is available.
+    bool scriptConsumed;
+    if (context.scriptSession && context.scriptSession->isValid() &&
+        context.scriptSession->hasOnUse) {
+        scriptConsumed = context.scriptSession->callOnUse(context);
+    } else {
+        scriptConsumed = runItemScriptOnUse(definition, context);
+    }
 
     if (hasDeclarativeUse && !finalizeDeclarativeItemUse(definition, context)) {
         return false;

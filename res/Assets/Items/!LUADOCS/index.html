@@ -12,57 +12,74 @@
             <p class="eyebrow">VoxelParadox</p>
             <h1>Item Lua API</h1>
             <p class="lead">
-                Simple reference for the Lua runtime used by item <code>script.lua</code> files.
-                This page documents the current API exposed by the game and shows practical item examples.
+                Complete reference for the Lua runtime used by item <code>script.lua</code> files.
+                Covers every field and function exposed by the game engine, with practical examples.
             </p>
+            <p class="version-tag">API v2 &mdash; 38 functions &middot; 12 snapshot fields &middot; 3 hooks</p>
         </header>
 
         <nav class="toc">
             <a href="#overview">Overview</a>
             <a href="#setup">Item Setup</a>
-            <a href="#entrypoint">Entrypoint</a>
-            <a href="#context-fields">Context Fields</a>
-            <a href="#context-functions">Context Functions</a>
+            <a href="#entrypoint">Hooks</a>
+            <a href="#snapshot-fields">Snapshot Fields</a>
+            <a href="#logging">Logging &amp; Chat</a>
+            <a href="#health">Player Health</a>
+            <a href="#experience">Player Experience</a>
+            <a href="#physics">Player Physics</a>
+            <a href="#state">Player State</a>
+            <a href="#inventory">Inventory</a>
+            <a href="#portals">Portals &amp; Audio</a>
+            <a href="#target">Target &amp; World</a>
             <a href="#behavior-notes">Behavior Notes</a>
             <a href="#examples">Examples</a>
         </nav>
 
         <main>
+
+            <!-- ============================================================ -->
             <section id="overview">
                 <h2>Overview</h2>
                 <p>
-                    A Lua item script is an optional <code>script.lua</code> file placed beside the item's
-                    <code>item.json</code>. The game loads that script when the player uses the item with the right mouse button.
+                    A Lua item script is an optional <code>script.lua</code> file placed beside the
+                    item's <code>item.json</code>. The game loads and runs that script when the player
+                    right-clicks while holding the item.
                 </p>
                 <p>
-                    The current runtime exposes a controlled gameplay API. Scripts can inspect player state,
-                    interact with inventory, open some HUD screens, play audio events, inspect the current target,
-                    print messages to the terminal, and send rich notifications to the in-game chat.
+                    The runtime exposes a <strong>controlled gameplay API</strong>. Scripts can:
                 </p>
+                <ul>
+                    <li>Read and mutate player health, XP, and level.</li>
+                    <li>Query and modify inventory (add, remove, count, consume).</li>
+                    <li>Read player position, velocity, look direction, and movement state.</li>
+                    <li>Inspect the current block target and adjacent placement position.</li>
+                    <li>Create portals, open HUD screens, and play audio events.</li>
+                    <li>Send plain or rich colored notifications to the in-game chat.</li>
+                </ul>
                 <p>
-                    Scripts do <strong>not</strong> get access to save data, files, or arbitrary engine internals.
+                    Scripts do <strong>not</strong> get access to save data, arbitrary files, or
+                    engine internals beyond what is listed here.
                 </p>
             </section>
 
+            <!-- ============================================================ -->
             <section id="setup">
                 <h2>Item Setup</h2>
                 <p>
-                    A script-driven item still needs to exist in the item registry and have a normal
-                    <code>item.json</code>.
+                    A script-driven item needs an <code>item.json</code> with <code>"script"</code>
+                    enabled. Declarative <code>on_use</code> actions (if present) run
+                    <em>before</em> the Lua script.
                 </p>
 <pre><code>{
-  "id": "lua_totem",
-  "display_name": "Lua Totem",
-  "categories": [ "utility", "quest" ],
-  "stack_limit": 4,
-  "icon_asset": "Assets/Textures/Items/portal_tracker.png",
+  "id": "my_item",
+  "display_name": "My Item",
+  "categories": ["utility"],
+  "stack_limit": 8,
+  "icon_asset": "Assets/Textures/Items/versal.png",
   "on_use": {
-    "cooldown": 0.5,
+    "cooldown": 0.4,
     "actions": [
-      {
-        "type": "print_terminal",
-        "message": "[Items] Lua Totem is running its script."
-      }
+      { "type": "play_sound", "event": "ui.menu.click" }
     ]
   },
   "script": {
@@ -73,244 +90,702 @@
     "use_texture_sprite": true
   }
 }</code></pre>
-                <p>
-                    In this model, the declarative <code>on_use</code> block runs first, then the Lua script runs after it.
-                </p>
             </section>
 
+            <!-- ============================================================ -->
             <section id="entrypoint">
-                <h2>Entrypoint</h2>
-                <p>The script must define a global function named <code>on_use(context)</code>.</p>
+                <h2>Hooks</h2>
+                <p>
+                    A script can define up to three global hook functions. Each is optional —
+                    the game probes for them when the session opens and only calls the ones
+                    that exist.
+                </p>
+                <p>
+                    All three hooks share the <strong>same <code>lua_State</code></strong>. Globals
+                    written in <code>on_pickup</code> or <code>on_update</code> are visible inside
+                    <code>on_use</code> and vice-versa.
+                </p>
+
+                <h3><code>on_pickup(context)</code></h3>
+                <p>
+                    Called <strong>once</strong> when the player selects this item in the hotbar
+                    (or when the game starts with this item already selected). Use it to initialize
+                    per-session state, play a sound, or show a welcome hint.
+                </p>
+<pre><code>function on_pickup(context)
+    context.log("[MyItem] picked up.")
+    context.play_audio_event("player.item.pickup")
+end</code></pre>
+
+                <h3><code>on_update(context, dt)</code></h3>
+                <p>
+                    Called <strong>every frame</strong> while this item is selected.
+                    <code>dt</code> is the elapsed time in seconds since the last frame.
+                    Runs after <code>on_pickup</code> and before any <code>on_use</code> call
+                    in the same frame.
+                </p>
+                <p>
+                    Keep this hook lightweight — it executes at the game's full simulation rate
+                    (typically 60 Hz). Avoid heavy allocations or expensive queries inside it.
+                </p>
+<pre><code>function on_update(context, dt)
+    -- accumulate time in a global (persists across frames thanks to shared lua_State)
+    _elapsed = (_elapsed or 0) + dt
+end</code></pre>
+
+                <h3><code>on_use(context)</code></h3>
+                <p>
+                    Called when the player <strong>right-clicks</strong> while holding the item.
+                    Return <code>true</code> to consume the use, <code>false</code> (or nothing)
+                    to decline it.
+                </p>
 <pre><code>function on_use(context)
-    context.log("[Items][Lua] Script executed.")
+    context.log("[MyItem] used after " .. string.format("%.1f", _elapsed or 0) .. "s in hand.")
     return true
 end</code></pre>
+
+                <h3>Session Lifetime</h3>
                 <p>
-                    Return values:
+                    The engine opens a fresh Lua session the moment the item is selected and
+                    closes it when the player switches away. Switching back opens a new session —
+                    globals do <em>not</em> survive hotbar slot changes. Use the player's
+                    inventory or XP APIs for persistent cross-session data.
                 </p>
-                <ul>
-                    <li><code>true</code>: the item consumed the right-click use.</li>
-                    <li><code>false</code>: the script did not consume the use.</li>
-                    <li>no return: treated like consumed by default.</li>
-                </ul>
             </section>
 
-            <section id="context-fields">
-                <h2>Context Fields</h2>
+            <!-- ============================================================ -->
+            <section id="snapshot-fields">
+                <h2>Snapshot Fields</h2>
+                <p>
+                    These are read-only values baked into the context table at the moment the item
+                    is used. They are plain Lua values, not function calls.
+                </p>
                 <table>
                     <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>Description</th>
-                        </tr>
+                        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td><code>context.selected_item_id</code></td>
                             <td>string</td>
-                            <td>Stable id of the currently selected item, such as <code>lua_totem</code>.</td>
+                            <td>Stable id of the selected item, e.g. <code>"versal"</code>.</td>
                         </tr>
                         <tr>
                             <td><code>context.selected_count</code></td>
                             <td>integer</td>
-                            <td>How many copies of the currently selected item are in the selected hotbar slot.</td>
+                            <td>Stack count in the selected hotbar slot at use time.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.selected_hotbar_index</code></td>
+                            <td>integer</td>
+                            <td>Zero-based index of the active hotbar slot at use time.</td>
                         </tr>
                         <tr>
                             <td><code>context.has_target</code></td>
                             <td>boolean</td>
-                            <td>Whether the player currently has a valid block target under the crosshair.</td>
+                            <td>Whether the player had a valid block target under the crosshair at use time.</td>
                         </tr>
                         <tr>
                             <td><code>context.target_block_id</code></td>
                             <td>string</td>
-                            <td>Stable block id of the current target. Falls back to <code>air</code> when there is no target.</td>
+                            <td>Stable block id of the target. Falls back to <code>"air"</code> when there is no target.</td>
                         </tr>
                         <tr>
                             <td><code>context.current_world_seed</code></td>
                             <td>integer</td>
-                            <td>Seed of the currently active world.</td>
+                            <td>Seed of the currently active world at use time.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.has_opened_first_portal</code></td>
+                            <td>boolean</td>
+                            <td>Persisted flag: <code>true</code> after the player's first successful portal creation. Stored in <code>player.dat</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.is_grounded</code></td>
+                            <td>boolean</td>
+                            <td>Whether the player was on the ground at use time.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.is_crouching</code></td>
+                            <td>boolean</td>
+                            <td>Whether the player was crouching at use time.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.movement_state</code></td>
+                            <td>string</td>
+                            <td>Movement state at use time. One of: <code>"idle"</code>, <code>"walking"</code>, <code>"running"</code>, <code>"crouching"</code>, <code>"jumping"</code>, <code>"falling"</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.is_sandbox_mode</code></td>
+                            <td>boolean</td>
+                            <td>Whether sandbox mode was active at use time.</td>
+                        </tr>
+                        <tr>
+                            <td><code>context.player_xp_max</code></td>
+                            <td>number</td>
+                            <td>Maximum XP for the current level at use time.</td>
                         </tr>
                     </tbody>
                 </table>
             </section>
 
-            <section id="context-functions">
-                <h2>Context Functions</h2>
+            <!-- ============================================================ -->
+            <section id="logging">
+                <h2>Logging &amp; Chat</h2>
                 <table>
                     <thead>
-                        <tr>
-                            <th>Function</th>
-                            <th>Signature</th>
-                            <th>Description</th>
-                        </tr>
+                        <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td><code>log</code></td>
-                            <td><code>context.log(message)</code></td>
-                            <td>Prints a message to the game terminal.</td>
+                            <td><code>log(message: string)</code></td>
+                            <td>—</td>
+                            <td>Prints a message to the game terminal / stdout.</td>
                         </tr>
                         <tr>
                             <td><code>push_notification</code></td>
-                            <td><code>context.push_notification(message_or_segments)</code></td>
-                            <td>Sends a chat notification. Pass a plain string for simple text or a segment table / array of segment tables for colored text.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_player_life</code></td>
-                            <td><code>context.get_player_life()</code></td>
-                            <td>Returns current player health.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_player_max_life</code></td>
-                            <td><code>context.get_player_max_life()</code></td>
-                            <td>Returns maximum player health.</td>
-                        </tr>
-                        <tr>
-                            <td><code>is_player_alive</code></td>
-                            <td><code>context.is_player_alive()</code></td>
-                            <td>Returns whether the player is alive.</td>
-                        </tr>
-                        <tr>
-                            <td><code>heal_player</code></td>
-                            <td><code>context.heal_player(amount)</code></td>
-                            <td>Adds health to the player, clamped by the game.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_player_xp</code></td>
-                            <td><code>context.get_player_xp()</code></td>
-                            <td>Returns the player's current XP as a decimal number.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_player_level</code></td>
-                            <td><code>context.get_player_level()</code></td>
-                            <td>Returns the player's current experience level as an integer.</td>
-                        </tr>
-                        <tr>
-                            <td><code>set_player_xp</code></td>
-                            <td><code>context.set_player_xp(value)</code></td>
-                            <td>Sets the player's current XP using a decimal number.</td>
-                        </tr>
-                        <tr>
-                            <td><code>add_player_xp</code></td>
-                            <td><code>context.add_player_xp(value)</code></td>
-                            <td>Adds decimal XP and uses the game's normal XP reward logic.</td>
-                        </tr>
-                        <tr>
-                            <td><code>add_item</code></td>
-                            <td><code>context.add_item(item_id, amount)</code></td>
-                            <td>Attempts to add an item or block item to inventory. Returns <code>true</code> on success.</td>
-                        </tr>
-                        <tr>
-                            <td><code>remove_item</code></td>
-                            <td><code>context.remove_item(item_id, amount)</code></td>
-                            <td>Attempts to remove an item or block item from inventory. Returns <code>true</code> on success.</td>
-                        </tr>
-                        <tr>
-                            <td><code>count_item</code></td>
-                            <td><code>context.count_item(item_id)</code></td>
-                            <td>Returns how many copies of an item or block item the player currently has.</td>
-                        </tr>
-                        <tr>
-                            <td><code>consume_selected</code></td>
-                            <td><code>context.consume_selected(amount)</code></td>
-                            <td>Consumes copies of the currently selected item from the selected slot. Returns <code>true</code> on success.</td>
-                        </tr>
-                        <tr>
-                            <td><code>open_portal_tracker</code></td>
-                            <td><code>context.open_portal_tracker()</code></td>
-                            <td>Opens the same portal tracker menu used by the keyboard shortcut.</td>
-                        </tr>
-                        <tr>
-                            <td><code>create_portal_for_target_block</code></td>
-                            <td><code>context.create_portal_for_target_block()</code></td>
-                            <td>Creates a portal on the block currently under the crosshair using the game's normal portal rules. Returns <code>true</code> when the portal exists or was created.</td>
-                        </tr>
-                        <tr>
-                            <td><code>play_audio_event</code></td>
-                            <td><code>context.play_audio_event(event_id)</code></td>
-                            <td>Plays a registered audio event from <code>Assets/Audio/Definitions/audio_events.json</code>.</td>
-                        </tr>
-                        <tr>
-                            <td><code>has_target</code></td>
-                            <td><code>context.has_target()</code></td>
-                            <td>Function version of the target-state check.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_target_block_id</code></td>
-                            <td><code>context.get_target_block_id()</code></td>
-                            <td>Returns the stable id of the targeted block.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_target_block_position</code></td>
-                            <td><code>context.get_target_block_position()</code></td>
-                            <td>Returns <code>x, y, z</code> integer coordinates of the targeted block.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_target_normal</code></td>
-                            <td><code>context.get_target_normal()</code></td>
-                            <td>Returns the target face normal as <code>x, y, z</code>.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_current_world_seed</code></td>
-                            <td><code>context.get_current_world_seed()</code></td>
-                            <td>Returns the current world seed.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_selected_item_id</code></td>
-                            <td><code>context.get_selected_item_id()</code></td>
-                            <td>Returns the stable id of the selected inventory item.</td>
-                        </tr>
-                        <tr>
-                            <td><code>get_selected_count</code></td>
-                            <td><code>context.get_selected_count()</code></td>
-                            <td>Returns the stack count in the selected hotbar slot.</td>
+                            <td><code>push_notification(message_or_segments)</code></td>
+                            <td>—</td>
+                            <td>
+                                Sends a chat notification. Pass a plain <code>string</code> for simple
+                                text, a single segment table, or an array of segment tables for colored
+                                text. Each segment table uses <code>text</code> and an optional
+                                <code>color = {r, g, b}</code> with normalized RGB values (0.0–1.0).
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </section>
 
+            <!-- ============================================================ -->
+            <section id="health">
+                <h2>Player Health</h2>
+                <table>
+                    <thead>
+                        <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>get_player_life</code></td>
+                            <td><code>get_player_life()</code></td>
+                            <td>integer</td>
+                            <td>Current player health (life points).</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_max_life</code></td>
+                            <td><code>get_player_max_life()</code></td>
+                            <td>integer</td>
+                            <td>Maximum player health.</td>
+                        </tr>
+                        <tr>
+                            <td><code>is_player_alive</code></td>
+                            <td><code>is_player_alive()</code></td>
+                            <td>boolean</td>
+                            <td>Returns <code>true</code> if the player is alive.</td>
+                        </tr>
+                        <tr>
+                            <td><code>heal_player</code></td>
+                            <td><code>heal_player(amount: integer)</code></td>
+                            <td>—</td>
+                            <td>Adds <code>amount</code> life points, clamped to max by the engine.</td>
+                        </tr>
+                        <tr>
+                            <td><code>damage_player</code></td>
+                            <td><code>damage_player(amount: integer)</code></td>
+                            <td>—</td>
+                            <td>
+                                Applies <code>amount</code> damage using the game's full damage pipeline
+                                (feedback effects, death check). Only positive values take effect.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>set_player_health</code></td>
+                            <td><code>set_player_health(amount: integer)</code></td>
+                            <td>—</td>
+                            <td>
+                                Sets health to an exact value. Does not trigger damage feedback.
+                                Useful for curse or restore items. Prefer <code>heal_player</code> /
+                                <code>damage_player</code> for gameplay effects.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ============================================================ -->
+            <section id="experience">
+                <h2>Player Experience</h2>
+                <table>
+                    <thead>
+                        <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>get_player_xp</code></td>
+                            <td><code>get_player_xp()</code></td>
+                            <td>number</td>
+                            <td>Current XP as a decimal. Resets toward 0 when a level is gained.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_xp_max</code></td>
+                            <td><code>get_player_xp_max()</code></td>
+                            <td>number</td>
+                            <td>XP threshold required to reach the next level.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_level</code></td>
+                            <td><code>get_player_level()</code></td>
+                            <td>integer</td>
+                            <td>Current experience level.</td>
+                        </tr>
+                        <tr>
+                            <td><code>set_player_xp</code></td>
+                            <td><code>set_player_xp(value: number)</code></td>
+                            <td>—</td>
+                            <td>Directly sets the raw XP value. Bypasses the normal reward pipeline.</td>
+                        </tr>
+                        <tr>
+                            <td><code>add_player_xp</code></td>
+                            <td><code>add_player_xp(value: number)</code></td>
+                            <td>—</td>
+                            <td>Adds XP using the game's normal reward logic (level-up events, item rewards).</td>
+                        </tr>
+                        <tr>
+                            <td><code>set_player_level</code></td>
+                            <td><code>set_player_level(level: integer)</code></td>
+                            <td>—</td>
+                            <td>Sets the experience level directly, firing the appropriate engine events.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ============================================================ -->
+            <section id="physics">
+                <h2>Player Physics &amp; Movement</h2>
+                <p>
+                    These functions return live values from the player's physics state at the
+                    moment of the call. The snapshot fields <code>is_grounded</code>,
+                    <code>is_crouching</code>, and <code>movement_state</code> provide the same
+                    data captured at use time.
+                </p>
+                <table>
+                    <thead>
+                        <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>get_player_position</code></td>
+                            <td><code>get_player_position()</code></td>
+                            <td>x, y, z: number</td>
+                            <td>World-space camera (eye) position as three floats.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_velocity</code></td>
+                            <td><code>get_player_velocity()</code></td>
+                            <td>x, y, z: number</td>
+                            <td>Current velocity vector in world units per second.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_player_look</code></td>
+                            <td><code>get_player_look()</code></td>
+                            <td>x, y, z: number</td>
+                            <td>Normalized forward direction the camera is pointing.</td>
+                        </tr>
+                        <tr>
+                            <td><code>is_player_grounded</code></td>
+                            <td><code>is_player_grounded()</code></td>
+                            <td>boolean</td>
+                            <td>Returns <code>true</code> when the player is standing on a solid surface.</td>
+                        </tr>
+                        <tr>
+                            <td><code>is_player_crouching</code></td>
+                            <td><code>is_player_crouching()</code></td>
+                            <td>boolean</td>
+                            <td>Returns <code>true</code> when the player is crouching.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_movement_state</code></td>
+                            <td><code>get_movement_state()</code></td>
+                            <td>string</td>
+                            <td>
+                                One of: <code>"idle"</code>, <code>"walking"</code>,
+                                <code>"running"</code>, <code>"crouching"</code>,
+                                <code>"jumping"</code>, <code>"falling"</code>.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ============================================================ -->
+            <section id="state">
+                <h2>Player State Checks</h2>
+                <table>
+                    <thead>
+                        <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>is_sandbox_mode</code></td>
+                            <td><code>is_sandbox_mode()</code></td>
+                            <td>boolean</td>
+                            <td>Returns <code>true</code> when sandbox mode is active.</td>
+                        </tr>
+                        <tr>
+                            <td><code>player_has_spawnpoint</code></td>
+                            <td><code>player_has_spawnpoint()</code></td>
+                            <td>boolean</td>
+                            <td>Returns <code>true</code> when the player has a defined spawnpoint.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_selected_hotbar_index</code></td>
+                            <td><code>get_selected_hotbar_index()</code></td>
+                            <td>integer</td>
+                            <td>Zero-based index of the currently selected hotbar slot.</td>
+                        </tr>
+                        <tr>
+                            <td><code>is_breaking_block</code></td>
+                            <td><code>is_breaking_block()</code></td>
+                            <td>boolean</td>
+                            <td>Returns <code>true</code> if the player is currently holding LMB to break a block.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_breaking_progress</code></td>
+                            <td><code>get_breaking_progress()</code></td>
+                            <td>number</td>
+                            <td>Break progress from <code>0.0</code> (not started) to <code>1.0</code> (broken).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ============================================================ -->
+            <section id="inventory">
+                <h2>Inventory</h2>
+                <table>
+                    <thead>
+                        <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>add_item</code></td>
+                            <td><code>add_item(item_id: string, amount?: integer)</code></td>
+                            <td>boolean</td>
+                            <td>Tries to add <code>amount</code> (default 1) of <code>item_id</code> to inventory. Returns <code>true</code> on success.</td>
+                        </tr>
+                        <tr>
+                            <td><code>remove_item</code></td>
+                            <td><code>remove_item(item_id: string, amount?: integer)</code></td>
+                            <td>boolean</td>
+                            <td>Tries to remove <code>amount</code> (default 1) of <code>item_id</code>. Returns <code>true</code> on success.</td>
+                        </tr>
+                        <tr>
+                            <td><code>has_item</code></td>
+                            <td><code>has_item(item_id: string)</code></td>
+                            <td>boolean</td>
+                            <td>Returns <code>true</code> if the player holds at least one of <code>item_id</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>count_item</code></td>
+                            <td><code>count_item(item_id: string)</code></td>
+                            <td>integer</td>
+                            <td>Returns the total count of <code>item_id</code> across all inventory slots.</td>
+                        </tr>
+                        <tr>
+                            <td><code>consume_selected</code></td>
+                            <td><code>consume_selected(amount?: integer)</code></td>
+                            <td>boolean</td>
+                            <td>Consumes <code>amount</code> (default 1) copies from the currently selected hotbar slot. Returns <code>true</code> on success.</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="note">
+                    Item ids accept the same format used by crafting and chat commands.
+                    Block items use the block's own id (e.g. <code>"stone"</code>, <code>"crystal"</code>).
+                </p>
+            </section>
+
+            <!-- ============================================================ -->
+            <section id="portals">
+                <h2>Portals &amp; Audio</h2>
+                <table>
+                    <thead>
+                        <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>open_portal_tracker</code></td>
+                            <td><code>open_portal_tracker()</code></td>
+                            <td>—</td>
+                            <td>Opens the portal tracker menu. No-op if it is already open.</td>
+                        </tr>
+                        <tr>
+                            <td><code>create_portal_for_target_block</code></td>
+                            <td><code>create_portal_for_target_block()</code></td>
+                            <td>boolean</td>
+                            <td>
+                                Creates a portal on the block under the crosshair using the normal portal
+                                rules (cooldown, valid target). Returns <code>true</code> when the portal
+                                exists or was just created.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>play_audio_event</code></td>
+                            <td><code>play_audio_event(event_id: string)</code></td>
+                            <td>—</td>
+                            <td>
+                                Plays a registered audio event from
+                                <code>Assets/Audio/Definitions/audio_events.json</code>.
+                                Common ids: <code>"ui.menu.click"</code>, <code>"player.item.pickup"</code>,
+                                <code>"portal.enter"</code>, <code>"portal.exit"</code>.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ============================================================ -->
+            <section id="target">
+                <h2>Target &amp; World</h2>
+                <table>
+                    <thead>
+                        <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>has_target</code></td>
+                            <td><code>has_target()</code></td>
+                            <td>boolean</td>
+                            <td>Live function version of the <code>context.has_target</code> snapshot field.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_target_block_id</code></td>
+                            <td><code>get_target_block_id()</code></td>
+                            <td>string</td>
+                            <td>Stable id of the targeted block. Returns <code>"air"</code> if there is no target.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_target_block_position</code></td>
+                            <td><code>get_target_block_position()</code></td>
+                            <td>x, y, z: integer</td>
+                            <td>World-space block coordinates of the target. Returns <code>0, 0, 0</code> when no target.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_target_normal</code></td>
+                            <td><code>get_target_normal()</code></td>
+                            <td>x, y, z: integer</td>
+                            <td>Face normal of the targeted block as unit integers (e.g. <code>0, 1, 0</code> for top face).</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_place_position</code></td>
+                            <td><code>get_place_position()</code></td>
+                            <td>x, y, z: integer</td>
+                            <td>
+                                The block position where a block would be placed (target + normal).
+                                Always check <code>has_target</code> first; returns <code>0, 0, 0</code>
+                                when there is no target.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>get_current_world_seed</code></td>
+                            <td><code>get_current_world_seed()</code></td>
+                            <td>integer</td>
+                            <td>Seed of the currently active world.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_selected_item_id</code></td>
+                            <td><code>get_selected_item_id()</code></td>
+                            <td>string</td>
+                            <td>Stable id of the selected inventory item. Function version of the snapshot field.</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_selected_count</code></td>
+                            <td><code>get_selected_count()</code></td>
+                            <td>integer</td>
+                            <td>Stack count in the selected slot. Function version of the snapshot field.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ============================================================ -->
             <section id="behavior-notes">
                 <h2>Behavior Notes</h2>
                 <ul>
-                    <li>Scripts run only on right-click item use.</li>
-                    <li>Scripts do not run every frame. There is no tick hook in this version.</li>
-                    <li>If the script has a syntax error or runtime error, the game logs the error and fails safely.</li>
-                    <li>If your item also has declarative <code>on_use</code>, those actions run before Lua.</li>
-                    <li><code>play_audio_event</code> needs a valid audio event id such as <code>ui.menu.click</code> or <code>player.item.pickup</code>.</li>
-                    <li><code>add_item</code>, <code>remove_item</code>, and <code>count_item</code> accept the same textual ids used by chat commands and crafting.</li>
-                    <li><code>create_portal_for_target_block</code> respects the same portal creation cooldown and target rules used by the game.</li>
-                    <li><code>push_notification</code> accepts either a string, a single segment table, or an array of segment tables. Each segment table uses <code>text</code> and optional <code>color = { r, g, b }</code> with normalized RGB values.</li>
+                    <li>
+                        A script can define <code>on_pickup</code>, <code>on_update</code>, and/or
+                        <code>on_use</code>. All three are optional and share the same
+                        <code>lua_State</code> for the duration the item is held.
+                    </li>
+                    <li>
+                        <code>on_update</code> runs every frame — keep it fast. Use a guard variable
+                        to rate-limit expensive logic (e.g. check once per second using an accumulated
+                        <code>dt</code> counter).
+                    </li>
+                    <li>
+                        Switching hotbar slots destroys the current Lua session. Globals set in
+                        <code>on_pickup</code> / <code>on_update</code> do not persist across
+                        slot changes.
+                    </li>
+                    <li>If the script has a syntax or runtime error, the game logs it and fails safely; the item use is not consumed.</li>
+                    <li>If the item also has declarative <code>on_use</code> actions, those run <em>before</em> the Lua script.</li>
+                    <li>
+                        <strong>Snapshot fields vs. functions:</strong> fields like
+                        <code>context.is_grounded</code> are baked once at use time.
+                        Functions like <code>context.get_player_life()</code> query current state.
+                        Both return the same data for calls made immediately inside <code>on_use</code>.
+                    </li>
+                    <li>
+                        <strong><code>damage_player</code></strong> uses the full damage pipeline
+                        (screen flash, death sequence). For clean stat manipulation without effects,
+                        use <code>set_player_health</code> instead.
+                    </li>
+                    <li>
+                        <strong><code>add_player_xp</code></strong> uses the game's reward logic and
+                        can trigger level-up events and item grants. For silent XP changes, use
+                        <code>set_player_xp</code>.
+                    </li>
+                    <li>
+                        <strong><code>get_player_position</code></strong> returns camera (eye) position,
+                        not feet position. Subtract the eye height (~1.62) from Y for feet.
+                    </li>
+                    <li>
+                        <strong><code>get_place_position</code></strong> is the block position adjacent
+                        to the target face — useful for logic that depends on where a block would be
+                        placed without actually placing it.
+                    </li>
+                    <li>
+                        <code>add_item</code>, <code>remove_item</code>, <code>has_item</code>, and
+                        <code>count_item</code> accept the same textual ids used by chat commands and
+                        crafting recipes.
+                    </li>
+                    <li>
+                        <code>create_portal_for_target_block</code> respects the portal cooldown and
+                        target requirements enforced by the engine.
+                    </li>
+                    <li>
+                        <code>push_notification</code> accepts: a plain string, a single segment
+                        table <code>{ text="…", color={r,g,b} }</code>, or an array of such tables.
+                        RGB values are normalized (0.0–1.0).
+                    </li>
                 </ul>
             </section>
 
+            <!-- ============================================================ -->
             <section id="examples">
                 <h2>Examples</h2>
 
                 <article class="example">
-                    <h3>1. Print a message and inspect world seed</h3>
+                    <h3>1. Log world seed</h3>
 <pre><code>function on_use(context)
-    context.log("[Items][Lua] Current world seed: " .. tostring(context.get_current_world_seed()))
+    context.log("[MyItem] World seed: " .. tostring(context.current_world_seed))
     return true
 end</code></pre>
                 </article>
 
                 <article class="example">
-                    <h3>2. Heal the player only if they are hurt</h3>
+                    <h3>2. Healing potion (only heals when hurt)</h3>
 <pre><code>function on_use(context)
-    if context.get_player_life() &lt; context.get_player_max_life() then
-        context.heal_player(3)
-        context.play_audio_event("player.item.pickup")
+    if not context.is_player_alive() then
+        return false
+    end
+
+    if context.get_player_life() >= context.get_player_max_life() then
+        context.push_notification("Already at full health.")
+        return false
+    end
+
+    context.heal_player(4)
+    context.play_audio_event("player.item.pickup")
+    context.consume_selected(1)
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>3. Curse shard (damages the player who uses it)</h3>
+<pre><code>function on_use(context)
+    if not context.is_player_alive() then
+        return false
+    end
+
+    context.damage_player(2)
+    context.add_player_xp(5.0)
+    context.push_notification({
+        { text = "The shard bites back. " },
+        { text = "+5 XP", color = { 0.4, 1.0, 0.4 } }
+    })
+    context.consume_selected(1)
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>4. XP tome (grants a full level)</h3>
+<pre><code>function on_use(context)
+    local level = context.get_player_level()
+    context.set_player_level(level + 1)
+    context.play_audio_event("player.item.pickup")
+    context.push_notification({
+        { text = "Level up! Now level " },
+        { text = tostring(level + 1), color = { 1.0, 0.82, 0.3 } }
+    })
+    context.consume_selected(1)
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>5. Require crouching to activate</h3>
+<pre><code>function on_use(context)
+    if not context.is_crouching then   -- snapshot field
+        context.push_notification("Crouch to use this item.")
+        return false
+    end
+
+    context.play_audio_event("portal.enter")
+    context.log("[MyItem] Activated while crouching.")
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>6. Item that behaves differently while airborne</h3>
+<pre><code>function on_use(context)
+    local state = context.movement_state  -- snapshot field
+
+    if state == "jumping" or state == "falling" then
+        context.push_notification({
+            { text = "Air boost!", color = { 0.5, 0.8, 1.0 } }
+        })
+        context.add_player_xp(1.0)
         return true
     end
 
-    context.log("[Items][Lua] Player is already at full health.")
+    context.push_notification("Jump first to trigger the air boost.")
     return false
 end</code></pre>
                 </article>
 
                 <article class="example">
-                    <h3>3. Open the portal tracker from an item</h3>
+                    <h3>7. Read player position for debug</h3>
+<pre><code>function on_use(context)
+    local x, y, z = context.get_player_position()
+    local vx, vy, vz = context.get_player_velocity()
+    local fx, fy, fz = context.get_player_look()
+
+    context.log(string.format(
+        "[Pos] %.1f  %.1f  %.1f  |  [Vel] %.2f  %.2f  %.2f  |  [Look] %.2f  %.2f  %.2f",
+        x, y, z, vx, vy, vz, fx, fy, fz
+    ))
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>8. Open the portal tracker</h3>
 <pre><code>function on_use(context)
     context.open_portal_tracker()
     return true
@@ -318,138 +793,197 @@ end</code></pre>
                 </article>
 
                 <article class="example">
-                    <h3>4. Give an item reward</h3>
-<pre><code>function on_use(context)
-    local added = context.add_item("curio_shard", 2)
-
-    if added then
-        context.log("[Items][Lua] Granted 2 Curio Shards.")
-        return true
-    end
-
-    context.log("[Items][Lua] Inventory is full.")
-    return false
-end</code></pre>
-                </article>
-
-                <article class="example">
-                    <h3>5. Require the player to look at a portal block</h3>
+                    <h3>9. Create a portal on the targeted block</h3>
 <pre><code>function on_use(context)
     if not context.has_target() then
-        context.log("[Items][Lua] No block target.")
-        return false
-    end
-
-    if context.get_target_block_id() ~= "portal" then
-        context.log("[Items][Lua] You must look at a portal block.")
-        return false
-    end
-
-    local x, y, z = context.get_target_block_position()
-    context.log("[Items][Lua] Target portal at " .. x .. ", " .. y .. ", " .. z)
-    context.play_audio_event("portal.enter")
-    return true
-end</code></pre>
-                </article>
-
-                <article class="example">
-                    <h3>6. Consume the selected item directly from Lua</h3>
-<pre><code>function on_use(context)
-    if context.get_selected_count() &lt;= 0 then
-        return false
-    end
-
-    local consumed = context.consume_selected(1)
-    if consumed then
-        context.log("[Items][Lua] Consumed one selected item.")
-        return true
-    end
-
-    return false
-end</code></pre>
-                </article>
-
-                <article class="example">
-                    <h3>7. Turn one item into another</h3>
-<pre><code>function on_use(context)
-    if context.count_item("curio_shard") &lt; 3 then
-        context.log("[Items][Lua] You need at least 3 Curio Shards.")
-        return false
-    end
-
-    local removed = context.remove_item("curio_shard", 3)
-    if not removed then
-        return false
-    end
-
-    local added = context.add_item("healing_capsule", 1)
-    if added then
-        context.log("[Items][Lua] Crafted a Healing Capsule.")
-        return true
-    end
-
-    context.log("[Items][Lua] Failed to add the new item.")
-    return false
-end</code></pre>
-                </article>
-
-                <article class="example">
-                    <h3>8. Example matching the current Lua Totem</h3>
-<pre><code>function on_use(context)
-    context.log("[Items][Lua] Lua Totem used in world seed " .. tostring(context.get_current_world_seed()))
-    context.play_audio_event("ui.menu.click")
-
-    if context.is_player_alive() and context.get_player_life() &lt; context.get_player_max_life() then
-        context.heal_player(1)
-    end
-
-    return true
-end</code></pre>
-                </article>
-
-                <article class="example">
-                    <h3>9. Create a portal for the block under the crosshair</h3>
-<pre><code>function on_use(context)
-    if not context.has_target() then
-        context.log("[Items][Lua] Look at a block first.")
+        context.push_notification("Look at a block first.")
         return false
     end
 
     if context.create_portal_for_target_block() then
-        context.log("[Items][Lua] Portal created on the targeted block.")
+        local x, y, z = context.get_target_block_position()
+        context.log("[Portal] Created at " .. x .. ", " .. y .. ", " .. z)
         context.open_portal_tracker()
         return true
     end
 
-    context.log("[Items][Lua] Could not create a portal right now.")
+    context.push_notification("Could not create a portal right now.")
     return false
 end</code></pre>
                 </article>
 
                 <article class="example">
-                    <h3>10. Add player XP from an item</h3>
+                    <h3>10. First-portal welcome message</h3>
 <pre><code>function on_use(context)
-    local before = context.get_player_xp()
-    context.add_player_xp(2.5)
-    local after = context.get_player_xp()
+    local is_first = not context.has_opened_first_portal
 
-    context.log("[Items][Lua] XP changed from " .. tostring(before) .. " to " .. tostring(after))
+    if not context.has_target() then
+        return false
+    end
+
+    if context.create_portal_for_target_block() then
+        if is_first then
+            context.push_notification({
+                { text = "Your first portal has opened!  " },
+                { text = "Press F to dive in.", color = { 0.31, 1.0, 0.28 } }
+            })
+        end
+        context.remove_item("versal", 1)
+        return true
+    end
+
+    return false
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>11. Get placement position (adjacent face)</h3>
+<pre><code>function on_use(context)
+    if not context.has_target() then
+        context.push_notification("No target.")
+        return false
+    end
+
+    local px, py, pz = context.get_place_position()
+    local nx, ny, nz = context.get_target_normal()
+
+    context.log(string.format(
+        "[Place] Position %d,%d,%d  Normal %d,%d,%d",
+        px, py, pz, nx, ny, nz
+    ))
     return true
 end</code></pre>
                 </article>
 
                 <article class="example">
-                    <h3>11. Send a colored chat notification</h3>
+                    <h3>12. Item exchange (3 shards → 1 capsule)</h3>
 <pre><code>function on_use(context)
-    context.push_notification({
-        { text = "You found your first " },
-        { text = "versal", color = { 1.0, 0.82, 0.36 } },
-        { text = "." }
-    })
+    if context.count_item("curio_shard") &lt; 3 then
+        context.push_notification("Need at least 3 Curio Shards.")
+        return false
+    end
 
+    if not context.remove_item("curio_shard", 3) then
+        return false
+    end
+
+    if context.add_item("healing_capsule", 1) then
+        context.push_notification({
+            { text = "Crafted a " },
+            { text = "Healing Capsule", color = { 0.4, 1.0, 0.6 } },
+            { text = "." }
+        })
+        return true
+    end
+
+    -- Inventory full — give shards back
+    context.add_item("curio_shard", 3)
+    context.push_notification("Inventory is full.")
+    return false
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>13. Check breaking progress for a charged ability</h3>
+<pre><code>function on_use(context)
+    if context.is_breaking_block() then
+        local pct = math.floor(context.get_breaking_progress() * 100)
+        context.log("[Drill] Breaking at " .. pct .. "% progress.")
+    end
     return true
 end</code></pre>
                 </article>
+
+                <article class="example">
+                    <h3>14. Sandbox-only item</h3>
+<pre><code>function on_use(context)
+    if not context.is_sandbox_mode() then
+        context.push_notification("This item only works in sandbox mode.")
+        return false
+    end
+
+    context.set_player_health(context.get_player_max_life())
+    context.set_player_xp(0)
+    context.push_notification("Stats reset (sandbox).")
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>15. Colored chat notification</h3>
+<pre><code>function on_use(context)
+    context.push_notification({
+        { text = "You found a " },
+        { text = "Rare Gem", color = { 0.4, 0.8, 1.0 } },
+        { text = "!" }
+    })
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>16. Play a sound and greet the player on pickup</h3>
+<pre><code>function on_pickup(context)
+    context.play_audio_event("player.item.pickup")
+    context.push_notification({
+        { text = "Chrono Lens " },
+        { text = "equipped.", color = { 0.6, 0.9, 1.0 } }
+    })
+end
+
+function on_use(context)
+    context.log("[ChronoLens] used.")
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>17. Passive regeneration — heal 1 HP every 3 seconds while held</h3>
+<pre><code>local _regen_timer = 0
+
+function on_pickup(context)
+    _regen_timer = 0
+    context.push_notification("Regen ring equipped.")
+end
+
+function on_update(context, dt)
+    if not context.is_player_alive() then return end
+
+    _regen_timer = _regen_timer + dt
+    if _regen_timer >= 3.0 then
+        _regen_timer = 0
+
+        local hp    = context.get_player_life()
+        local maxHp = context.get_player_max_life()
+        if hp &lt; maxHp then
+            context.heal_player(1)
+        end
+    end
+end
+
+function on_use(context)
+    local hp = context.get_player_life()
+    context.push_notification("HP: " .. tostring(hp))
+    return true
+end</code></pre>
+                </article>
+
+                <article class="example">
+                    <h3>18. XP meter — log progress toward next level each second</h3>
+<pre><code>local _tick = 0
+
+function on_update(context, dt)
+    _tick = _tick + dt
+    if _tick &lt; 1.0 then return end
+    _tick = 0
+
+    local xp    = context.get_player_xp()
+    local xpMax = context.get_player_xp_max()
+    local pct   = (xpMax > 0) and math.floor(xp / xpMax * 100) or 0
+    context.log("[XP] " .. tostring(pct) .. "% to next level")
+end</code></pre>
+                </article>
+
             </section>
         </main>
     </div>

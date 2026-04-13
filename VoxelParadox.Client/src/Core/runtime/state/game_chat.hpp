@@ -12,6 +12,10 @@ class Player;
 class WorldStack;
 class hudWatchText;
 
+namespace Gameplay {
+class EventQueue;
+}
+
 struct GameChatTextSegment {
   std::string text;
   glm::vec3 color{1.0f};
@@ -27,6 +31,7 @@ struct GameChatCommandContext {
   WorldStack& worldStack;
   bool& wireframeMode;
   bool& debugThirdPersonView;
+  Gameplay::EventQueue* eventQueue = nullptr;
 };
 
 class GameChat {
@@ -52,6 +57,7 @@ public:
   std::string suggestionLineText(int lineIndex) const;
   int visibleHistoryLineCount() const;
   int visibleSuggestionLineCount() const;
+  float visibleTopBackgroundContentWidth() const;
   bool tryGetInputSelectionRect(glm::ivec4& outRect) const;
   bool tryGetInputCaretRect(glm::ivec4& outRect) const;
   bool isMouseInsideInput(float mouseX, float mouseY) const;
@@ -95,6 +101,7 @@ private:
   std::deque<Entry> history_;
   int historyScrollOffset_ = 0;
   float historyScrollRemainder_ = 0.0f;
+  hudWatchText* historyMeasureElement_ = nullptr;
   hudWatchText* inputLineElement_ = nullptr;
 
   void pushHistory(const std::string& text);

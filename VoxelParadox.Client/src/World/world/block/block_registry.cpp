@@ -215,6 +215,27 @@ bool tryParseBlockCategory(const std::string& rawValue, BlockCategory& outCatego
     return false;
 }
 
+bool tryParsePreferredToolTags(const std::string& rawValue, std::uint32_t& outTags) {
+    const std::string normalized = normalizeBlockIdValue(rawValue);
+    if (normalized.empty() ||
+        normalized == "none" ||
+        normalized == "hand" ||
+        normalized == "any") {
+        outTags = BLOCK_TAG_NONE;
+        return true;
+    }
+    if (normalized == "axe") {
+        outTags = BLOCK_TAG_MINEABLE_WITH_AXE;
+        return true;
+    }
+    if (normalized == "pickaxe") {
+        outTags = BLOCK_TAG_MINEABLE_WITH_PICKAXE;
+        return true;
+    }
+
+    return false;
+}
+
 struct BlockTextureAtlasData {
     std::string textureAssetPath{};
     glm::ivec2 gridSize{ 1, 1 };
@@ -554,7 +575,7 @@ BlockDefinition makeGenericFallbackDefinition(const BlockCatalogEntry& entry) {
         makeDisplayNameFromStableId(entry.stableId).c_str(),
         blockCategoryMask({}),
         { true, false, false, false, false, BLOCK_TAG_NONE, 1.0f },
-        { false, 0.0f },
+        { "none", true, 0.0f },
         false,
         true,
         true,
@@ -576,7 +597,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Air",
                 blockCategoryMask({}),
                 { false, false, false, false, false, BLOCK_TAG_NONE, 0.0f },
-                { false, 0.0f },
+                { "none", true, 0.0f },
                 true,
                 false,
                 false,
@@ -589,7 +610,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Stone",
                 blockCategoryMask({ BlockCategory::TERRAIN }),
                 { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 7.5f },
-                { false, 1.0f },
+                { "block:stone", false, 1.0f },
                 false,
                 true,
                 true,
@@ -602,7 +623,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Crystal",
                 blockCategoryMask({ BlockCategory::TERRAIN, BlockCategory::DECORATION }),
                 { true, false, false, true, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 250.0f },
-                { false, 50.0f },
+                { "block:crystal", false, 50.0f },
                 false,
                 true,
                 true,
@@ -615,7 +636,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Void Matter",
                 blockCategoryMask({ BlockCategory::TERRAIN }),
                 { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 7.5f },
-                { true, 2.0f },
+                { "block:void_matter", true, 2.0f },
                 false,
                 true,
                 true,
@@ -628,7 +649,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Membrane",
                 blockCategoryMask({ BlockCategory::TERRAIN, BlockCategory::ORGANIC }),
                 { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_AXE, 0.75f },
-                { true, 0.0f },
+                { "block:membrane", true, 1.0f },
                 false,
                 true,
                 true,
@@ -641,7 +662,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Organic",
                 blockCategoryMask({ BlockCategory::TERRAIN, BlockCategory::ORGANIC }),
                 { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_AXE, 0.75f },
-                { true, 0.0f },
+                { "block:organic", true, 1.0f },
                 false,
                 true,
                 true,
@@ -654,7 +675,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Metal",
                 blockCategoryMask({ BlockCategory::TERRAIN, BlockCategory::DECORATION }),
                 { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 25.0f },
-                { false, 0.0f },
+                { "block:metal", false, 1.0f },
                 false,
                 true,
                 true,
@@ -667,7 +688,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Portal",
                 blockCategoryMask({ BlockCategory::PORTAL, BlockCategory::DECORATION }),
                 { true, false, false, true, false, BLOCK_TAG_NONE, 25.0f },
-                { false, 0.0f },
+                { "none", true, 0.0f },
                 false,
                 true,
                 true,
@@ -680,7 +701,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 "Membrane Weave",
                 blockCategoryMask({ BlockCategory::DECORATION, BlockCategory::ORGANIC }),
                 { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_AXE, 1.5f },
-                { true, 1.0f },
+                { "block:membrane_weave", true, 1.0f },
                 false,
                 true,
                 true,
@@ -695,7 +716,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                     { BlockCategory::PLANT, BlockCategory::DECORATION, BlockCategory::ORGANIC }
                 ),
                 { false, true, false, false, false, BLOCK_TAG_NONE, 0.01f },
-                { true, 0.0f },
+                { "block:membrane_wire", true, 1.0f },
                 true,
                 true,
                 true,
@@ -767,6 +788,38 @@ bool tryReadVec3(const json& value, glm::vec3& outValue) {
     return true;
 }
 
+void applyBlockScriptJson(
+    const json& value,
+    const std::filesystem::path& blockDirectory,
+    BlockDefinition& definition
+) {
+    if (value.is_boolean()) {
+        definition.script.enabled = value.get<bool>();
+    }
+    else if (value.is_object()) {
+        definition.script.enabled = value.value("enabled", true);
+
+        if (value.contains("path") && value["path"].is_string()) {
+            definition.script.relativePath = value["path"].get<std::string>();
+        }
+    }
+
+    if (!definition.script.enabled) {
+        definition.script.source.clear();
+        definition.script.loadError.clear();
+        return;
+    }
+
+    const std::filesystem::path scriptPath =
+        blockDirectory / definition.script.relativePath;
+    definition.script.source = readTextFile(scriptPath);
+
+    if (definition.script.source.empty()) {
+        definition.script.loadError =
+            "Failed to read block script: " + scriptPath.string();
+    }
+}
+
 void overlayDefinitionFromJson(
     BlockDefinition& definition,
     const std::filesystem::path& blockDirectory,
@@ -830,18 +883,42 @@ void overlayDefinitionFromJson(
             propertiesValue.value("has_entity", definition.properties.hasEntity);
         definition.properties.tags =
             propertiesValue.value("tags", definition.properties.tags);
+        if (const json& preferredToolValue =
+                propertiesValue.value("preferred_tool", json{}); preferredToolValue.is_string()) {
+            std::uint32_t preferredToolTags = BLOCK_TAG_NONE;
+            if (tryParsePreferredToolTags(
+                    preferredToolValue.get<std::string>(),
+                    preferredToolTags
+                )) {
+                definition.properties.tags = preferredToolTags;
+            }
+            else {
+                std::printf(
+                    "[Blocks] Unknown preferred_tool '%s' for '%s'. Keeping previous tags.\n",
+                    preferredToolValue.get<std::string>().c_str(),
+                    definition.id.c_str()
+                );
+            }
+        }
         definition.properties.hardness =
             propertiesValue.value("hardness", definition.properties.hardness);
     }
 
     if (const json& dataValue = root.value("data", json{}); dataValue.is_object()) {
-        definition.data.canDropItem =
-            dataValue.value("can_drop_item", definition.data.canDropItem);
+        definition.data.dropItemId =
+            dataValue.value("drop_item", definition.data.dropItemId);
+        definition.data.dropWithoutTool =
+            dataValue.value("drop_without_tool", definition.data.dropWithoutTool);
         definition.data.breakExperienceMultiplier =
             dataValue.value(
                 "break_experience_multiplier",
                 definition.data.breakExperienceMultiplier
             );
+        if (!dataValue.contains("break_experience_multiplier") &&
+            !definition.data.dropItemId.empty() &&
+            definition.data.dropItemId != "none") {
+            definition.data.breakExperienceMultiplier = 1.0f;
+        }
     }
 
     if (const json& renderValue = root.value("render", json{}); renderValue.is_object()) {
@@ -945,6 +1022,13 @@ void overlayDefinitionFromJson(
                 definition.topDecoration.requiredAboveBlockId = requiredAboveBlockId;
             }
         }
+    }
+
+    if (root.contains("script")) {
+        applyBlockScriptJson(root["script"], blockDirectory, definition);
+    }
+    else if (fileExists(blockDirectory / definition.script.relativePath)) {
+        applyBlockScriptJson(true, blockDirectory, definition);
     }
 
     if (!definition.shaderAssetPath.empty()) {

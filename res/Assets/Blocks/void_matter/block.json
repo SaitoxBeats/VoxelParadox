@@ -12,12 +12,13 @@
     "interactable": false,
     "emits_light": false,
     "has_entity": false,
-    "tags": 2,
+    "preferred_tool": "pickaxe",
     "hardness": 7.5
   },
   "data": {
-    "can_drop_item": true,
-    "break_experience_multiplier": 2.0
+    "drop_item": "block:void_matter",
+    "drop_without_tool": true,
+    "break_experience_multiplier": 5.0
   },
   "render": {
     "base_color": [0.2, 0.08, 0.3],

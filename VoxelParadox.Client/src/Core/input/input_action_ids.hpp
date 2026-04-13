@@ -40,5 +40,8 @@ inline constexpr char kUiAccept[] = "ui_accept";
 inline constexpr char kUiCancel[] = "ui_cancel";
 inline constexpr char kUiUp[] = "ui_up";
 inline constexpr char kUiDown[] = "ui_down";
+inline constexpr char kUiLeft[] = "ui_left";
+inline constexpr char kUiRight[] = "ui_right";
+inline constexpr char kUiDelete[] = "ui_delete";
 
 } // namespace InputActionIds

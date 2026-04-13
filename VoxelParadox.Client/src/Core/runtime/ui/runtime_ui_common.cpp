@@ -43,6 +43,12 @@ std::string mouseSensitivityText(float sensitivity) {
   return buffer;
 }
 
+std::string fieldOfViewText(float fieldOfView) {
+  char buffer[32];
+  std::snprintf(buffer, sizeof(buffer), "%.0f", fieldOfView);
+  return buffer;
+}
+
 std::string renderScaleText(float renderScale) {
   char buffer[32];
   std::snprintf(buffer, sizeof(buffer), "%.0f%%",
@@ -117,6 +123,7 @@ bool sameGameSettings(const GameSettings& a, const GameSettings& b) {
          sameResolution(a.resolution, b.resolution) &&
          a.renderDistance == b.renderDistance &&
          sameFloat(a.mouseSensitivity, b.mouseSensitivity) &&
+         sameFloat(a.fieldOfView, b.fieldOfView) &&
          sameFloat(a.renderScale, b.renderScale) &&
          a.windowMode == b.windowMode &&
          a.vSyncEnabled == b.vSyncEnabled &&
@@ -207,6 +214,13 @@ void stepMouseSensitivitySelection(GameSettings& settings, float delta) {
       glm::clamp(settings.mouseSensitivity + delta,
                  ClientDefaults::kMinMouseSensitivity,
                  ClientDefaults::kMaxMouseSensitivity);
+}
+
+void stepFieldOfViewSelection(GameSettings& settings, float delta) {
+  settings.fieldOfView =
+      glm::clamp(settings.fieldOfView + delta,
+                 ClientDefaults::kMinFieldOfView,
+                 ClientDefaults::kMaxFieldOfView);
 }
 
 void stepRenderScaleSelection(GameSettings& settings, float delta) {
@@ -377,6 +391,8 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
   const bool fontChanged = appliedSettings.fontFile != pendingSettings.fontFile;
   const bool mouseChanged =
       !sameFloat(appliedSettings.mouseSensitivity, pendingSettings.mouseSensitivity);
+  const bool fieldOfViewChanged =
+      !sameFloat(appliedSettings.fieldOfView, pendingSettings.fieldOfView);
   const bool renderScaleChanged =
       !sameFloat(appliedSettings.renderScale, pendingSettings.renderScale);
   const bool windowSettingsChanged =
@@ -398,6 +414,13 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
     player.camera.sensitivity = pendingSettings.mouseSensitivity;
     std::printf("[Settings] Mouse sensitivity: %.4f\n",
                 pendingSettings.mouseSensitivity);
+  }
+
+  if (fieldOfViewChanged) {
+    player.normalFov = pendingSettings.fieldOfView;
+    player.camera.baseFov = pendingSettings.fieldOfView;
+    std::printf("[Settings] Field of view: %s\n",
+                fieldOfViewText(pendingSettings.fieldOfView).c_str());
   }
 
   if (renderScaleChanged) {

@@ -132,14 +132,7 @@ void resetPlayerTraversalState(Player& player) {
   player.velocity = glm::vec3(0.0f);
   player.transition = PlayerTransition::NONE;
   player.transitionTimer = 0.0f;
-  player.hasTarget = false;
-  player.targetBlock = glm::ivec3(0);
-  player.targetNormal = glm::ivec3(0);
-  player.isBreakingBlock = false;
-  player.breakingBlock = glm::ivec3(0);
-  player.breakingBlockType = BlockIds::AIR;
-  player.breakingTimer = 0.0f;
-  player.breakingProgress = 0.0f;
+  player.clearInteractionState();
   player.nestedPreview = Player::NestedPreviewPortal{};
 }
 
@@ -148,10 +141,7 @@ void resetPlayerTraversalState(Player& player) {
 void applySafePlayerLocation(Player& player, const glm::vec3& newPosition) {
   player.camera.position = newPosition;
   player.velocity = glm::vec3(0.0f);
-  player.hasTarget = false;
-  player.isBreakingBlock = false;
-  player.breakingProgress = 0.0f;
-  player.breakingTimer = 0.0f;
+  player.clearInteractionState();
 }
 
 // Funcao: procura 'findBestLoadedLocationAroundPoint' nas ferramentas de debug de biome.

@@ -69,7 +69,7 @@ void Player::updateZoom(float dt, bool allowMovementInput) {
     const bool zoomHeld =
         allowMovementInput &&
         InputMapping::InputActionSystem::instance().isDown(InputActionIds::kZoom);
-    const float targetFov = zoomHeld ? zoomedFov : normalFov;
+    const float targetFov = zoomHeld ? glm::min(zoomedFov, normalFov) : normalFov;
     const float blend = std::min(1.0f, dt * zoomSmoothSpeed);
 
     camera.baseFov += (targetFov - camera.baseFov) * blend;
@@ -97,23 +97,15 @@ void Player::setFeetPosition(const glm::vec3& feetPosition) {
 // --- 3. Core State & Inventory ---
 
 void Player::clearTargetSelection() {
-    clearTargetOnly();
-    resetBlockBreaking();
+    targeting.clearTargetSelection();
 }
 
 void Player::clearTargetOnly() {
-    hasTarget = false;
-    targetBlock = glm::ivec3(0);
-    targetNormal = glm::ivec3(0);
+    targeting.clearTargetOnly();
 }
 
 void Player::resetBlockBreaking() {
-    isBreakingBlock = false;
-    breakingBlock = glm::ivec3(0);
-    breakingBlockType = BlockIds::AIR;
-    breakingTimer = 0.0f;
-    breakingProgress = 0.0f;
-    breakingHitCooldown = 0.0f;
+    targeting.resetBlockBreaking();
 }
 
 void Player::notifyInventoryStateChanged() {

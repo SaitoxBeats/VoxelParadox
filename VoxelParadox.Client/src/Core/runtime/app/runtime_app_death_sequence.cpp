@@ -158,6 +158,7 @@ namespace {
 
     bool sameWorldLevel(const WorldLevel& a, const WorldLevel& b) {
         return a.seed == b.seed &&
+            a.depth == b.depth &&
             a.biomeSelection == b.biomeSelection &&
             sameVec3(a.returnPosition, b.returnPosition) &&
             sameQuat(a.returnOrientation, b.returnOrientation) &&
@@ -332,6 +333,37 @@ namespace RuntimeAppInternal {
         deathState.messageText = text;
     }
 
+    void updateDeathSequenceFrame(
+        DeathSequenceState& deathState,
+        Player& player,
+        float dt
+    ) {
+        if (!deathState.active || !deathState.messageText) {
+            return;
+        }
+
+        deathState.elapsedSeconds = deathState.paused
+            ? deathState.elapsedSeconds
+            : glm::min(
+                DeathSequenceState::kDurationSeconds,
+                deathState.elapsedSeconds + dt
+            );
+
+        player.setDeathSequenceState(
+            true,
+            deathState.elapsedSeconds,
+            deathState.message
+        );
+        deathState.messageText->setOpacity(
+            deathScreenTextOpacity(deathState.elapsedSeconds)
+        );
+    }
+
+    bool deathSequenceFinished(const DeathSequenceState& deathState) {
+        return deathState.active &&
+            deathState.elapsedSeconds >= DeathSequenceState::kDurationSeconds;
+    }
+
     void startDeathSequence(DeathSequenceState& deathState, Player& player,
                             WorldStack& worldStack,
                             GameAudioController& audioController,
@@ -396,8 +428,6 @@ namespace RuntimeAppInternal {
             deathState.message
         );
         player.setAudioController(&audioController);
-        GameplayStatus::System::instance().recordDeath();
-
         audioController.onDeathSequenceStarted();
     }
 

@@ -132,7 +132,22 @@
     <ClCompile Include="src\Systems\debug\biome_debug_tools.cpp">
       <Filter>src\Systems\debug</Filter>
     </ClCompile>
+    <ClCompile Include="src\Systems\gameplay\block_interaction_system.cpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Systems\gameplay\block_script_runtime.cpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Systems\gameplay\gameplay_runtime_system.cpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Systems\gameplay\gameplay_script_context.cpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClCompile>
     <ClCompile Include="src\Systems\gameplay\gameplay_status.cpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Systems\gameplay\portal_interaction_system.cpp">
       <Filter>src\Systems\gameplay</Filter>
     </ClCompile>
     <ClCompile Include="src\Entities\enemies\enemy_definition.cpp">
@@ -168,7 +183,13 @@
     <ClCompile Include="src\Entities\player\hotbar.cpp">
       <Filter>src\Entities\player</Filter>
     </ClCompile>
+    <ClCompile Include="src\Entities\player\player_health.cpp">
+      <Filter>src\Entities\player</Filter>
+    </ClCompile>
     <ClCompile Include="src\Entities\player\player.cpp">
+      <Filter>src\Entities\player</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Entities\player\player_experience.cpp">
       <Filter>src\Entities\player</Filter>
     </ClCompile>
     <ClCompile Include="src\Entities\player\player_interaction.cpp">
@@ -177,7 +198,13 @@
     <ClCompile Include="src\Entities\player\player_movement.cpp">
       <Filter>src\Entities\player</Filter>
     </ClCompile>
+    <ClCompile Include="src\Entities\player\player_persistence_system.cpp">
+      <Filter>src\Entities\player</Filter>
+    </ClCompile>
     <ClCompile Include="src\Entities\player\player_portal.cpp">
+      <Filter>src\Entities\player</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Entities\player\player_targeting.cpp">
       <Filter>src\Entities\player</Filter>
     </ClCompile>
     <ClCompile Include="src\Renderer\render\cache\item_texture_cache.cpp">
@@ -323,7 +350,31 @@
     <ClInclude Include="src\Systems\debug\biome_debug_tools.hpp">
       <Filter>src\Systems\debug</Filter>
     </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\block_interaction_system.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\block_script_runtime.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\gameplay_context.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\gameplay_events.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\gameplay_runtime_system.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\gameplay_script_context.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\gameplay_script_contexts.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
     <ClInclude Include="src\Systems\gameplay\gameplay_status.hpp">
+      <Filter>src\Systems\gameplay</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Systems\gameplay\portal_interaction_system.hpp">
       <Filter>src\Systems\gameplay</Filter>
     </ClInclude>
     <ClInclude Include="src\Entities\enemies\enemy_definition.hpp">
@@ -374,7 +425,22 @@
     <ClInclude Include="src\Entities\player\hotbar.hpp">
       <Filter>src\Entities\player</Filter>
     </ClInclude>
+    <ClInclude Include="src\Entities\player\player_health.hpp">
+      <Filter>src\Entities\player</Filter>
+    </ClInclude>
     <ClInclude Include="src\Entities\player\player.hpp">
+      <Filter>src\Entities\player</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\player\player_experience.hpp">
+      <Filter>src\Entities\player</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\player\player_interaction_tuning.hpp">
+      <Filter>src\Entities\player</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\player\player_persistence_system.hpp">
+      <Filter>src\Entities\player</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Entities\player\player_targeting.hpp">
       <Filter>src\Entities\player</Filter>
     </ClInclude>
     <ClInclude Include="src\Renderer\render\config\dust_particle_config.hpp">

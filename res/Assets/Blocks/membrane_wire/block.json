@@ -13,11 +13,13 @@
     "interactable": false,
     "emits_light": false,
     "has_entity": false,
-    "tags": 0,
+    "preferred_tool": "none",
     "hardness": 0.01
   },
   "data": {
-    "can_drop_item": true
+    "drop_item": "block:membrane_wire",
+    "drop_without_tool": true,
+    "break_experience_multiplier": 0.0
   },
   "render": {
     "base_color": [0.76, 0.96, 0.82],

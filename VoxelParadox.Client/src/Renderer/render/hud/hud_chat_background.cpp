@@ -17,7 +17,9 @@
 namespace {
 
 constexpr float kChatBackgroundLeftMargin = 12.0f;
-constexpr float kChatBackgroundWidth = 560.0f;
+constexpr float kChatTextLeftMargin = 22.0f;
+constexpr float kChatBackgroundMinWidth = 560.0f;
+constexpr float kChatBackgroundRightPadding = 18.0f;
 constexpr float kChatInputRightMargin = 12.0f;
 constexpr float kChatTopBackgroundBottomMargin = 52.0f;
 constexpr float kChatTopBackgroundHeight = 160.0f;
@@ -36,6 +38,23 @@ glm::ivec4 makeBottomLeftRect(int screenHeight, float leftMargin, float bottomMa
                       static_cast<int>(screenHeight - bottomMargin - height),
                       static_cast<int>(width),
                       static_cast<int>(height));
+}
+
+float chatTopBackgroundWidth(const GameChat& chat, int screenWidth) {
+    const float textLeftPadding = kChatTextLeftMargin - kChatBackgroundLeftMargin;
+    const float desiredWidth = textLeftPadding +
+        chat.visibleTopBackgroundContentWidth() +
+        kChatBackgroundRightPadding;
+    const float maxWidth = std::max(
+        0.0f,
+        static_cast<float>(screenWidth) - kChatBackgroundLeftMargin - kChatInputRightMargin
+    );
+
+    return std::clamp(
+        std::max(kChatBackgroundMinWidth, desiredWidth),
+        0.0f,
+        maxWidth
+    );
 }
 
 glm::ivec4 makeBottomStretchRect(int screenWidth, int screenHeight,
@@ -106,10 +125,12 @@ void hudChatBackground::draw(Shader& shader, int screenWidth, int screenHeight) 
     }
 
     if (shouldDrawTopBackground()) {
+        const float backgroundWidth = chatTopBackgroundWidth(*chat, screenWidth);
+
         drawPanel(shader,
                   makeBottomLeftRect(screenHeight, kChatBackgroundLeftMargin,
                                      kChatTopBackgroundBottomMargin,
-                                     kChatBackgroundWidth,
+                                     backgroundWidth,
                                      kChatTopBackgroundHeight),
                   kHistoryBorderColor,
                   kHistoryFillColor);

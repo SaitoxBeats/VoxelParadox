@@ -54,7 +54,7 @@
     <ClCompile Include="src\editor\block_shader_session.cpp" />
     <ClCompile Include="src\editor\shader_editor_app.cpp" />
     <ClCompile Include="src\editor\shader_editor_renderer.cpp" />
-    <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\item_texture_cache.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\cache\item_texture_cache.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\editor\block_shader_session.hpp" />

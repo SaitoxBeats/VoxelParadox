@@ -55,9 +55,13 @@ namespace {
         Player player;
         player.camera.position = resolvedSpawnPosition;
         player.camera.sensitivity = settings.mouseSensitivity;
+        player.normalFov = settings.fieldOfView;
+        player.camera.baseFov = settings.fieldOfView;
         if (worldSession.hasPlayerData) {
             player.applyPersistentState(worldSession.playerData.playerState);
             player.camera.sensitivity = settings.mouseSensitivity;
+            player.normalFov = settings.fieldOfView;
+            player.camera.baseFov = settings.fieldOfView;
         }
         if (!player.hasSpawnpoint()) {
             player.setSpawnpoint(resolvedSpawnPosition,

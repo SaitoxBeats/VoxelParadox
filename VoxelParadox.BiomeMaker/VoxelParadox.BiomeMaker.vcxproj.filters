@@ -27,7 +27,7 @@
     <ClCompile Include="src\editor\preview_world_controller.cpp">
       <Filter>Editor</Filter>
     </ClCompile>
-    <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\item_texture_cache.cpp">
+    <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\cache\item_texture_cache.cpp">
       <Filter>Support</Filter>
     </ClCompile>
   </ItemGroup>

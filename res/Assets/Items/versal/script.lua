@@ -1,4 +1,15 @@
+function on_pickup(context)
+    --context.play_audio_event("portal.enter")
+    context.log("[Versal Item][Lua] You picked up a Versal!")
+end
+
+function on_update(context, dt)
+    -- Reserved for per-frame item logic.
+end
+
 function on_use(context)
+    local is_first_portal = not context.has_opened_first_portal
+
     if not context.has_target() then
         context.log("[Versal Item][Lua] Look at a block first.")
         context.push_notification({ { text = "Look at a block first." } })
@@ -6,7 +17,7 @@ function on_use(context)
     end
 
     if context.create_portal_for_target_block() then
-        if context.get_player_level() <= 1 then
+        if context.get_player_level() <= 1 and is_first_portal then
             on_openPortal(context)
         end
         context.log("[Versal Item][Lua] Portal created on the targeted block.")

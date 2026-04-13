@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -27,6 +28,10 @@ public:
         ActionType type = ActionType::None;
         std::filesystem::path worldDirectory{};
         std::string worldName{};
+        bool hasCustomSeed = false;
+        std::uint32_t customSeed = 0;
+        bool hasCustomDepth = false;
+        int customDepth = 0;
     };
 
     explicit hudWorldLauncher(const std::string& fontPath = "");
@@ -46,6 +51,8 @@ private:
     struct LayoutMetrics {
         glm::ivec4 listRect{0};
         glm::ivec4 inputRect{0};
+        glm::ivec4 seedInputRect{0};
+        glm::ivec4 depthInputRect{0};
         glm::ivec4 actionButtonRect{0};
         glm::ivec4 renameButtonRect{0};
         glm::ivec4 deleteButtonRect{0};
@@ -55,10 +62,22 @@ private:
         int visibleRows = 0;
     };
 
+    enum class FocusedInputField {
+        None = 0,
+        WorldName,
+        Seed,
+        Depth,
+    };
+
     enum class ModalType {
         None = 0,
         ConfirmDelete,
         RenameWorld,
+    };
+
+    enum class ConfirmDeleteChoice {
+        Confirm = 0,
+        Cancel,
     };
 
     struct ModalLayout {
@@ -76,13 +95,15 @@ private:
     std::string statusMessage_{};
     ActionRequest pendingRequest_{};
     TextInputState worldNameInput_{};
+    TextInputState seedInput_{};
+    TextInputState depthInput_{};
 
     int selectedIndex_ = -1;
     int hoveredIndex_ = -1;
     int scrollOffset_ = 0;
     int lastClickedIndex_ = -1;
     double lastClickTime_ = -1.0;
-    bool textFieldFocused_ = false;
+    FocusedInputField focusedInputField_ = FocusedInputField::None;
     bool loading_ = false;
     float caretPixelOffset_ = 0.0f;
     float selectionPixelStart_ = 0.0f;
@@ -90,6 +111,8 @@ private:
     bool drawCaret_ = false;
     bool drawSelection_ = false;
     ModalType modalType_ = ModalType::None;
+    ConfirmDeleteChoice confirmDeleteChoice_ = ConfirmDeleteChoice::Confirm;
+    bool confirmDeleteKeyboardSelection_ = false;
     ModalLayout modalLayout_{};
     TextInputState modalWorldNameInput_{};
     int modalWorldIndex_ = -1;
@@ -107,6 +130,8 @@ private:
     hudText* rowDetailText_ = nullptr;
     hudText* emptyText_ = nullptr;
     hudText* inputText_ = nullptr;
+    hudText* seedInputText_ = nullptr;
+    hudText* depthInputText_ = nullptr;
     hudText* actionButtonText_ = nullptr;
     hudText* renameButtonText_ = nullptr;
     hudText* deleteButtonText_ = nullptr;
@@ -136,17 +161,11 @@ private:
     void beginRenameWorld(int index);
     void closeModal();
     bool hasModal() const;
-    bool hasSelection() const;
-    void clearSelection();
-    void selectAll();
-    void deleteSelection();
-    void insertText(const std::string& typed);
-    void moveCaretLeft();
-    void moveCaretRight();
-    void eraseBackward();
-    void eraseForward();
+    bool hasFocusedInputField() const;
+    bool parseCreateOptions(ActionRequest& request);
     bool consumeHeldKey(int key, double now, double& nextRepeatTime);
-    void placeCaretFromMouse(float mouseX);
+    void beginInputMouseSelection(FocusedInputField field, float mouseX);
+    void updateInputMouseSelection(FocusedInputField field, float mouseX);
     void placeModalCaretFromMouse(float mouseX);
 
     int hoveredWorldIndex(float mouseX, float mouseY) const;
@@ -154,6 +173,11 @@ private:
 
     void drawRect(class Shader& shader, const glm::ivec4& rect,
                   const glm::vec4& color) const;
+    void drawInputField(class Shader& shader, int screenWidth,
+                        int screenHeight, const glm::ivec4& rect,
+                        hudText& text, TextInputState& state,
+                        FocusedInputField field,
+                        const std::string& placeholder);
     void drawCenteredText(hudText& text, const std::string& value,
                           const glm::ivec4& rect, int screenWidth,
                           int screenHeight, class Shader& shader) const;

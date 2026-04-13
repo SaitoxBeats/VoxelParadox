@@ -73,7 +73,7 @@ namespace RuntimeAppInternal {
             (!portalTracker || !portalTracker->isMenuOpen());
     }
 
-    bool captureGameplayScreenshot(GLFWwindow* window) {
+    bool captureGameplayScreenshot(GLFWwindow* window, GameChat* gameChat) {
         int width = 0;
         int height = 0;
         glfwGetFramebufferSize(window, &width, &height);
@@ -123,6 +123,13 @@ namespace RuntimeAppInternal {
         }
 
         std::printf("[Screenshot] Saved to %s\n", screenshotPath.string().c_str());
+
+        if (gameChat) {
+            gameChat->pushNotification(
+                "Screenshot saved to " + screenshotPath.string()
+            );
+        }
+
         return true;
     }
 

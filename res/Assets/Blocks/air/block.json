@@ -12,11 +12,12 @@
     "interactable": false,
     "emits_light": false,
     "has_entity": false,
-    "tags": 0,
+    "preferred_tool": "none",
     "hardness": 0.0
   },
   "data": {
-    "can_drop_item": false
+    "drop_item": "none",
+    "drop_without_tool": true
   },
   "render": {
     "base_color": [0.0, 0.0, 0.0],

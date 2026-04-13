@@ -12,11 +12,13 @@
     "interactable": false,
     "emits_light": false,
     "has_entity": false,
-    "tags": 1,
+    "preferred_tool": "axe",
     "hardness": 0.75
   },
   "data": {
-    "can_drop_item": true
+    "drop_item": "block:membrane",
+    "drop_without_tool": true,
+    "break_experience_multiplier": 0.0
   },
   "render": {
     "base_color": [0.25, 0.9, 0.55],

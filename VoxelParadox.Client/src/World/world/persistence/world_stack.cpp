@@ -133,7 +133,8 @@ void WorldStack::applyRenderDistancePreset(FractalWorld& world) const {
 }
 
 void WorldStack::init(uint32_t rootSeed, const BiomeSelection& rootSelection,
-                      std::shared_ptr<const VoxelGame::BiomePreset> rootPreset) {
+                      std::shared_ptr<const VoxelGame::BiomePreset> rootPreset,
+                      int rootDepth) {
     // Reinitializing also invalidates warm preview/shell state from older runs.
     stack.clear();
     globalCache.clear();
@@ -146,6 +147,7 @@ void WorldStack::init(uint32_t rootSeed, const BiomeSelection& rootSelection,
 
     WorldLevel level;
     level.seed = rootSeed;
+    level.depth = std::max(0, rootDepth);
     level.biomeSelection = rootSelection;
     level.biomePreset = std::move(rootPreset);
     if (!level.biomePreset && !level.biomeSelection.presetId.empty()) {
@@ -183,7 +185,7 @@ void WorldStack::shutdown() {
 
 bool WorldStack::descendInto(glm::ivec3 blockPos, glm::vec3 returnPos,
                              const glm::quat& returnOrientation,
-                             glm::ivec3 portalNormal) {
+                             glm::ivec3 portalNormal, int requestedDepth) {
     // Descend saves the current world, warms a return shell, then swaps active world.
     FractalWorld* current = currentWorld();
     if (!current) {
@@ -191,6 +193,9 @@ bool WorldStack::descendInto(glm::ivec3 blockPos, glm::vec3 returnPos,
     }
 
     uint32_t childSeed = deriveChildSeed(current->seed, blockPos);
+    const int childDepth =
+        requestedDepth >= 0 ? requestedDepth
+                            : deriveChildDepth(current->seed, blockPos);
     bool createdPortal = false;
     auto portalIt = current->portalBlocks.find(blockPos);
     if (portalIt == current->portalBlocks.end()) {
@@ -214,6 +219,7 @@ bool WorldStack::descendInto(glm::ivec3 blockPos, glm::vec3 returnPos,
 
     WorldLevel level;
     level.seed = childSeed;
+    level.depth = childDepth;
     level.biomeSelection = childBiome.selection;
     level.biomePreset = childBiome.preset;
     level.returnPosition = returnPos;
@@ -224,12 +230,13 @@ bool WorldStack::descendInto(glm::ivec3 blockPos, glm::vec3 returnPos,
 
     const bool reusePreviewWorld = previewWorld && previewWorldSeed == childSeed &&
                                    previewWorldSelection == level.biomeSelection &&
-                                   previewParentSeed == returnWorldShell->seed;
+                                   previewParentSeed == returnWorldShell->seed &&
+                                   previewWorld->depth == childDepth;
     if (reusePreviewWorld) {
         activeWorld = std::move(previewWorld);
         applyRenderDistancePreset(*activeWorld);
     } else {
-        activeWorld = std::make_unique<FractalWorld>(currentDepth(), childSeed,
+        activeWorld = std::make_unique<FractalWorld>(childDepth, childSeed,
                                                      level.biomeSelection,
                                                      level.biomePreset);
         applyRenderDistancePreset(*activeWorld);
@@ -353,15 +360,18 @@ bool WorldStack::restoreTraversalStack(const std::vector<WorldLevel>& levels) {
     const WorldLevel& rootLevel = levels.front();
     const bool rootMatches = activeWorld && stack.size() == 1 &&
                              activeWorld->seed == rootLevel.seed &&
+                             activeWorld->depth == rootLevel.depth &&
                              activeWorld->biomeSelection == rootLevel.biomeSelection;
     if (!rootMatches) {
-        init(rootLevel.seed, rootLevel.biomeSelection, rootLevel.biomePreset);
+        init(rootLevel.seed, rootLevel.biomeSelection, rootLevel.biomePreset,
+             rootLevel.depth);
     }
 
     for (std::size_t index = 1; index < levels.size(); index++) {
         const WorldLevel& level = levels[index];
         if (!descendInto(level.portalBlock, level.returnPosition,
-                         level.returnOrientation, level.portalNormal)) {
+                         level.returnOrientation, level.portalNormal,
+                         level.depth)) {
             return false;
         }
     }
@@ -480,12 +490,13 @@ FractalWorld* WorldStack::getOrCreateNestedPreviewWorld(const glm::ivec3& blockP
         return nullptr;
     }
 
+    const int childDepth = deriveChildDepth(activeWorld->seed, blockPos);
     if (!previewWorld || previewWorldSeed != childSeed ||
         previewWorldSelection != childBiome ||
-        previewParentSeed != activeWorld->seed) {
-        previewWorld =
-            std::make_unique<FractalWorld>(currentDepth() + 1, childSeed,
-                                           childBiome, childPreset);
+        previewParentSeed != activeWorld->seed ||
+        previewWorld->depth != childDepth) {
+        previewWorld = std::make_unique<FractalWorld>(childDepth, childSeed,
+                                                      childBiome, childPreset);
         applyRenderDistancePreset(*previewWorld);
         applyCacheToWorld(*previewWorld);
         previewWorldSeed = childSeed;
@@ -504,7 +515,7 @@ void WorldStack::clearNestedPreviewWorld() {
 }
 
 void WorldStack::injectStartupStructure() {
-    if (!activeWorld || currentDepth() != 0) {
+    if (!activeWorld || stack.size() != 1) {
         return;
     }
 

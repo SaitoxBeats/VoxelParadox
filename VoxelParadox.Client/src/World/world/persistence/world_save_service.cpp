@@ -9,6 +9,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <random>
 #include <sstream>
 #include <system_error>
@@ -364,6 +365,7 @@ json serializePlayerState(const Player::PersistentState& state) {
         {"experiencePoints", state.experiencePoints},
         {"experienceLevel", state.experienceLevel},
         {"experiencePerBlock", state.experiencePerBlock},
+        {"hasOpenedFirstPortal", state.hasOpenedFirstPortal},
         {"sandboxModeEnabled", state.sandboxModeEnabled},
         {"universeCreationCooldownRemainingSeconds",
          state.universeCreationCooldownRemainingSeconds},
@@ -449,6 +451,10 @@ bool deserializePlayerState(const json& value, Player::PersistentState& outState
     }
     if (value.contains("experiencePerBlock") && value["experiencePerBlock"].is_number()) {
         outState.experiencePerBlock = value["experiencePerBlock"].get<float>();
+    }
+    if (value.contains("hasOpenedFirstPortal") &&
+        value["hasOpenedFirstPortal"].is_boolean()) {
+        outState.hasOpenedFirstPortal = value["hasOpenedFirstPortal"].get<bool>();
     }
     if (value.contains("sandboxModeEnabled") &&
         value["sandboxModeEnabled"].is_boolean()) {
@@ -582,6 +588,7 @@ bool deserializePortalTrackerState(
 json serializeWorldLevel(const WorldLevel& level) {
     return json{
         {"seed", level.seed},
+        {"depth", level.depth},
         {"biomeSelection", serializeBiomeSelection(level.biomeSelection)},
         {"returnPosition", serializeVec3(level.returnPosition)},
         {"returnOrientation", serializeQuat(level.returnOrientation)},
@@ -605,6 +612,9 @@ bool deserializeWorldLevel(const json& value, WorldLevel& outLevel) {
 
     if (value.contains("seed") && value["seed"].is_number_integer()) {
         outLevel.seed = value["seed"].get<std::uint32_t>();
+    }
+    if (value.contains("depth") && value["depth"].is_number_integer()) {
+        outLevel.depth = std::max(0, value["depth"].get<int>());
     }
     if (value.contains("biomeSelection")) {
         deserializeBiomeSelection(value["biomeSelection"], outLevel.biomeSelection);
@@ -701,6 +711,7 @@ bool readJsonFile(const std::filesystem::path& path, json& outValue,
 WorldLevel makeRootTraversalLevel(const WorldManifest& manifest) {
     WorldLevel level{};
     level.seed = manifest.rootSeed;
+    level.depth = manifest.rootDepth;
     level.biomeSelection = manifest.rootBiomeSelection;
     level.biomePreset = resolvePreset(manifest.rootBiomeSelection);
     level.returnPosition = glm::vec3(0.0f);
@@ -715,6 +726,14 @@ std::uint32_t generateWorldSeed() {
     static std::mt19937 generator(randomDevice());
     std::uniform_int_distribution<std::uint32_t> distribution(
         1u, std::numeric_limits<std::uint32_t>::max());
+    return distribution(generator);
+}
+
+int generateWorldDepth() {
+    static std::random_device randomDevice;
+    static std::mt19937 generator(randomDevice());
+    std::uniform_int_distribution<int> distribution(
+        kMinimumRandomRootDepth, kMaximumRandomRootDepth);
     return distribution(generator);
 }
 
@@ -922,6 +941,7 @@ bool saveWorldManifest(const WorldPaths& paths, const WorldManifest& manifest,
         {"schemaVersion", manifest.schemaVersion},
         {"displayName", sanitizeDisplayName(manifest.displayName)},
         {"rootSeed", manifest.rootSeed},
+        {"rootDepth", manifest.rootDepth},
         {"rootBiomeSelection", serializeBiomeSelection(manifest.rootBiomeSelection)},
         {"activeUniverseSeed", manifest.activeUniverseSeed},
         {"activeUniverseBiomeSelection",
@@ -952,6 +972,13 @@ bool loadWorldManifest(const WorldPaths& paths, WorldManifest& outManifest,
     }
     if (value.contains("rootSeed") && value["rootSeed"].is_number_integer()) {
         manifest.rootSeed = value["rootSeed"].get<std::uint32_t>();
+    }
+    if (value.contains("rootDepth") && value["rootDepth"].is_number_integer()) {
+        manifest.rootDepth = std::clamp(
+            value["rootDepth"].get<int>(),
+            kMinimumRootDepth,
+            kMaximumRandomRootDepth
+        );
     }
     if (value.contains("rootBiomeSelection")) {
         if (!deserializeBiomeSelection(value["rootBiomeSelection"],
@@ -1340,12 +1367,34 @@ bool loadStats(const WorldPaths& paths, std::uint32_t rootUniverseSeed,
 bool createWorld(const std::string& displayName,
                  const BiomeSelection& rootBiomeSelection,
                  WorldSession& outSession,
-                 std::string* outError) {
+                 std::string* outError,
+                 std::optional<std::uint32_t> requestedRootSeed,
+                 std::optional<int> requestedRootDepth) {
+    if (requestedRootSeed && *requestedRootSeed == 0) {
+        if (outError) {
+            *outError = "World seed must be between 1 and " +
+                        std::to_string(std::numeric_limits<std::uint32_t>::max()) + ".";
+        }
+        return false;
+    }
+
+    if (requestedRootDepth &&
+        (*requestedRootDepth < kMinimumRootDepth ||
+         *requestedRootDepth > kMaximumRandomRootDepth)) {
+        if (outError) {
+            *outError = "World depth must be between " +
+                        std::to_string(kMinimumRootDepth) + " and " +
+                        std::to_string(kMaximumRandomRootDepth) + ".";
+        }
+        return false;
+    }
+
     WorldSession session{};
     session.paths = buildWorldPaths(uniqueWorldDirectoryFor(displayName));
     session.manifest.schemaVersion = kWorldManifestVersion;
     session.manifest.displayName = sanitizeDisplayName(displayName);
-    session.manifest.rootSeed = generateWorldSeed();
+    session.manifest.rootSeed = requestedRootSeed.value_or(generateWorldSeed());
+    session.manifest.rootDepth = requestedRootDepth.value_or(generateWorldDepth());
     session.manifest.rootBiomeSelection = rootBiomeSelection;
     session.manifest.activeUniverseSeed = session.manifest.rootSeed;
     session.manifest.activeUniverseBiomeSelection = rootBiomeSelection;

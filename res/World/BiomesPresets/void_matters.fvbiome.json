@@ -39,6 +39,48 @@
         "warp_strength": 0.0
       },
       "type": "grid_pattern"
+    },
+    {
+      "blend_mode": "place_on_air",
+      "display_name": "Tree Generator",
+      "enabled": true,
+      "format_version": 1,
+      "id": "tree_generator",
+      "settings": {
+        "density": 1.0,
+        "infinite_y": true,
+        "leaves_block": "organic",
+        "max_y": 72,
+        "min_y": -8,
+        "pattern": "random_scatter",
+        "spawn_on_blocks": [
+          "void_matter"
+        ],
+        "tree_type": "strange",
+        "trunk_block": "membrane_weave"
+      },
+      "type": "tree_generator"
+    },
+    {
+      "blend_mode": "place_on_air",
+      "display_name": "Tree Generator",
+      "enabled": true,
+      "format_version": 1,
+      "id": "tree_generator_2",
+      "settings": {
+        "density": 0.46000000834465027,
+        "infinite_y": false,
+        "leaves_block": "organic",
+        "max_y": 72,
+        "min_y": -8,
+        "pattern": "random_scatter",
+        "spawn_on_blocks": [
+          "void_matter"
+        ],
+        "tree_type": "trunk_only",
+        "trunk_block": "membrane_weave"
+      },
+      "type": "tree_generator"
     }
   ],
   "preview": {

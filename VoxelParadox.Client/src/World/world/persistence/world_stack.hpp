@@ -28,6 +28,7 @@ struct WorldEdits {
     std::unordered_map<glm::ivec3, uint32_t, IVec3Hash, IVec3Equal> portalBlocks;
     std::unordered_map<glm::ivec3, BiomeSelection, IVec3Hash, IVec3Equal> portalBiomeSelections;
     std::vector<WorldEnemy> enemies;
+    std::vector<FractalWorld::DroppedItem> droppedItems;
     std::string universeName;
     bool hasSavedPlayerState = false;
     glm::vec3 savedPlayerPosition{0.0f};
@@ -36,6 +37,7 @@ struct WorldEdits {
 
 struct WorldLevel {
     uint32_t seed;
+    int depth = 0;
     BiomeSelection biomeSelection{};
     std::shared_ptr<const VoxelGame::BiomePreset> biomePreset;
     glm::vec3 returnPosition;
@@ -75,19 +77,19 @@ public:
 
     // Lifecycle.
     void init(uint32_t rootSeed, const BiomeSelection& rootSelection,
-              std::shared_ptr<const VoxelGame::BiomePreset> rootPreset = nullptr);
+              std::shared_ptr<const VoxelGame::BiomePreset> rootPreset = nullptr,
+              int rootDepth = 0);
     void shutdown();
 
     // Active world access.
     FractalWorld* currentWorld() { return activeWorld.get(); }
     const FractalWorld* currentWorld() const { return activeWorld.get(); }
-    int currentDepth() const {
-        return stack.empty() ? 0 : static_cast<int>(stack.size()) - 1;
-    }
+    int currentDepth() const { return stack.empty() ? 0 : stack.back().depth; }
 
     // Traversal and preview management.
     bool descendInto(glm::ivec3 blockPos, glm::vec3 returnPos,
-                     const glm::quat& returnOrientation, glm::ivec3 portalNormal);
+                     const glm::quat& returnOrientation, glm::ivec3 portalNormal,
+                     int requestedDepth = -1);
     bool canAscend() const;
     bool ascend(glm::vec3& outPlayerPos, glm::quat& outPlayerOrientation,
                 glm::ivec3& outPortalBlock, glm::ivec3& outPortalNormal);
@@ -210,6 +212,8 @@ private:
 
     // Child universes are deterministic from parent seed + portal block.
     uint32_t deriveChildSeed(uint32_t parentSeed, glm::ivec3 blockPos);
+    // Depth uses the same portal key so it stays stable across previews and saves.
+    int deriveChildDepth(uint32_t parentSeed, glm::ivec3 blockPos);
 
     // Optional startup content injection for dev flows.
     void injectStartupStructure();

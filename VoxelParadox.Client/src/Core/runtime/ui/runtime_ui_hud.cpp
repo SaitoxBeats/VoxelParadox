@@ -330,11 +330,11 @@ namespace RuntimeUI::Detail {
                 [&player, &worldStack](std::string& out) {
                     out = "Target Block: ";
                     FractalWorld* world = worldStack.currentWorld();
-                    if (!world || !player.hasTarget) {
+                    if (!world || !player.hasTargetBlock()) {
                         out += "-";
                         return;
                     }
-                    out += getBlockDisplayName(world->getBlock(player.targetBlock));
+                    out += getBlockDisplayName(world->getBlock(player.getTargetBlock()));
                 },
                 makeDebugHUDLayout(12), glm::vec2(1.0f), 18,
                 ClientDefaults::kDebugHudUpdateIntervalSeconds
@@ -347,16 +347,17 @@ namespace RuntimeUI::Detail {
                 [&player, &worldStack](std::string& out) {
                     out = "Break Time Left: ";
                     FractalWorld* world = worldStack.currentWorld();
-                    if (!world || !player.hasTarget) {
+                    if (!world || !player.hasTargetBlock()) {
                         out += "-";
                         return;
                     }
 
-                    const BlockId blockType = world->getBlock(player.targetBlock);
+                    const BlockId blockType = world->getBlock(player.getTargetBlock());
                     float remaining = player.getBreakTimeSeconds(blockType);
 
-                    if (player.isBreakingBlock && player.breakingBlock == player.targetBlock) {
-                        remaining = glm::max(0.0f, remaining - player.breakingTimer);
+                    if (player.isBreakingTargetBlock() &&
+                        player.getBreakingBlock() == player.getTargetBlock()) {
+                        remaining = glm::max(0.0f, remaining - player.getBreakingTimer());
                     }
 
                     char buffer[32];
@@ -689,14 +690,21 @@ namespace RuntimeUI::Detail {
         );
 
         addSettingRow(
-            generalGroup, "Render Scale", generalRowStart + generalRowStep * 3.0f,
+            generalGroup, "Field of View", generalRowStart + generalRowStep * 3.0f,
+            [&pendingSettings](std::string& out) { out = fieldOfViewText(pendingSettings.fieldOfView); },
+            [&pendingSettings]() { stepFieldOfViewSelection(pendingSettings, -ClientDefaults::kFieldOfViewStep); },
+            [&pendingSettings]() { stepFieldOfViewSelection(pendingSettings, ClientDefaults::kFieldOfViewStep); }
+        );
+
+        addSettingRow(
+            generalGroup, "Render Scale", generalRowStart + generalRowStep * 4.0f,
             [&pendingSettings](std::string& out) { out = renderScaleText(pendingSettings.renderScale); },
             [&pendingSettings]() { stepRenderScaleSelection(pendingSettings, -ClientDefaults::kRenderScaleStep); },
             [&pendingSettings]() { stepRenderScaleSelection(pendingSettings, ClientDefaults::kRenderScaleStep); }
         );
 
         addSettingRow(
-            generalGroup, "Resolution", generalRowStart + generalRowStep * 4.0f,
+            generalGroup, "Resolution", generalRowStart + generalRowStep * 5.0f,
             [&pendingSettings, &availableResolutions](std::string& out) {
                 out = resolutionSelectionText(pendingSettings, availableResolutions,
                     pendingSettings.windowMode == ENGINE::VIEWPORTMODE::BORDERLESS);
@@ -707,21 +715,21 @@ namespace RuntimeUI::Detail {
         );
 
         addSettingRow(
-            generalGroup, "Window Mode", generalRowStart + generalRowStep * 5.0f,
+            generalGroup, "Window Mode", generalRowStart + generalRowStep * 6.0f,
             [&pendingSettings](std::string& out) { out = Bootstrap::viewportModeName(pendingSettings.windowMode); },
             [&pendingSettings]() { stepWindowModeSelection(pendingSettings, -1); },
             [&pendingSettings]() { stepWindowModeSelection(pendingSettings, 1); }
         );
 
         addSettingRow(
-            generalGroup, "VSync", generalRowStart + generalRowStep * 6.0f,
+            generalGroup, "VSync", generalRowStart + generalRowStep * 7.0f,
             [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.vSyncEnabled); },
             [&pendingSettings]() { toggleVSyncSelection(pendingSettings); },
             [&pendingSettings]() { toggleVSyncSelection(pendingSettings); }
         );
 
         addSettingRow(
-            generalGroup, "Show FPS Only", generalRowStart + generalRowStep * 7.0f,
+            generalGroup, "Show FPS", generalRowStart + generalRowStep * 8.0f,
             [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.showFpsCounterOnly); },
             [&pendingSettings]() { toggleFpsCounterOnlySelection(pendingSettings); },
             [&pendingSettings]() { toggleFpsCounterOnlySelection(pendingSettings); }

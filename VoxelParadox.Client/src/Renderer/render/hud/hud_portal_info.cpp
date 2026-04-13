@@ -276,8 +276,8 @@ void hudPortalInfo::update(int screenWidth, int screenHeight) {
         editingBiome = childBiome;
     }
     else {
-        if (!player->hasTarget) return;
-        block = player->targetBlock;
+        if (!player->hasTargetBlock()) return;
+        block = player->getTargetBlock();
         if (!getPortalTarget(block, childSeed, childBiome)) return;
 
         if (Input::keyPressed(GLFW_KEY_Y)) {

@@ -1,3 +1,4 @@
+#pragma region Includes
 #include "player.hpp"
 
 #include <array>
@@ -8,24 +9,38 @@
 
 #include "audio/game_audio_controller.hpp"
 #include "engine/engine.hpp"
-#include "gameplay/gameplay_status.hpp"
+#include "gameplay/gameplay_context.hpp"
+#include "gameplay/gameplay_events.hpp"
+#include "items/item_script_runtime.hpp"
+#include "player_health.hpp"
+#include "player_interaction_tuning.hpp"
+#include "player_persistence_system.hpp"
 #include "world/generation/fractal_world.hpp"
+#pragma endregion
 
 // Player core:
 // - lifetime/setup
 // - per-frame orchestration
 // - high-level decisions about which subsystems run this frame
 
+// =============================================================================
+// --- 1. Internal Utilities ---
+// =============================================================================
+
 namespace {
 
-bool crossedWrappedPhase(float previousPhase, float currentPhase, float targetPhase) {
-    if (currentPhase >= previousPhase) {
-        return previousPhase < targetPhase && currentPhase >= targetPhase;
+    bool crossedWrappedPhase(float previousPhase, float currentPhase, float targetPhase) {
+        if (currentPhase >= previousPhase) {
+            return previousPhase < targetPhase && currentPhase >= targetPhase;
+        }
+        return previousPhase < targetPhase || currentPhase >= targetPhase;
     }
-    return previousPhase < targetPhase || currentPhase >= targetPhase;
-}
 
 }  // namespace
+
+// =============================================================================
+// --- 2. Initialization ---
+// =============================================================================
 
 Player::Player() {
     camera.position = glm::vec3(8.0f, 40.0f, 8.0f);
@@ -33,6 +48,10 @@ Player::Player() {
     hotbar.clear();
     updateMovementState();
 }
+
+// =============================================================================
+// --- 3. Cooldowns ---
+// =============================================================================
 
 double Player::getUniverseCreationCooldownRemainingSeconds() const {
     return 0.0;
@@ -57,133 +76,142 @@ void Player::startItemUseCooldown(ItemId itemId, float cooldownSeconds) {
         ENGINE::GETTIME() + static_cast<double>(cooldownSeconds);
 }
 
-bool Player::tryAddItemToInventory(const InventoryItem& item, int amount) {
+// =============================================================================
+// --- 4. Inventory ---
+// =============================================================================
+
+bool Player::tryAddItemToInventory(
+    const InventoryItem& item,
+    int amount,
+    Gameplay::EventQueue* eventQueue
+) {
     if (!hotbar.addItem(item, amount)) {
         return false;
     }
 
-    auto& gameplayStatus = GameplayStatus::System::instance();
-    const std::uint64_t acquiredCount = static_cast<std::uint64_t>(amount);
-
-    if (item.isBlock()) {
-        gameplayStatus.recordBlockAcquired(getBlockId(item.blockType), acquiredCount);
-    } else if (item.isItem()) {
-        const std::uint64_t totalAcquired =
-            gameplayStatus.recordItemAcquired(getItemId(item.itemId), acquiredCount);
-        const std::uint64_t previousAcquired =
-            totalAcquired >= acquiredCount ? totalAcquired - acquiredCount : 0;
-
-        if (previousAcquired == 0 && totalAcquired > 0 &&
-            std::string(getItemId(item.itemId)) == kExperienceRewardItemId) {
-            notificationEvents.push_back(NotificationEvent::FirstVersalAcquired);
-        }
+    if (eventQueue) {
+        eventQueue->emitItemAcquired(item, amount);
     }
 
     return true;
 }
 
-std::vector<Player::NotificationEvent> Player::consumeNotificationEvents() {
-    std::vector<NotificationEvent> events;
-    events.swap(notificationEvents);
-    return events;
-}
+// =============================================================================
+// --- 5. Health & Damage ---
+// =============================================================================
 
 void Player::applyDamage(int damagePoints) {
-    if (damagePoints <= 0 || !isAlive()) {
+    if (!health.applyDamage(damagePoints)) {
         return;
     }
 
-    const int previousLifePoints = lifePoints;
-    lifePoints = glm::max(0, lifePoints - damagePoints);
-    if (lifePoints < previousLifePoints) {
-        triggerDamageFeedback();
-        if (audioController) {
-            audioController->onPlayerDamaged();
-        }
+    if (audioController) {
+        audioController->onPlayerDamaged();
     }
 }
 
-void Player::setExperiencePoints(float value) {
-    experiencePoints = std::isfinite(value)
-        ? glm::clamp(value, 0.0f, kMaxExperiencePoints)
-        : 0.0f;
-    syncExperienceStats();
+glm::vec3 Player::getLifeTextColor() const {
+    return health.lifeTextColor();
 }
 
-void Player::setExperienceLevel(int value) {
-    const int previousLevel = experienceLevel;
-    experienceLevel = glm::max(0, value);
+void Player::triggerDamageFeedback() {
+}
 
-    if (experienceLevel > previousLevel) {
-        executeLevelUpCommands(previousLevel, experienceLevel);
-    } else if (experienceLevel < previousLevel) {
-        const int lostLevels = previousLevel - experienceLevel;
-        const float restoreFactor = std::pow(
-            kExperiencePerBlockLevelMultiplier,
-            static_cast<float>(lostLevels)
+void Player::updateDamageFeedback(float dt) {
+    health.updateDamageFeedback(dt);
+}
+
+void Player::setDeathSequenceState(bool active, float elapsedSeconds,
+    const std::string& message) {
+    health.setDeathSequenceState(active, elapsedSeconds, message);
+}
+
+// =============================================================================
+// --- 6. Experience & Rewards ---
+// =============================================================================
+
+void Player::setExperiencePoints(
+    float value,
+    Gameplay::EventQueue* eventQueue
+) {
+    experience.setPoints(value);
+    if (eventQueue) {
+        eventQueue->emitPlayerExperienceChanged(
+            experience.points(),
+            experience.level()
         );
-
-        if (restoreFactor > 0.0f) {
-            setExperiencePerBlock(experiencePerBlock / restoreFactor);
-        } else {
-            setExperiencePerBlock(0.0f);
-        }
     }
+}
 
-    syncExperienceStats();
+void Player::setExperienceLevel(
+    int value,
+    Gameplay::EventQueue* eventQueue
+) {
+    experience.setLevel(value);
+    if (eventQueue) {
+        eventQueue->emitPlayerExperienceChanged(
+            experience.points(),
+            experience.level()
+        );
+    }
 }
 
 void Player::setExperiencePerBlock(float value) {
-    experiencePerBlock = std::isfinite(value) ? glm::max(0.0f, value) : 0.0f;
+    experience.setPointsPerBlock(value);
 }
 
-void Player::addExperiencePoints(float value, WorldStack* worldStack) {
+void Player::addExperiencePoints(
+    float value,
+    WorldStack* worldStack,
+    Gameplay::EventQueue* eventQueue
+) {
     if (!std::isfinite(value) || value <= 0.0f) {
         return;
     }
 
-    experiencePoints = glm::max(0.0f, experiencePoints + value);
-    GameplayStatus::System::instance().recordPlayerXpEarned(value);
+    experience.addPoints(value);
 
-    while (experiencePoints >= kMaxExperiencePoints) {
-        experiencePoints -= kMaxExperiencePoints;
-        executeExperienceRewardCommands(worldStack);
+    while (experience.canConsumeRewardCycle()) {
+        executeExperienceRewardCommands(worldStack, eventQueue);
     }
 
-    syncExperienceStats();
+    if (eventQueue) {
+        eventQueue->emitPlayerExperienceChanged(
+            experience.points(),
+            experience.level(),
+            value
+        );
+    }
 }
 
-void Player::executeExperienceRewardCommands(WorldStack* worldStack) {
-    setExperienceLevel(experienceLevel + 1);
-    grantExperienceRewardItem(worldStack);
+void Player::executeExperienceRewardCommands(
+    WorldStack* worldStack,
+    Gameplay::EventQueue* eventQueue
+) {
+    const PlayerExperience::RewardCycleResult rewardCycle = experience.consumeRewardCycle();
+    if (rewardCycle.newLevel > rewardCycle.previousLevel && eventQueue) {
+        eventQueue->emitPlayerLevelUp(rewardCycle.previousLevel, rewardCycle.newLevel);
+    }
+
+    grantExperienceRewardItem(worldStack, eventQueue);
 
     std::printf(
         "[XP] Player reached level %d. Reward granted: %s\n",
-        experienceLevel,
-        kExperienceRewardItemId
+        experience.level(),
+        PlayerExperience::kRewardItemId
     );
 }
 
-void Player::executeLevelUpCommands(int previousLevel, int newLevel) {
-    const int gainedLevels = glm::max(0, newLevel - previousLevel);
-    if (gainedLevels <= 0) {
-        return;
-    }
-
-    const float levelMultiplier = std::pow(
-        kExperiencePerBlockLevelMultiplier,
-        static_cast<float>(gainedLevels)
-    );
-    setExperiencePerBlock(experiencePerBlock * levelMultiplier);
-}
-
-void Player::grantExperienceRewardItem(WorldStack* worldStack) {
+void Player::grantExperienceRewardItem(
+    WorldStack* worldStack,
+    Gameplay::EventQueue* eventQueue
+) {
     InventoryItem rewardItem{};
-    if (!tryParseInventoryItem(kExperienceRewardItemId, rewardItem)) {
+    if (!tryParseInventoryItem(PlayerExperience::kRewardItemId, rewardItem)) {
         return;
     }
 
-    if (tryAddItemToInventory(rewardItem, 1)) {
+    if (tryAddItemToInventory(rewardItem, 1, eventQueue)) {
         return;
     }
 
@@ -194,124 +222,29 @@ void Player::grantExperienceRewardItem(WorldStack* worldStack) {
 
     const glm::vec3 throwDirection = glm::normalize(camera.getForward());
     world->spawnDroppedItemAtPosition(
-        camera.position + throwDirection * kDroppedItemSpawnDistance,
+        camera.position +
+        throwDirection * PlayerInteractionTuning::kDroppedItemSpawnDistance,
         rewardItem,
-        throwDirection * kDroppedItemThrowSpeed,
-        kDroppedItemPickupDelay
+        throwDirection * PlayerInteractionTuning::kDroppedItemThrowSpeed,
+        PlayerInteractionTuning::kDroppedItemPickupDelay
     );
 }
 
-void Player::syncExperienceStats() const {
-    auto& gameplayStatus = GameplayStatus::System::instance();
-    gameplayStatus.setPlayerXp(experiencePoints);
-    gameplayStatus.setPlayerLevel(experienceLevel);
-}
-
-glm::vec3 Player::getLifeTextColor() const {
-    if (lifeFlashTimer <= 0.0f) {
-        return kLifeTextBaseColor;
-    }
-
-    const float progress =
-        1.0f - (lifeFlashTimer / glm::max(kLifeFlashDuration, 0.0001f));
-    const float flashWave = std::sin(
-        progress * glm::pi<float>() * static_cast<float>(kLifeFlashPulseCount * 2));
-    const float flashIntensity = glm::clamp(flashWave, 0.0f, 1.0f);
-    return glm::mix(kLifeTextBaseColor, glm::vec3(1.0f), flashIntensity);
-}
+// =============================================================================
+// --- 7. Persistent State ---
+// =============================================================================
 
 Player::PersistentState Player::capturePersistentState() const {
-    PersistentState state;
-    state.cameraPosition = camera.position;
-    state.cameraOrientation = camera.orientation;
-    state.velocity = velocity;
-    state.lifePoints = lifePoints;
-    state.experiencePoints = experiencePoints;
-    state.experienceLevel = experienceLevel;
-    state.experiencePerBlock = experiencePerBlock;
-    state.sandboxModeEnabled = sandboxModeEnabled;
-    state.universeCreationCooldownRemainingSeconds = 0.0;
-    state.doubleJumpCooldownRemainingSeconds =
-        glm::max(0.0, nextDoubleJumpTimeSeconds - ENGINE::GETTIME());
-    state.hasSpawnpoint = spawnpointDefined;
-    state.spawnpointPosition = spawnpointPosition;
-    state.spawnpointUniverseSeed = spawnpointUniverseSeed;
-    state.spawnpointBiomeSelection = spawnpointBiomeSelection;
-    state.spawnpointTraversalStack = spawnpointTraversalStack;
-    state.grounded = grounded;
-    state.crouching = crouching;
-    state.currentEyeHeight = currentEyeHeight;
-    state.headBobPhase = headBobPhase;
-    state.headBobBlend = headBobBlend;
-    state.headBobLocalOffset = headBobLocalOffset;
-    state.headBobRollRadians = headBobRollRadians;
-    state.lastFootstepPhase = lastFootstepPhase;
-    state.damageRollTimer = damageRollTimer;
-    state.damageRollRadiansCurrent = damageRollRadiansCurrent;
-    state.lifeFlashTimer = lifeFlashTimer;
-    state.hotbarState = hotbar.capturePersistentState();
-    return state;
+    return PlayerPersistenceSystem::capture(*this);
 }
 
 void Player::applyPersistentState(const PersistentState& state) {
-    camera.position = state.cameraPosition;
-    camera.orientation = state.cameraOrientation;
-    velocity = state.velocity;
-    lifePoints = glm::clamp(state.lifePoints, 0, kMaxLifePoints);
-    experiencePoints = std::isfinite(state.experiencePoints)
-        ? glm::clamp(state.experiencePoints, 0.0f, kMaxExperiencePoints)
-        : 0.0f;
-    experienceLevel = glm::max(0, state.experienceLevel);
-    experiencePerBlock = std::isfinite(state.experiencePerBlock)
-        ? glm::max(0.0f, state.experiencePerBlock)
-        : kDefaultExperiencePerBlock;
-    syncExperienceStats();
-    sandboxModeEnabled = state.sandboxModeEnabled;
-    nextDoubleJumpTimeSeconds =
-        ENGINE::GETTIME() + glm::max(0.0, state.doubleJumpCooldownRemainingSeconds);
-    itemUseCooldownExpiryTimesSeconds.clear();
-    spawnpointDefined = state.hasSpawnpoint;
-    spawnpointPosition = state.spawnpointPosition;
-    spawnpointUniverseSeed = state.spawnpointUniverseSeed;
-    spawnpointBiomeSelection = state.spawnpointBiomeSelection;
-    spawnpointTraversalStack = state.spawnpointTraversalStack;
-    grounded = state.grounded;
-    crouching = state.crouching;
-    movementState = PlayerMovementState::Idle;
-    currentEyeHeight = glm::clamp(state.currentEyeHeight,
-                                   kDefaultCrouchingEyeHeight,
-                                   kDefaultStandingEyeHeight);
-    coyoteTimeRemainingSeconds = 0.0f;
-    jumpBufferRemainingSeconds = 0.0f;
-    headBobPhase = state.headBobPhase;
-    headBobBlend = glm::clamp(state.headBobBlend, 0.0f, 1.0f);
-    headBobLocalOffset = state.headBobLocalOffset;
-    headBobRollRadians = state.headBobRollRadians;
-    lastFootstepPhase = state.lastFootstepPhase;
-    damageRollTimer = glm::max(0.0f, state.damageRollTimer);
-    damageRollRadiansCurrent = state.damageRollRadiansCurrent;
-    lifeFlashTimer = glm::max(0.0f, state.lifeFlashTimer);
-    headEmbeddedDamageTimer = kHeadEmbeddedDamageIntervalSeconds;
-    hotbar.applyPersistentState(state.hotbarState);
-    transition = PlayerTransition::NONE;
-    transitionTimer = 0.0f;
-    clearNestedPreview();
-    resetBlockBreaking();
-    clearTargetSelection();
-    updateMovementState();
-    applyCameraVisualEffects();
-}
-
-void Player::setDeathSequenceState(bool active, float elapsedSeconds,
-                                   const std::string& message) {
-    deathSequenceActive = active;
-    deathSequenceElapsedSeconds = glm::max(0.0f, elapsedSeconds);
-    deathSequenceMessage = active ? message : std::string{};
+    PlayerPersistenceSystem::apply(*this, state);
 }
 
 void Player::setSpawnpoint(const glm::vec3& position, std::uint32_t universeSeed,
-                           const BiomeSelection& biomeSelection,
-                           const std::vector<WorldLevel>& traversalStack) {
+    const BiomeSelection& biomeSelection,
+    const std::vector<WorldLevel>& traversalStack) {
     spawnpointDefined = true;
     spawnpointPosition = position;
     spawnpointUniverseSeed = universeSeed;
@@ -319,27 +252,9 @@ void Player::setSpawnpoint(const glm::vec3& position, std::uint32_t universeSeed
     spawnpointTraversalStack = traversalStack;
 }
 
-void Player::triggerDamageFeedback() {
-    damageRollTimer = kDamageRollDuration;
-    lifeFlashTimer = kLifeFlashDuration;
-}
-
-void Player::updateDamageFeedback(float dt) {
-    damageRollTimer = glm::max(0.0f, damageRollTimer - dt);
-    lifeFlashTimer = glm::max(0.0f, lifeFlashTimer - dt);
-
-    if (damageRollTimer <= 0.0f) {
-        damageRollRadiansCurrent = 0.0f;
-        return;
-    }
-
-    const float progress =
-        1.0f - (damageRollTimer / glm::max(kDamageRollDuration, 0.0001f));
-    const float decay = damageRollTimer / glm::max(kDamageRollDuration, 0.0001f);
-    const float oscillation = std::sin(progress * glm::two_pi<float>() * 1.5f);
-    damageRollRadiansCurrent =
-        oscillation * glm::radians(kDamageRollAmplitudeDegrees) * decay;
-}
+// =============================================================================
+// --- 8. Footsteps & Audio ---
+// =============================================================================
 
 BlockId Player::getFootstepBlockType(FractalWorld* world) const {
     if (!world) {
@@ -348,13 +263,13 @@ BlockId Player::getFootstepBlockType(FractalWorld* world) const {
 
     const glm::vec3 feetPosition = getFeetPosition();
     const float probeY = feetPosition.y - 0.08f;
-    const std::array<glm::vec2, 5> samples = {{
+    const std::array<glm::vec2, 5> samples = { {
         glm::vec2(0.0f, 0.0f),
         glm::vec2(-playerRadius * 0.65f, -playerRadius * 0.65f),
         glm::vec2(-playerRadius * 0.65f, playerRadius * 0.65f),
         glm::vec2(playerRadius * 0.65f, -playerRadius * 0.65f),
         glm::vec2(playerRadius * 0.65f, playerRadius * 0.65f),
-    }};
+    } };
 
     for (const glm::vec2& sample : samples) {
         const glm::ivec3 blockPos(
@@ -394,6 +309,10 @@ void Player::emitFootstep(FractalWorld* world, float speedAlpha) {
     audioController->onPlayerFootstep(blockType, worldPosition, gain, pitch);
 }
 
+// =============================================================================
+// --- 9. Head Bob ---
+// =============================================================================
+
 void Player::updateHeadBob(float dt, FractalWorld* world, bool active) {
     const bool enabled = headBobSettings.enabled && active && grounded;
     const float horizontalSpeed = getHorizontalSpeed();
@@ -405,7 +324,7 @@ void Player::updateHeadBob(float dt, FractalWorld* world, bool active) {
     const float targetBlend = bobActive ? 1.0f : 0.0f;
     const float blendSpeed =
         targetBlend > headBobBlend ? headBobSettings.blendInSpeed
-                                   : headBobSettings.blendOutSpeed;
+        : headBobSettings.blendOutSpeed;
     const float blendFactor = glm::clamp(blendSpeed * dt, 0.0f, 1.0f);
     headBobBlend = glm::mix(headBobBlend, targetBlend, blendFactor);
     if (headBobBlend <= 0.0001f) {
@@ -420,9 +339,9 @@ void Player::updateHeadBob(float dt, FractalWorld* world, bool active) {
     const float speedAlpha = glm::clamp(horizontalSpeed / runSpeedFloor, 0.0f, 1.0f);
 
     float frequency = glm::mix(headBobSettings.walkFrequency,
-                               headBobSettings.runFrequency, speedAlpha);
+        headBobSettings.runFrequency, speedAlpha);
     float verticalAmplitude = glm::mix(headBobSettings.walkVerticalAmplitude,
-                                       headBobSettings.runVerticalAmplitude, speedAlpha);
+        headBobSettings.runVerticalAmplitude, speedAlpha);
     float horizontalAmplitude = headBobSettings.horizontalAmplitude;
     float forwardAmplitude = headBobSettings.forwardAmplitude;
     float rollAmplitude = glm::radians(headBobSettings.rollAmplitudeDegrees);
@@ -437,7 +356,7 @@ void Player::updateHeadBob(float dt, FractalWorld* world, bool active) {
 
     const float previousPhase = headBobPhase;
     headBobPhase = std::fmod(headBobPhase + dt * frequency * glm::two_pi<float>(),
-                             glm::two_pi<float>());
+        glm::two_pi<float>());
     const float strideWave = std::sin(headBobPhase);
     const float verticalWave = std::abs(strideWave);
     const float swayWave = std::cos(headBobPhase);
@@ -458,7 +377,7 @@ void Player::updateHeadBob(float dt, FractalWorld* world, bool active) {
     const float phaseOffset = glm::radians(footstepSettings.phaseOffsetDegrees);
     const float firstStepPhase =
         std::fmod(glm::half_pi<float>() + phaseOffset + glm::two_pi<float>(),
-                  glm::two_pi<float>());
+            glm::two_pi<float>());
     const float secondStepPhase =
         std::fmod(firstStepPhase + glm::pi<float>(), glm::two_pi<float>());
     if (crossedWrappedPhase(previousPhase, headBobPhase, firstStepPhase) ||
@@ -468,23 +387,17 @@ void Player::updateHeadBob(float dt, FractalWorld* world, bool active) {
     lastFootstepPhase = headBobPhase;
 }
 
+// =============================================================================
+// --- 10. Camera ---
+// =============================================================================
+
 void Player::applyCameraVisualEffects() {
     camera.visualLocalOffset = headBobLocalOffset;
-    camera.visualRollRadians = damageRollRadiansCurrent + headBobRollRadians;
-}
-
-void Player::closeInventoryForTransition() {
-    const bool wasOpen = hotbar.isInventoryOpen();
-    if (!hotbar.tryCloseInventory()) {
-        hotbar.setInventoryOpen(false);
-    }
-    if (wasOpen && !hotbar.isInventoryOpen()) {
-        notifyInventoryStateChanged();
-    }
+    camera.visualRollRadians = health.damageRollRadiansCurrent() + headBobRollRadians;
 }
 
 Camera Player::buildNestedPreviewCamera(const Camera& source,
-                                        const NestedPreviewPortal& portal) {
+    const NestedPreviewPortal& portal) {
     // The preview mirrors the player pose through the portal reference frame.
     const NestedPreviewFrame entryFrame = buildNestedPreviewFrame(portal);
     const NestedPreviewFrame nestedFrame =
@@ -510,8 +423,31 @@ Camera Player::buildNestedPreviewCamera(const Camera& source,
     return previewCamera;
 }
 
-void Player::update(float dt, WorldStack& worldStack, hudPortalTracker* portalTracker,
-                    GameChat* gameChat, PlayerUpdateMode updateMode) {
+// =============================================================================
+// --- 11. Inventory UI ---
+// =============================================================================
+
+void Player::closeInventoryForTransition() {
+    const bool wasOpen = hotbar.isInventoryOpen();
+    if (!hotbar.tryCloseInventory()) {
+        hotbar.setInventoryOpen(false);
+    }
+    if (wasOpen && !hotbar.isInventoryOpen()) {
+        notifyInventoryStateChanged();
+    }
+}
+
+// =============================================================================
+// --- 12. Per-Frame Update ---
+// =============================================================================
+
+void Player::update(
+    Gameplay::Context& gameplayContext,
+    PlayerUpdateMode updateMode
+) {
+    const float dt = gameplayContext.dt;
+    WorldStack& worldStack = gameplayContext.worldStack;
+
     updateDamageFeedback(dt);
 
     // Portal transitions own the full frame while they are active.
@@ -557,7 +493,7 @@ void Player::update(float dt, WorldStack& worldStack, hudPortalTracker* portalTr
         updateCameraLook();
     }
 
-	updateZoom(dt, allowMovementInput);
+    updateZoom(dt, allowMovementInput);
 
     if (allowSimulation) {
         simulateMovement(dt, world, allowMovementInput);
@@ -570,14 +506,16 @@ void Player::update(float dt, WorldStack& worldStack, hudPortalTracker* portalTr
 
     if (allowGameplayInteractions && world) {
         doRaycast(world);
-    } else if (allowGameplayInteractions) {
+    }
+    else if (allowGameplayInteractions) {
         clearTargetSelection();
     }
 
     if (allowGameplayInteractions) {
         updateNestedPreview(worldStack, world, dt);
-        handleBlockInteraction(worldStack, portalTracker, gameChat, dt);
-    } else {
+        handleBlockInteraction(gameplayContext);
+    }
+    else {
         clearTargetSelection();
         clearNestedPreview();
         resetBlockBreaking();

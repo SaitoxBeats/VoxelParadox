@@ -106,8 +106,21 @@ inline float getBlockBreakTimeSeconds(BlockId blockId) {
     return getBlockHardness(blockId);
 }
 
-inline bool canBlockDropItem(BlockId blockId) {
-    return getBlockData(blockId).canDropItem;
+inline const std::string& getBlockDropItemId(BlockId blockId) {
+    return getBlockDefinition(blockId).data.dropItemId;
+}
+
+inline bool hasConfiguredBlockDropItem(BlockId blockId) {
+    const std::string& dropItemId = getBlockDropItemId(blockId);
+    return !dropItemId.empty() && dropItemId != "none";
+}
+
+inline bool canBlockDropWithoutTool(BlockId blockId) {
+    return getBlockData(blockId).dropWithoutTool;
+}
+
+inline bool canBlockGrantBreakExperience(BlockId blockId) {
+    return hasConfiguredBlockDropItem(blockId);
 }
 
 inline float getBlockBreakExperienceMultiplier(BlockId blockId) {

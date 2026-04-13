@@ -5,13 +5,7 @@
   "stack_limit": 64,
   "icon_asset": "Assets/Textures/Items/versal.png",
   "on_use": {
-    "cooldown": 0.2,
-    "actions": [
-      {
-        "type": "play_sound",
-        "event": "portal.enter"
-      }
-    ]
+    "cooldown": 0.2
   },
   "script": {
     "enabled": true,

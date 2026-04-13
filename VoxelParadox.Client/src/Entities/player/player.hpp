@@ -22,6 +22,7 @@
 #include <glm/glm.hpp>
 
 // 3. Internal Engine/Core Modules
+#include "client_defaults.hpp"
 #include "engine/camera.hpp"
 #include "engine/input.hpp"
 
@@ -29,9 +30,16 @@
 #include "enemies/enemy_types.hpp"
 #include "hotbar.hpp"
 #include "items/item_catalog.hpp"
+#include "player_experience.hpp"
+#include "player_health.hpp"
+#include "player_targeting.hpp"
 #include "world/persistence/world_stack.hpp"
 
 #pragma endregion
+
+// Forward declaration: full type is in items/item_script_runtime.hpp.
+// Kept here as a forward decl to avoid a circular include chain (item_use_context.hpp -> player.hpp).
+struct ItemScriptSession;
 
 enum class PlayerTransition { NONE, DIVING_IN, RISING_OUT };
 
@@ -52,7 +60,15 @@ enum class PlayerMovementState {
 
 class GameAudioController;
 class GameChat;
+class PlayerPersistenceSystem;
 class hudPortalTracker;
+
+namespace Gameplay {
+struct Context;
+class EventQueue;
+class BlockInteractionSystem;
+class PortalInteractionSystem;
+}
 
 class Player {
 public:
@@ -87,10 +103,6 @@ public:
 
 #pragma region 2. Nested Data Structures
     // --- 2. Nested Data Structures ---
-
-    enum class NotificationEvent {
-        FirstVersalAcquired,
-    };
 
     struct NestedPreviewFrame {
         glm::vec3 center{ 0.0f };
@@ -154,7 +166,8 @@ public:
         int lifePoints = 20;
         float experiencePoints = 0.0f;
         int experienceLevel = 0;
-        float experiencePerBlock = kDefaultExperiencePerBlock;
+        float experiencePerBlock = PlayerExperience::kDefaultExperiencePerBlock;
+        bool hasOpenedFirstPortal = false;
         bool sandboxModeEnabled = false;
         double universeCreationCooldownRemainingSeconds = 0.0;
         double doubleJumpCooldownRemainingSeconds = 0.0;
@@ -206,20 +219,12 @@ public:
     PlayerHotbar hotbar{};
 
     // Zoom
-    float normalFov = 80.0f;
+    float normalFov = ClientDefaults::kDefaultFieldOfView;
     float zoomedFov = 45.0f;
     float zoomSmoothSpeed = 10.0f;
 
     // Interaction & Target state
-    bool hasTarget = false;
-    glm::ivec3 targetBlock{ 0 };
-    glm::ivec3 targetNormal{ 0 };
-    bool isBreakingBlock = false;
-    glm::ivec3 breakingBlock{ 0 };
-    BlockId breakingBlockType = BlockIds::AIR;
-    float breakingTimer = 0.0f;
-    float breakingProgress = 0.0f;
-    float breakingHitCooldown = 0.0f;
+    PlayerTargeting targeting{};
     double nextDoubleJumpTimeSeconds = 0.0;
     double doubleJumpWindowExpiresSeconds = 0.0;
     NestedPreviewPortal nestedPreview;
@@ -248,20 +253,51 @@ public:
 
     Player();
 
+    // Player owns a Lua session, so it is movable but not copyable.
+    Player(const Player&) = delete;
+    Player& operator=(const Player&) = delete;
+    Player(Player&&) noexcept;
+    Player& operator=(Player&&) noexcept;
+
+    // Destructor is defined out-of-line in player_item_script.cpp so that
+    // std::unique_ptr<ItemScriptSession> can be destroyed with the full type visible.
+    ~Player();
+
     // Main frame update entry point.
-    void update(float dt, WorldStack& worldStack, hudPortalTracker* portalTracker,
-        GameChat* gameChat,
+    void update(
+        Gameplay::Context& gameplayContext,
         PlayerUpdateMode updateMode = PlayerUpdateMode::FullGameplay);
+
+    // Called every frame by Gameplay::RuntimeSystem after player.update().
+    // Manages the active ItemScriptSession lifecycle and dispatches on_update/on_pickup.
+    void updateItemScript(
+        Gameplay::Context& gameplayContext,
+        FractalWorld* world,
+        float dt
+    );
+
+    // Returns the active Lua script session for the currently held item, or nullptr.
+    // Used by BlockInteractionSystem to inject the session into ItemUseContext for on_use.
+    ItemScriptSession* getActiveItemScriptSession() const;
 
     PersistentState capturePersistentState() const;
     void applyPersistentState(const PersistentState& state);
 
-    void setLifePoints(int value) { lifePoints = glm::clamp(value, 1, kMaxLifePoints); };
-    void setExperiencePoints(float value);
-    void setExperienceLevel(int value);
+    void setLifePoints(int value) { health.setLifePoints(value); };
+    void setExperiencePoints(
+        float value,
+        Gameplay::EventQueue* eventQueue = nullptr
+    );
+    void setExperienceLevel(
+        int value,
+        Gameplay::EventQueue* eventQueue = nullptr
+    );
     void setExperiencePerBlock(float value);
-    void addExperiencePoints(float value, WorldStack* worldStack = nullptr);
-    std::vector<NotificationEvent> consumeNotificationEvents();
+    void addExperiencePoints(
+        float value,
+        WorldStack* worldStack = nullptr,
+        Gameplay::EventQueue* eventQueue = nullptr
+    );
 #pragma endregion
 
 #pragma region 5. Accessors & State Checks
@@ -269,17 +305,27 @@ public:
 
     void setAudioController(GameAudioController* controller) { audioController = controller; }
 
-    int getLifePoints() const { return lifePoints; }
-    int getMaxLifePoints() const { return kMaxLifePoints; }
-    float getExperiencePoints() const { return experiencePoints; }
-    float getMaxExperiencePoints() const { return kMaxExperiencePoints; }
-    int getExperienceLevel() const { return experienceLevel; }
-    float getExperiencePerBlock() const { return experiencePerBlock; }
-    bool isAlive() const { return lifePoints > 0; }
+    int getLifePoints() const { return health.lifePoints(); }
+    int getMaxLifePoints() const { return health.maxLifePoints(); }
+    float getExperiencePoints() const { return experience.points(); }
+    float getMaxExperiencePoints() const { return experience.maxPoints(); }
+    int getExperienceLevel() const { return experience.level(); }
+    float getExperiencePerBlock() const { return experience.pointsPerBlock(); }
+    bool hasOpenedFirstPortal() const { return firstPortalOpened; }
+    bool isAlive() const { return health.isAlive(); }
     bool hasSpawnpoint() const { return spawnpointDefined; }
-    bool isDeathSequenceActive() const { return deathSequenceActive; }
-    float getDeathSequenceElapsedSeconds() const { return deathSequenceElapsedSeconds; }
-    const std::string& getDeathSequenceMessage() const { return deathSequenceMessage; }
+    bool isDeathSequenceActive() const { return health.isDeathSequenceActive(); }
+    float getDeathSequenceElapsedSeconds() const { return health.deathSequenceElapsedSeconds(); }
+    const std::string& getDeathSequenceMessage() const { return health.deathSequenceMessage(); }
+    bool hasTargetBlock() const { return targeting.hasTarget; }
+    const glm::ivec3& getTargetBlock() const { return targeting.targetBlock; }
+    const glm::ivec3& getTargetNormal() const { return targeting.targetNormal; }
+    bool isBreakingTargetBlock() const { return targeting.isBreakingBlock; }
+    const glm::ivec3& getBreakingBlock() const { return targeting.breakingBlock; }
+    BlockId getBreakingBlockType() const { return targeting.breakingBlockType; }
+    float getBreakingTimer() const { return targeting.breakingTimer; }
+    float getBreakingProgress() const { return targeting.breakingProgress; }
+    void clearInteractionState() { targeting.clearTargetSelection(); }
 
     float getStandingEyeHeight() const { return standingEyeHeight; }
     float getStandingHeight() const { return standingHeight; }
@@ -408,7 +454,11 @@ public:
         return hotbar.clickCraftResult(clickType, craftAll);
     }
 
-    bool tryAddItemToInventory(const InventoryItem& item, int amount = 1);
+    bool tryAddItemToInventory(
+        const InventoryItem& item,
+        int amount = 1,
+        Gameplay::EventQueue* eventQueue = nullptr
+    );
 
     bool canAcceptInventoryItem(const InventoryItem& item, int amount = 1) const {
         return hotbar.canAccept(item, amount);
@@ -444,7 +494,10 @@ public:
         const NestedPreviewPortal& portal);
 
     // Creates a nested portal at the current target using the existing portal rules.
-    bool tryCreatePortalForTargetBlock(WorldStack& worldStack);
+    bool tryCreatePortalForTargetBlock(
+        WorldStack& worldStack,
+        Gameplay::EventQueue* eventQueue = nullptr
+    );
 #pragma endregion
 
 private:
@@ -459,34 +512,25 @@ private:
     static constexpr float kCoyoteTimeSeconds = 0.0f;
     static constexpr float kJumpBufferSeconds = 0.0f;
     static constexpr float kMovementStateSpeedThreshold = 0.05f;
-    static constexpr float kBreakHitRepeatInterval = 0.23f;
-    static constexpr float kDroppedItemThrowSpeed = 3.75f;
-    static constexpr float kDroppedItemSpawnDistance = 1.55f;
-    static constexpr float kDroppedItemPickupDelay = 0.35f;
     static constexpr float kDamageRollDuration = 0.22f;
-    static constexpr float kDamageRollAmplitudeDegrees = 14.5f;
+    static constexpr float kDamageRollAmplitudeDegrees = 10.5f;
     static constexpr float kLifeFlashDuration = 0.30f;
     static constexpr int kLifeFlashPulseCount = 3;
     static constexpr float kHeadEmbeddedDamageIntervalSeconds = 0.35f;
     static constexpr int kHeadEmbeddedDamagePoints = 1;
-    static constexpr int kMaxLifePoints = 20;
-    static constexpr float kMaxExperiencePoints = 100.0f;
-    static constexpr float kDefaultExperiencePerBlock = 10.00f;
-    static constexpr float kExperiencePerBlockLevelMultiplier = 0.2f;
-    static constexpr const char* kExperienceRewardItemId = "versal";
     static constexpr glm::vec3 kLifeTextBaseColor{ 0.0f, 0.0f, 0.0f };
 
     GameAudioController* audioController = nullptr;
-    int lifePoints = kMaxLifePoints;
-    float experiencePoints = 0.0f;
-    int experienceLevel = 0;
-    float experiencePerBlock = kDefaultExperiencePerBlock;
-    bool deathSequenceActive = false;
-    float deathSequenceElapsedSeconds = 0.0f;
-    std::string deathSequenceMessage{};
-    float damageRollTimer = 0.0f;
-    float damageRollRadiansCurrent = 0.0f;
-    float lifeFlashTimer = 0.0f;
+    PlayerExperience experience{};
+    PlayerHealth health{};
+    bool firstPortalOpened = false;
+
+    // --- Item Script Session ---
+    // One session is kept alive as long as the same scripted item remains selected.
+    // Destroyed and recreated when the player switches to a different item.
+    std::unique_ptr<ItemScriptSession> activeScriptSession_;
+    InventoryItem activeScriptItem_;       // Item that owns the current session.
+    int activeScriptHotbarIndex_ = -1;    // Hotbar slot of the current session.
     float headEmbeddedDamageTimer = kHeadEmbeddedDamageIntervalSeconds;
     bool grounded = false;
     bool crouching = false;
@@ -502,12 +546,14 @@ private:
     float lastFootstepPhase = 0.0f;
     bool sandboxModeEnabled = false;
     std::unordered_map<ItemId, double> itemUseCooldownExpiryTimesSeconds{};
-    std::vector<NotificationEvent> notificationEvents{};
     bool spawnpointDefined = false;
     glm::vec3 spawnpointPosition{ 0.0f };
     std::uint32_t spawnpointUniverseSeed = 0;
     BiomeSelection spawnpointBiomeSelection{};
     std::vector<WorldLevel> spawnpointTraversalStack{};
+    friend class Gameplay::BlockInteractionSystem;
+    friend class Gameplay::PortalInteractionSystem;
+    friend class PlayerPersistenceSystem;
 #pragma endregion
 
 #pragma region 9. Internal Math & Portals
@@ -545,16 +591,18 @@ private:
         std::shared_ptr<const VoxelGame::BiomePreset>* outChildPreset = nullptr);
 
     void handleTransition(float dt, WorldStack& worldStack);
-    void finishDiveIn(WorldStack& worldStack);
     void updateNestedPreview(WorldStack& worldStack, FractalWorld* world, float dt);
-    void updatePreviewVisibility(WorldStack& worldStack, bool lookingAtPortal, float dt);
-
-    void preloadNearbyNestedWorld(WorldStack& worldStack, FractalWorld* world, bool lookingAtPortal);
     void enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& blockPos,
                                 Camera& nestedCamera, bool requireSupportBelow = true);
 
-    bool beginAscendTransition(WorldStack& worldStack);
-    void beginNestedEntryTransition(WorldStack& worldStack);
+    bool beginAscendTransition(
+        WorldStack& worldStack,
+        Gameplay::EventQueue* eventQueue = nullptr
+    );
+    void beginNestedEntryTransition(
+        WorldStack& worldStack,
+        Gameplay::EventQueue* eventQueue = nullptr
+    );
 #pragma endregion
 
 #pragma region 10. Internal Systems (Movement, VFX)
@@ -570,10 +618,14 @@ private:
     void notifyInventoryStateChanged();
 
     void triggerDamageFeedback();
-    void executeExperienceRewardCommands(WorldStack* worldStack);
-    void executeLevelUpCommands(int previousLevel, int newLevel);
-    void grantExperienceRewardItem(WorldStack* worldStack);
-    void syncExperienceStats() const;
+    void executeExperienceRewardCommands(
+        WorldStack* worldStack,
+        Gameplay::EventQueue* eventQueue
+    );
+    void grantExperienceRewardItem(
+        WorldStack* worldStack,
+        Gameplay::EventQueue* eventQueue
+    );
     void updateDamageFeedback(float dt);
     void updateMovementState();
 
@@ -629,17 +681,13 @@ private:
 
     // Block interaction and targeting.
     void handleBlockInteraction(
-        WorldStack& worldStack,
-        hudPortalTracker* portalTracker,
-        GameChat* gameChat,
-        float dt
+        Gameplay::Context& gameplayContext
     );
-    void updateBlockBreaking(WorldStack& worldStack, float dt);
-    void breakTargetBlock(WorldStack& worldStack);
-    void placeBlockAtTarget(WorldStack& worldStack);
+    void updateBlockBreaking(Gameplay::Context& gameplayContext);
+    void breakTargetBlock(Gameplay::Context& gameplayContext);
+    void placeBlockAtTarget(Gameplay::Context& gameplayContext);
     void dropSelectedItem(WorldStack& worldStack);
     void spawnEnemyAtTarget(WorldStack& worldStack, EnemyType type);
-    bool tryTargetOverlappingBodyBlock(FractalWorld* world);
     void doRaycast(FractalWorld* world);
 #pragma endregion
 };

@@ -280,7 +280,7 @@ void Renderer::renderNestedPreviewWorld(WorldStack& worldStack, FractalWorld& ne
     const Camera previewCamera = Player::buildNestedPreviewCamera(playerCamera, portal);
     nestedWorld.update(previewCamera.position, previewCamera.getForward());
 
-    const int childDepth = worldStack.currentDepth() + 1;
+    const int childDepth = nestedWorld.depth;
     const glm::vec4 previewFog = getFogColor(childDepth);
     const glm::mat4 previewView = previewCamera.getViewMatrix();
     const glm::mat4 previewProj = previewCamera.getProjectionMatrix(aspect);

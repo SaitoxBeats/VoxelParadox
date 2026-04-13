@@ -6,6 +6,7 @@
 #pragma once
 
 #pragma region Includes
+#include <cstdint>
 #include <memory>
 
 #include "world/biome/biome_preset.hpp"
@@ -31,7 +32,7 @@ public:
 
         generatorSource_ =
             std::make_shared<VoxelGame::PresetModuleGeneratorSource>(
-                this->biomePreset, depth, seed);
+                this->biomePreset, depth, generationSeed(seed, depth));
     }
 
     // Funcao: executa 'generate' na interface de geracao de mundo.
@@ -52,5 +53,22 @@ public:
 
 private:
     std::shared_ptr<const VoxelGame::IChunkGeneratorSource> generatorSource_{};
+
+    static std::uint32_t generationSeed(std::uint32_t seed, int depth) {
+        const std::uint32_t depthValue =
+            depth < 0 ? 0u : static_cast<std::uint32_t>(depth);
+        if (depthValue == 0u) {
+            return seed;
+        }
+
+        std::uint32_t mixed =
+            seed ^ (0x9E3779B9u + depthValue * 0x85EBCA6Bu);
+        mixed ^= mixed >> 16;
+        mixed *= 0x7FEB352Du;
+        mixed ^= mixed >> 15;
+        mixed *= 0x846CA68Bu;
+        mixed ^= mixed >> 16;
+        return mixed;
+    }
 };
 #pragma endregion

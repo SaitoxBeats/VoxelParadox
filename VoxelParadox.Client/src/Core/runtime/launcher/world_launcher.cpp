@@ -6,9 +6,11 @@
 #include "runtime/launcher/world_launcher.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <future>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,10 +38,13 @@ struct LauncherTaskResult {
 
 LauncherTaskResult runCreateTask(
     const std::string& worldName,
+    std::optional<std::uint32_t> requestedRootSeed,
+    std::optional<int> requestedRootDepth,
     const BiomeSelection& rootBiomeSelection) {
   LauncherTaskResult result;
   if (!WorldSaveService::createWorld(worldName, rootBiomeSelection, result.session,
-                                     &result.error)) {
+                                     &result.error, requestedRootSeed,
+                                     requestedRootDepth)) {
     return result;
   }
 
@@ -187,7 +192,15 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
         launcherHud->setStatusMessage(statusMessage);
         launcherHud->setLoading(true);
         taskFuture = std::async(std::launch::async, [request, rootBiomeSelection]() {
-          return runCreateTask(request.worldName, rootBiomeSelection);
+          return runCreateTask(
+              request.worldName,
+              request.hasCustomSeed
+                  ? std::optional<std::uint32_t>(request.customSeed)
+                  : std::nullopt,
+              request.hasCustomDepth
+                  ? std::optional<int>(request.customDepth)
+                  : std::nullopt,
+              rootBiomeSelection);
         });
         break;
       case hudWorldLauncher::ActionType::LoadWorld:

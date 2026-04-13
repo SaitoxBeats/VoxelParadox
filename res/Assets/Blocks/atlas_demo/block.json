@@ -12,11 +12,12 @@
     "interactable": false,
     "emits_light": false,
     "has_entity": false,
-    "tags": 2,
+    "preferred_tool": "pickaxe",
     "hardness": 3.0
   },
   "data": {
-    "can_drop_item": true
+    "drop_item": "block:atlas_demo",
+    "drop_without_tool": true
   },
   "render": {
     "base_color": [0.92, 0.68, 0.22],

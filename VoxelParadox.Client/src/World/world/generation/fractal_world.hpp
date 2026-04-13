@@ -139,6 +139,7 @@ public:
         float spinPhase = 0.0f;
         bool attracting = false;
         float pickupDelaySeconds = 0.0f;
+        float experiencePoints = 0.0f;
     };
 
     struct EnemySpawnRuntimeState {
@@ -709,7 +710,8 @@ public:
     void spawnDroppedItemAtPosition(const glm::vec3& position,
                                     const InventoryItem& item,
                                     const glm::vec3& initialVelocity = glm::vec3(0.0f),
-                                    float pickupDelaySeconds = 0.0f) {
+                                    float pickupDelaySeconds = 0.0f,
+                                    float experiencePoints = 0.0f) {
         if (item.empty()) return;
 
         DroppedItem droppedItem;
@@ -717,6 +719,7 @@ public:
         droppedItem.velocity = initialVelocity;
         droppedItem.item = item;
         droppedItem.pickupDelaySeconds = glm::max(0.0f, pickupDelaySeconds);
+        droppedItem.experiencePoints = glm::max(0.0f, experiencePoints);
         const glm::ivec3 spinSeed = glm::ivec3(glm::floor(position));
         droppedItem.spinPhase = static_cast<float>(
             ((spinSeed.x * 73856093) ^ (spinSeed.y * 19349663) ^ (spinSeed.z * 83492791)) & 255) *
@@ -725,9 +728,10 @@ public:
     }
 
     void spawnDroppedItem(glm::ivec3 blockPos, const InventoryItem& item,
-                          const glm::vec3& initialVelocity = glm::vec3(0.0f)) {
+                          const glm::vec3& initialVelocity = glm::vec3(0.0f),
+                          float experiencePoints = 0.0f) {
         spawnDroppedItemAtPosition(glm::vec3(blockPos) + glm::vec3(0.5f), item,
-                                   initialVelocity, 0.0f);
+                                   initialVelocity, 0.0f, experiencePoints);
     }
 
     // Enemies are runtime-spawned actors stored alongside the active world state.
@@ -779,7 +783,7 @@ public:
             toPlayer = playerPos - item.position;
             dist = glm::length(toPlayer);
             if (item.pickupDelaySeconds <= 0.0f && dist <= 0.35f) {
-                if (tryCollect(item.item)) {
+                if (tryCollect(item)) {
                     pickedUp = true;
                     droppedItems.erase(droppedItems.begin() + static_cast<std::ptrdiff_t>(i));
                     continue;

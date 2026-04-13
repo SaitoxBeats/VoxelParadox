@@ -465,6 +465,10 @@ void GameChat::setupHud() {
             );
 
             if (lineSegment) {
+                if (!historyMeasureElement_) {
+                    historyMeasureElement_ = lineSegment;
+                }
+
                 lineSegment->setColor(kChatDefaultHistoryColor);
                 lineSegment->setVisualBinder(
                     [this, lineIndex, segmentIndex, yOffset](hudWatchText& textElement) {
@@ -576,6 +580,33 @@ int GameChat::visibleHistoryLineCount() const {
 
 int GameChat::visibleSuggestionLineCount() const {
     return static_cast<int>(autocompleteCandidates().size());
+}
+
+float GameChat::visibleTopBackgroundContentWidth() const {
+    const hudWatchText* measureElement = historyMeasureElement_
+        ? historyMeasureElement_
+        : inputLineElement_;
+    if (!measureElement) {
+        return 0.0f;
+    }
+
+    float maxWidth = 0.0f;
+    for (const HistoryLine& line : visibleHistoryRichLines()) {
+        float lineWidth = 0.0f;
+        for (const GameChatTextSegment& segment : line.segments) {
+            lineWidth += measureElement->measureText(segment.text).x;
+        }
+        maxWidth = std::max(maxWidth, lineWidth);
+    }
+
+    for (int lineIndex = 0; lineIndex < visibleSuggestionLineCount(); lineIndex++) {
+        maxWidth = std::max(
+            maxWidth,
+            measureElement->measureText(suggestionLineText(lineIndex)).x
+        );
+    }
+
+    return maxWidth;
 }
 
 std::vector<GameChat::HistoryLine> GameChat::allHistoryRichLines() const {
@@ -1492,7 +1523,11 @@ bool GameChat::executeGetCommand(GameChatCommandContext& commandContext, const s
         return true;
     }
 
-    if (!commandContext.player.tryAddItemToInventory(item, amount)) {
+    if (!commandContext.player.tryAddItemToInventory(
+        item,
+        amount,
+        commandContext.eventQueue
+    )) {
         pushHistory("[Debug] Inventory has no room for that request.");
         return true;
     }
@@ -1553,7 +1588,10 @@ bool GameChat::executeSetCommand(GameChatCommandContext& commandContext, const s
         );
         const int clampedLevel = static_cast<int>(clampedLevelLong);
 
-        commandContext.player.setExperienceLevel(clampedLevel);
+        commandContext.player.setExperienceLevel(
+            clampedLevel,
+            commandContext.eventQueue
+        );
 
         char buffer[160];
         std::snprintf(buffer, sizeof(buffer), "[Debug] Player level set to %d.", clampedLevel);
@@ -1590,13 +1628,19 @@ bool GameChat::executeSetCommand(GameChatCommandContext& commandContext, const s
         ));
 
         if (targetLevel != commandContext.player.getExperienceLevel()) {
-            commandContext.player.setExperienceLevel(targetLevel);
+            commandContext.player.setExperienceLevel(
+                targetLevel,
+                commandContext.eventQueue
+            );
         }
 
         const float remainingExperiencePoints = maxExperiencePoints > 0.0f
             ? std::fmod(requestedExperiencePoints, maxExperiencePoints)
             : requestedExperiencePoints;
-        commandContext.player.setExperiencePoints(remainingExperiencePoints);
+        commandContext.player.setExperiencePoints(
+            remainingExperiencePoints,
+            commandContext.eventQueue
+        );
 
         char buffer[192];
         std::snprintf(
@@ -1627,7 +1671,7 @@ bool GameChat::executeResetCommand(GameChatCommandContext& commandContext, const
     const std::string target = lowercase(tokens[0]);
 
     if (target == "level") {
-        commandContext.player.setExperienceLevel(0);
+        commandContext.player.setExperienceLevel(0, commandContext.eventQueue);
 
         std::printf("[Debug] Player level reset to 0.\n");
         pushHistory("[Debug] Player level reset to 0.");
@@ -1635,7 +1679,7 @@ bool GameChat::executeResetCommand(GameChatCommandContext& commandContext, const
     }
 
     if (target == "xp") {
-        commandContext.player.setExperiencePoints(0.0f);
+        commandContext.player.setExperiencePoints(0.0f, commandContext.eventQueue);
 
         std::printf("[Debug] Player XP reset to 0.\n");
         pushHistory("[Debug] Player XP reset to 0.");

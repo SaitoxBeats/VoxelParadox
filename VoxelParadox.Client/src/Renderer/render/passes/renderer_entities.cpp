@@ -355,11 +355,11 @@ void appendWireBoxVertices(const glm::mat4& transform, const glm::vec3& halfExte
 void Renderer::renderTargetSelectionWireframe(const FractalWorld& world,
                                               const Player& player,
                                               const glm::mat4& vp) {
-    if (!player.hasTarget) {
+    if (!player.hasTargetBlock()) {
         return;
     }
 
-    const BlockId targetType = world.getBlock(player.targetBlock);
+    const BlockId targetType = world.getBlock(player.getTargetBlock());
     if (!canTargetBlock(targetType)) {
         return;
     }
@@ -373,7 +373,7 @@ void Renderer::renderTargetSelectionWireframe(const FractalWorld& world,
     const glm::vec3 inflate(0.015f);
     const glm::vec3 wireMin = selectionMin - inflate;
     const glm::vec3 wireMax = selectionMax + inflate;
-    const glm::vec3 center = glm::vec3(player.targetBlock) + (wireMin + wireMax) * 0.5f;
+    const glm::vec3 center = glm::vec3(player.getTargetBlock()) + (wireMin + wireMax) * 0.5f;
     const glm::vec3 halfExtents = (wireMax - wireMin) * 0.5f;
 
     std::array<float, 72> vertices{};

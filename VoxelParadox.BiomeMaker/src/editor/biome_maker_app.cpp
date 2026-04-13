@@ -40,7 +40,7 @@ namespace BiomeMaker {
 
         constexpr std::uint32_t kDefaultSeed = 42;
         constexpr const char* kWindowTitle = "VoxelParadox BiomeMaker";
-        constexpr const char* kDefaultFontPath = "Assets/Fonts/ChillBitmap.ttf";
+        constexpr const char* kDefaultFontPath = "Assets/Fonts/zpix.ttf";
 
         constexpr BlockCategory kEditorBlockCategoryOrder[] = {
             BlockCategory::TERRAIN,

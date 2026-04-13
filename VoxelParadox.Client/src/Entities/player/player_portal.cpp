@@ -2,6 +2,7 @@
 
 #include "audio/game_audio_controller.hpp"
 #include "engine/engine.hpp"
+#include "gameplay/portal_interaction_system.hpp"
 
 // Portal and nested-world logic:
 // - portal math
@@ -148,12 +149,26 @@ void Player::updateNestedPreviewAnchorFromSavedState(WorldStack& worldStack,
     previewPortal.hasOverrideFrame = false;
     previewPortal.overrideFrame = NestedPreviewFrame{};
 
+    glm::vec3 portalNormal(0.0f);
+    glm::vec3 tangent(0.0f);
+    glm::vec3 bitangent(0.0f);
+    buildPortalBasis(normal, portalNormal, tangent, bitangent);
+
+    const glm::vec3 faceCenter =
+        glm::vec3(block) + glm::vec3(0.5f) + portalNormal * 0.5f;
+    const glm::vec3 safeCameraPos = faceCenter + portalNormal * kSafeFaceDistance;
+
+    Camera portalCamera = camera;
+    portalCamera.position = safeCameraPos;
+    portalCamera.baseFov = camera.baseFov;
+    portalCamera.lookAt(faceCenter, bitangent);
+
     Camera savedChildCamera = camera;
     savedChildCamera.position = savedChildPos;
     savedChildCamera.orientation = savedChildOrientation;
     enforceSafeNestedSpawn(worldStack, block, savedChildCamera, false);
     setNestedPreviewOverrideFrame(
-        buildPreviewOverrideFrame(camera, previewPortal, savedChildCamera));
+        buildPreviewOverrideFrame(portalCamera, previewPortal, savedChildCamera));
 }
 
 void Player::setNestedPreviewOverrideFrame(const NestedPreviewFrame& frame) {
@@ -162,15 +177,20 @@ void Player::setNestedPreviewOverrideFrame(const NestedPreviewFrame& frame) {
 }
 
 bool Player::isLookingAtPortal(FractalWorld* world) const {
-    return world && hasTarget && world->getBlock(targetBlock) == BlockIds::PORTAL;
+    return world &&
+        targeting.hasTarget &&
+        world->getBlock(targeting.targetBlock) == BlockIds::PORTAL;
 }
 
-bool Player::tryCreatePortalForTargetBlock(WorldStack& worldStack) {
-    if (!hasTarget) {
-        return false;
-    }
-
-    return tryPrepareNestedWorld(worldStack, targetBlock);
+bool Player::tryCreatePortalForTargetBlock(
+    WorldStack& worldStack,
+    Gameplay::EventQueue* eventQueue
+) {
+    return Gameplay::PortalInteractionSystem::tryCreatePortalForTargetBlock(
+        *this,
+        worldStack,
+        eventQueue
+    );
 }
 
 bool Player::tryPrepareNestedWorld(
@@ -186,113 +206,16 @@ bool Player::tryPrepareNestedWorld(
 }
 
 void Player::handleTransition(float dt, WorldStack& worldStack) {
-    transitionTimer += dt;
-    const float t = glm::clamp(transitionTimer / transitionDuration, 0.0f, 1.0f);
-    const float smoothT = smoothstep01(t);
-
-    if (transition == PlayerTransition::DIVING_IN) {
-        nestedPreview.active = true;
-        nestedPreview.fade = glm::clamp(
-            nestedPreview.fade + dt / previewFadeInDuration, 0.0f, 1.0f);
-
-        camera.position = glm::mix(enterNested.startPos, enterNested.targetPos, smoothT);
-        camera.orientation = glm::normalize(
-            glm::slerp(enterNested.startOrientation, enterNested.targetOrientation, smoothT));
-
-        if (t >= 1.0f) {
-            finishDiveIn(worldStack);
-        }
-        return;
-    }
-
-    if (transition == PlayerTransition::RISING_OUT) {
-        camera.position = glm::mix(transitionStartPos, transitionEndPos, smoothT);
-        camera.orientation = glm::normalize(
-            glm::slerp(transitionStartOrientation, transitionEndOrientation, smoothT));
-        nestedPreview.active = true;
-        nestedPreview.fade = 1.0f;
-        if (t >= 1.0f) {
-            transition = PlayerTransition::NONE;
-        }
-    }
-}
-
-void Player::finishDiveIn(WorldStack& worldStack) {
-    if (worldStack.descendInto(enterNested.block, enterNested.parentReturnPos,
-        enterNested.parentReturnOrientation, enterNested.normal)) {
-        camera.position = enterNested.childPos;
-        camera.orientation = enterNested.childOrientation;
-    }
-
-    velocity = glm::vec3(0.0f);
-    clearNestedPreview();
-    transition = PlayerTransition::NONE;
+    Gameplay::PortalInteractionSystem::handleTransition(*this, dt, worldStack);
 }
 
 void Player::updateNestedPreview(WorldStack& worldStack, FractalWorld* world, float dt) {
-    if (!world) {
-        clearNestedPreview();
-        return;
-    }
-
-    const bool lookingAtPortal = isLookingAtPortal(world);
-    updatePreviewVisibility(worldStack, lookingAtPortal, dt);
-    preloadNearbyNestedWorld(worldStack, world, lookingAtPortal);
-}
-
-void Player::updatePreviewVisibility(WorldStack& worldStack, bool lookingAtPortal, float dt) {
-    if (lookingAtPortal && tryPrepareNestedWorld(worldStack, targetBlock)) {
-        const bool previewReloaded = !nestedPreview.active || nestedPreview.fade <= 0.0f;
-        const bool portalChanged =
-            nestedPreview.block != targetBlock || nestedPreview.normal != targetNormal;
-        const bool needsSavedStateAnchor =
-            portalChanged || (!nestedPreview.hasOverrideFrame && previewReloaded);
-        activateNestedPreview(
-            targetBlock,
-            targetNormal,
-            nestedPreview.fade + dt / previewFadeInDuration);
-        if (needsSavedStateAnchor) {
-            updateNestedPreviewAnchorFromSavedState(worldStack, targetBlock, targetNormal);
-        }
-        return;
-    }
-
-    if (nestedPreview.fade <= 0.0f) {
-        nestedPreview.active = false;
-        return;
-    }
-
-    nestedPreview.fade = glm::clamp(
-        nestedPreview.fade - dt / previewFadeOutDuration, 0.0f, 1.0f);
-    if (nestedPreview.fade <= 0.0f) {
-        nestedPreview.active = false;
-    }
-}
-
-void Player::preloadNearbyNestedWorld(WorldStack& worldStack, FractalWorld* world,
-    bool lookingAtPortal) {
-    (void)world;
-    if (!lookingAtPortal) {
-        if (!nestedPreview.active) {
-            worldStack.clearNestedPreviewWorld();
-        }
-        return;
-    }
-
-    if (!worldStack.hasNestedWorldAtBlock(targetBlock) &&
-        !tryPrepareNestedWorld(worldStack, targetBlock)) {
-        worldStack.clearNestedPreviewWorld();
-        return;
-    }
-
-    FractalWorld* previewWorld = worldStack.getOrCreateNestedPreviewWorld(targetBlock);
-    if (!previewWorld) {
-        return;
-    }
-
-    previewWorld->renderDistance =
-        std::min(previewWorld->defaultRenderDistance, previewPreloadRenderDistance);
-    previewWorld->update(nestedWorldSpawnPosition(), camera.getForward());
+    Gameplay::PortalInteractionSystem::updateNestedPreview(
+        *this,
+        worldStack,
+        world,
+        dt
+    );
 }
 
 void Player::enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& blockPos,
@@ -315,123 +238,24 @@ void Player::enforceSafeNestedSpawn(WorldStack& worldStack, const glm::ivec3& bl
     nestedCamera.position = nestedWorldSpawnPosition();
 }
 
-bool Player::beginAscendTransition(WorldStack& worldStack) {
-    if (!worldStack.canAscend()) {
-        return false;
-    }
-
-    const Camera childCamera = camera;
-    worldStack.saveActivePlayerState(childCamera.position, childCamera.orientation);
-
-    glm::vec3 returnPos(0.0f);
-    glm::quat returnOrientation(1.0f, 0.0f, 0.0f, 0.0f);
-    glm::ivec3 portalBlock(0);
-    glm::ivec3 portalNormal(0);
-
-    if (!worldStack.ascend(returnPos, returnOrientation, portalBlock, portalNormal)) {
-        transition = PlayerTransition::NONE;
-        return false;
-    }
-
-    showNestedPreviewImmediately(portalBlock, portalNormal);
-    if (audioController) {
-        audioController->onPortalExited(portalBlock);
-    }
-
-    glm::vec3 normal(0.0f), tangent(0.0f), bitangent(0.0f);
-    buildPortalBasis(portalNormal, normal, tangent, bitangent);
-
-    const glm::vec3 faceCenter =
-        glm::vec3(portalBlock) + glm::vec3(0.5f) + normal * 0.5f;
-    const glm::vec3 safeCameraPos = faceCenter + normal * kSafeFaceDistance;
-
-    Camera exitPortalCamera = camera;
-    exitPortalCamera.position = safeCameraPos;
-    exitPortalCamera.baseFov = camera.baseFov;
-    exitPortalCamera.lookAt(faceCenter, bitangent);
-
-    setNestedPreviewOverrideFrame(
-        buildPreviewOverrideFrame(exitPortalCamera, nestedPreview, childCamera));
-
-    camera.position = safeCameraPos;
-    camera.orientation = exitPortalCamera.orientation;
-
-    if (FractalWorld* parentWorld = worldStack.currentWorld()) {
-        parentWorld->primeImmediateArea(safeCameraPos, 1);
-    }
-
-    transition = PlayerTransition::RISING_OUT;
-    transitionTimer = 0.0f;
-    transitionStartPos = safeCameraPos;
-    transitionEndPos = returnPos;
-    transitionStartOrientation = exitPortalCamera.orientation;
-    transitionEndOrientation = returnOrientation;
-    velocity = glm::vec3(0.0f);
-    clearTargetSelection();
-    return true;
+bool Player::beginAscendTransition(
+    WorldStack& worldStack,
+    Gameplay::EventQueue* eventQueue
+) {
+    return Gameplay::PortalInteractionSystem::beginAscendTransition(
+        *this,
+        worldStack,
+        eventQueue
+    );
 }
 
-void Player::beginNestedEntryTransition(WorldStack& worldStack) {
-    BiomeSelection nextBiomeSelection{};
-    if (!tryPrepareNestedWorld(worldStack, targetBlock, nullptr,
-        &nextBiomeSelection)) {
-        return;
-    }
-    beginNestedPreviewFadeIn(targetBlock, targetNormal);
-    if (audioController) {
-        audioController->onPortalEntered(targetBlock, nextBiomeSelection.presetId);
-    }
-
-    glm::vec3 normal(0.0f), tangent(0.0f), bitangent(0.0f);
-    buildPortalBasis(targetNormal, normal, tangent, bitangent);
-
-    const glm::vec3 faceCenter =
-        glm::vec3(targetBlock) + glm::vec3(0.5f) + normal * 0.5f;
-    const glm::vec3 safeCameraPos = faceCenter + normal * kSafeFaceDistance;
-
-    Camera targetCamera = camera;
-    targetCamera.position = safeCameraPos;
-    targetCamera.baseFov = camera.baseFov;
-    targetCamera.lookAt(faceCenter, bitangent);
-
-    glm::vec3 savedChildPos(0.0f);
-    glm::quat savedChildOrientation(1.0f, 0.0f, 0.0f, 0.0f);
-    const bool hasSavedChildState =
-        worldStack.tryGetNestedPlayerState(targetBlock, savedChildPos, savedChildOrientation);
-    if (hasSavedChildState) {
-        Camera savedChildCamera = camera;
-        savedChildCamera.position = savedChildPos;
-        savedChildCamera.orientation = savedChildOrientation;
-        enforceSafeNestedSpawn(worldStack, targetBlock, savedChildCamera, false);
-        setNestedPreviewOverrideFrame(
-            buildPreviewOverrideFrame(targetCamera, nestedPreview, savedChildCamera));
-    }
-    else {
-        nestedPreview.hasOverrideFrame = false;
-        nestedPreview.overrideFrame = NestedPreviewFrame{};
-    }
-
-    Camera childCamera = buildNestedPreviewCamera(targetCamera, nestedPreview);
-    enforceSafeNestedSpawn(worldStack, targetBlock, childCamera, !hasSavedChildState);
-
-    enterNested.block = targetBlock;
-    enterNested.normal = targetNormal;
-    enterNested.startPos = camera.position;
-    enterNested.targetPos = safeCameraPos;
-    enterNested.startOrientation = camera.orientation;
-    enterNested.targetOrientation = targetCamera.orientation;
-    enterNested.childPos = childCamera.position;
-    enterNested.childOrientation = childCamera.orientation;
-    enterNested.parentReturnPos = enterNested.startPos;
-    enterNested.parentReturnOrientation = enterNested.startOrientation;
-
-    transition = PlayerTransition::DIVING_IN;
-    transitionTimer = 0.0f;
-    transitionStartPos = enterNested.startPos;
-    transitionEndPos = enterNested.targetPos;
-    transitionStartOrientation = enterNested.startOrientation;
-    transitionEndOrientation = enterNested.targetOrientation;
-    velocity = glm::vec3(0.0f);
-
-    clearTargetSelection();
+void Player::beginNestedEntryTransition(
+    WorldStack& worldStack,
+    Gameplay::EventQueue* eventQueue
+) {
+    Gameplay::PortalInteractionSystem::beginNestedEntryTransition(
+        *this,
+        worldStack,
+        eventQueue
+    );
 }

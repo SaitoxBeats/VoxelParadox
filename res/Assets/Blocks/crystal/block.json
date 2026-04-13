@@ -12,11 +12,12 @@
     "interactable": false,
     "emits_light": true,
     "has_entity": false,
-    "tags": 2,
+    "preferred_tool": "pickaxe",
     "hardness": 250.0
   },
   "data": {
-    "can_drop_item": false,
+    "drop_item": "block:crystal",
+    "drop_without_tool": false,
     "break_experience_multiplier": 50.0
   },
   "render": {

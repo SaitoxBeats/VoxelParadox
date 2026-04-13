@@ -58,6 +58,12 @@ bool deathScreenMusicFadeOutActive(float elapsedSeconds);
 
 void ensureDeathScreenHud(DeathSequenceState& deathState);
 void updateDeathScreenMessage(DeathSequenceState& deathState, Player& player);
+void updateDeathSequenceFrame(
+    DeathSequenceState& deathState,
+    Player& player,
+    float dt
+);
+bool deathSequenceFinished(const DeathSequenceState& deathState);
 
 void startDeathSequence(DeathSequenceState& deathState, Player& player,
                         WorldStack& worldStack,

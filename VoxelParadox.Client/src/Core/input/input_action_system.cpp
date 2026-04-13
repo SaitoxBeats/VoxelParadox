@@ -27,7 +27,7 @@ struct KeyToken {
   int code = -1;
 };
 
-constexpr std::array<KeyToken, 16> kSpecialKeyboardTokens{{
+constexpr std::array<KeyToken, 17> kSpecialKeyboardTokens{{
     {"Space", GLFW_KEY_SPACE},
     {"Escape", GLFW_KEY_ESCAPE},
     {"Enter", GLFW_KEY_ENTER},
@@ -40,6 +40,7 @@ constexpr std::array<KeyToken, 16> kSpecialKeyboardTokens{{
     {"RightShift", GLFW_KEY_RIGHT_SHIFT},
     {"LeftControl", GLFW_KEY_LEFT_CONTROL},
     {"RightControl", GLFW_KEY_RIGHT_CONTROL},
+    {"Delete", GLFW_KEY_DELETE},
     {"Comma", GLFW_KEY_COMMA},
     {"Period", GLFW_KEY_PERIOD},
     {"Minus", GLFW_KEY_MINUS},
@@ -672,10 +673,19 @@ ControlsCatalog InputActionSystem::makeFallbackCatalog() {
                      InputContext::UiNavigation, InputBindingType::Keyboard,
                      "Escape"),
           makeAction("ui_up", "Move Up", "ui_navigation",
-                     InputContext::UiNavigation, InputBindingType::Keyboard, "Up"),
+                      InputContext::UiNavigation, InputBindingType::Keyboard, "Up"),
           makeAction("ui_down", "Move Down", "ui_navigation",
+                      InputContext::UiNavigation, InputBindingType::Keyboard,
+                      "Down"),
+          makeAction("ui_left", "Move Left", "ui_navigation",
                      InputContext::UiNavigation, InputBindingType::Keyboard,
-                     "Down"),
+                     "Left"),
+          makeAction("ui_right", "Move Right", "ui_navigation",
+                     InputContext::UiNavigation, InputBindingType::Keyboard,
+                     "Right"),
+          makeAction("ui_delete", "Delete", "ui_navigation",
+                     InputContext::UiNavigation, InputBindingType::Keyboard,
+                     "Delete"),
       });
 
   return catalog;

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,8 +23,11 @@ class WorldStack;
 
 namespace WorldSaveService {
 
-inline constexpr std::uint32_t kWorldManifestVersion = 1;
-inline constexpr std::uint32_t kPlayerDataVersion = 8;
+inline constexpr std::uint32_t kWorldManifestVersion = 2;
+inline constexpr std::uint32_t kPlayerDataVersion = 10;
+inline constexpr int kMinimumRootDepth = 0;
+inline constexpr int kMinimumRandomRootDepth = 1;
+inline constexpr int kMaximumRandomRootDepth = 12;
 
 inline constexpr const char* kWorldFileName = "world.dat";
 inline constexpr const char* kPlayerDataDirectoryName = "playerdata";
@@ -37,6 +41,7 @@ struct WorldManifest {
     std::uint32_t schemaVersion = kWorldManifestVersion;
     std::string displayName = "New World";
     std::uint32_t rootSeed = 0;
+    int rootDepth = kMinimumRootDepth;
     BiomeSelection rootBiomeSelection{};
     std::uint32_t activeUniverseSeed = 0;
     BiomeSelection activeUniverseBiomeSelection{};
@@ -99,7 +104,9 @@ std::vector<WorldSummary> listWorlds();
 bool createWorld(const std::string& displayName,
                  const BiomeSelection& rootBiomeSelection,
                  WorldSession& outSession,
-                 std::string* outError = nullptr);
+                 std::string* outError = nullptr,
+                 std::optional<std::uint32_t> requestedRootSeed = std::nullopt,
+                 std::optional<int> requestedRootDepth = std::nullopt);
 bool deleteWorld(const std::filesystem::path& worldDirectory,
                  std::string* outError = nullptr);
 bool renameWorld(const std::filesystem::path& worldDirectory,

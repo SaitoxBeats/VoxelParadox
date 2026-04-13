@@ -188,9 +188,7 @@ bool executeAction(
             return false;
         }
 
-        context.player->setLifePoints(
-            context.player->getLifePoints() + action.amount
-        );
+        context.setPlayerLifePoints(context.player->getLifePoints() + action.amount);
         return true;
 
     case ItemUseActionType::GiveItem:
@@ -201,7 +199,7 @@ bool executeAction(
             return false;
         }
 
-        return context.player->tryAddItemToInventory(action.item, action.amount);
+        return context.tryAddInventoryItem(action.item, action.amount);
 
     case ItemUseActionType::ConsumeItem:
         if (context.player == nullptr) {
@@ -211,7 +209,7 @@ bool executeAction(
             return false;
         }
 
-        return context.player->tryConsumeSelectedInventoryItem(action.amount);
+        return context.tryConsumeSelectedInventoryItem(action.amount);
 
     case ItemUseActionType::None:
     default:
@@ -249,7 +247,7 @@ bool finalizeDeclarativeItemUse(
     std::string* outError
 ) {
     if (definition.onUse.consumeCount > 0) {
-        if (!context.player->tryConsumeSelectedInventoryItem(definition.onUse.consumeCount)) {
+        if (!context.tryConsumeSelectedInventoryItem(definition.onUse.consumeCount)) {
             if (outError) {
                 *outError = "Failed to consume the selected item.";
             }

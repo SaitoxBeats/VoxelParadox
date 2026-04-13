@@ -39,6 +39,7 @@ T* attachToHUDGroup(T* element, const char* groupName, int layer = 0) {
 
 const char* renderDistanceDisplayName(WorldStack::RenderDistancePreset preset);
 std::string mouseSensitivityText(float sensitivity);
+std::string fieldOfViewText(float fieldOfView);
 std::string renderScaleText(float renderScale);
 std::string fontSelectionText(const GameSettings& settings,
                               const std::vector<std::string>& availableFonts);
@@ -62,6 +63,7 @@ std::string resolutionSelectionText(
 void applyWindowSettings(RuntimeUiState& uiState, const GameSettings& settings);
 void stepRenderDistanceSelection(GameSettings& settings, int delta);
 void stepMouseSensitivitySelection(GameSettings& settings, float delta);
+void stepFieldOfViewSelection(GameSettings& settings, float delta);
 void stepRenderScaleSelection(GameSettings& settings, float delta);
 int currentResolutionIndex(
     const GameSettings& settings,
