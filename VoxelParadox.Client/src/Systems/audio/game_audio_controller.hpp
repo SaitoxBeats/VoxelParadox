@@ -62,6 +62,7 @@ public:
     // --- Gameplay Events (Player/Items) ---
     void onItemCollected();
     void onPlayerDamaged();
+    void onPlayerJump();
     void onPlayerDoubleJump();
     void onPlayerFootstep(BlockId blockType, const glm::vec3& worldPosition,
         float gain, float pitch);

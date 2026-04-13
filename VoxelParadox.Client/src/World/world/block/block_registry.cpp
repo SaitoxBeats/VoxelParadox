@@ -1,6 +1,6 @@
 // File: VoxelParadox.Client/src/World/world/block_registry.cpp
 // Purpose: implements the data-driven block registry and block shader assembly.
-// Flow: loads block definitions from Assets/Blocks, applies compiled fallbacks, and builds one shared shader source.
+// Flow: loads block definitions from Assets/Models/Blocks, applies compiled fallbacks, and builds one shared shader source.
 
 // 1. Standard Library
 #include <algorithm>

@@ -25,6 +25,7 @@
 #include "items/item_use_context.hpp"
 #include "player/player.hpp"
 #include "player/player_interaction_tuning.hpp"
+#include "render/config/hand_animation_config.hpp"
 #include "world/block/block.hpp"
 
 namespace {
@@ -295,6 +296,8 @@ void BlockInteractionSystem::updateBlockBreaking(
         player.targeting.breakingHitCooldown =
             PlayerInteractionTuning::kBreakHitRepeatInterval;
 
+        HandAnimation::state.triggerSwing(HandAnimation::config.swingSpeed);
+
         if (player.audioController) {
             player.audioController->onBlockHit(
                 targetType,
@@ -307,6 +310,7 @@ void BlockInteractionSystem::updateBlockBreaking(
     // --- 3. Update Timers ---
     const float breakTime = player.getBreakTimeSeconds(targetType);
     if (breakTime <= 0.0f) {
+        HandAnimation::state.triggerSwing(HandAnimation::config.swingSpeed);
         breakTargetBlock(player, gameplayContext);
         player.targeting.resetBlockBreaking();
         return;
@@ -318,14 +322,17 @@ void BlockInteractionSystem::updateBlockBreaking(
         glm::clamp(player.targeting.breakingTimer / breakTime, 0.0f, 1.0f);
     player.targeting.breakingHitCooldown -= dt;
 
-    if (player.audioController &&
-        player.targeting.breakingHitCooldown <= 0.0f &&
+    if (player.targeting.breakingHitCooldown <= 0.0f &&
         player.targeting.breakingTimer < breakTime) {
-        player.audioController->onBlockHit(
-            targetType,
-            player.targeting.targetBlock,
-            false
-        );
+        HandAnimation::state.triggerSwing(HandAnimation::config.swingSpeed);
+
+        if (player.audioController) {
+            player.audioController->onBlockHit(
+                targetType,
+                player.targeting.targetBlock,
+                false
+            );
+        }
         player.targeting.breakingHitCooldown =
             PlayerInteractionTuning::kBreakHitRepeatInterval;
     }
@@ -535,6 +542,8 @@ void BlockInteractionSystem::placeBlockAtTarget(
     world->setBlock(placePos, placedBlockType);
     player.hotbar.consumeSelected(1);
     gameplayContext.emitBlockPlaced(placePos, placedBlockType);
+    HandAnimation::state.triggerPunch(HandAnimation::config.punchSpeed,
+                                      HandAnimation::config.placeHoldDelay);
 }
 
 void BlockInteractionSystem::dropSelectedItem(
@@ -569,6 +578,37 @@ void BlockInteractionSystem::dropSelectedItem(
         initialVelocity,
         PlayerInteractionTuning::kDroppedItemPickupDelay
     );
+}
+
+void BlockInteractionSystem::dropHeldItem(
+    Player& player,
+    WorldStack& worldStack
+) {
+    FractalWorld* world = worldStack.currentWorld();
+    if (!world) {
+        return;
+    }
+
+    PlayerHotbar::Slot held = player.hotbar.takeHeldSlot();
+    if (held.empty()) {
+        return;
+    }
+
+    const glm::vec3 throwDirection = glm::normalize(player.camera.getForward());
+    const glm::vec3 spawnPosition =
+        player.camera.position +
+        throwDirection * PlayerInteractionTuning::kDroppedItemSpawnDistance;
+    const glm::vec3 initialVelocity =
+        throwDirection * PlayerInteractionTuning::kDroppedItemThrowSpeed;
+
+    for (int i = 0; i < held.count; ++i) {
+        world->spawnDroppedItemAtPosition(
+            spawnPosition,
+            held.item,
+            initialVelocity,
+            PlayerInteractionTuning::kDroppedItemPickupDelay
+        );
+    }
 }
 
 void BlockInteractionSystem::spawnEnemyAtTarget(

@@ -1084,12 +1084,12 @@ namespace RuntimeUI::Detail {
     // Full inventory menu visuals plus 3D slot previews.
     void addInventoryMenuHUD(Player& player, Renderer& renderer, WorldStack& worldStack) {
         HUD::add(attachToHUDGroup(
-            new hudInventoryMenu(&player, InventoryMenuVisualPart::BACKGROUND),
+            new hudInventoryMenu(&player, &worldStack, InventoryMenuVisualPart::BACKGROUND),
             RuntimeHudIds::kInventoryMenu, 0
         ));
 
         HUD::add(attachToHUDGroup(
-            new hudInventoryMenu(&player, InventoryMenuVisualPart::COUNTS),
+            new hudInventoryMenu(&player, &worldStack, InventoryMenuVisualPart::COUNTS),
             RuntimeHudIds::kInventoryMenu, 3
         ));
 
@@ -1104,7 +1104,7 @@ namespace RuntimeUI::Detail {
         ));
 
         HUD::add(attachToHUDGroup(
-            new hudInventoryMenu(&player, InventoryMenuVisualPart::TOOLTIP),
+            new hudInventoryMenu(&player, &worldStack, InventoryMenuVisualPart::TOOLTIP),
             RuntimeHudIds::kInventoryMenu, 4
         ));
 

@@ -303,6 +303,10 @@ void Player::handleMovement(float dt, bool allowMovementInput, bool& jumpPressCo
     if (jumpPressed) {
         jumpPressConsumed = true;
         jumpBufferRemainingSeconds = kJumpBufferSeconds;
+        //std::printf("jumped!\n");
+        if (audioController) {
+            audioController->onPlayerJump();
+        }
     }
     else {
         jumpBufferRemainingSeconds = glm::max(0.0f, jumpBufferRemainingSeconds - dt);

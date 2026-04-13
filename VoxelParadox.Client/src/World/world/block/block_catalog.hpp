@@ -1,5 +1,5 @@
 // File: VoxelParadox.Client/src/World/world/block/block_catalog.hpp
-// Purpose: exposes the stable block id catalog loaded from Assets/Blocks/registry.json.
+// Purpose: exposes the stable block id catalog loaded from Assets/Models/Blocks/registry.json.
 // Flow: keeps named block references data-driven while preserving the existing call surface.
 
 #pragma once

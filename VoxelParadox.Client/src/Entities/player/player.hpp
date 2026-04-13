@@ -482,6 +482,8 @@ public:
 
     void clearHotbar() { hotbar.clear(); }
 
+    void dropHeldInventoryItem(WorldStack& worldStack);
+
     float getItemUseCooldownRemainingSeconds(ItemId itemId) const;
     void startItemUseCooldown(ItemId itemId, float cooldownSeconds);
 #pragma endregion

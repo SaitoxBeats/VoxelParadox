@@ -46,6 +46,65 @@
         "trunk_block": "membrane_weave"
       },
       "type": "tree_generator"
+    },
+    {
+      "blend_mode": "place_on_air",
+      "display_name": "Tree Generator Copy",
+      "enabled": true,
+      "format_version": 1,
+      "id": "tree_generator_copy",
+      "settings": {
+        "density": 0.009999999776482582,
+        "infinite_y": true,
+        "leaves_block": "organic",
+        "max_y": 72,
+        "min_y": -8,
+        "pattern": "random_scatter",
+        "spawn_on_blocks": [
+          "membrane",
+          "organic"
+        ],
+        "tree_type": "trunk_only",
+        "trunk_block": "membrane_weave"
+      },
+      "type": "tree_generator"
+    },
+    {
+      "blend_mode": "place_solids",
+      "display_name": "Grid Pattern",
+      "enabled": true,
+      "format_version": 1,
+      "id": "grid_pattern",
+      "settings": {
+        "accent": "void_matter",
+        "accent_noise_scale": 0.07999999821186066,
+        "accent_threshold": 0.6800000071525574,
+        "cell_size": {
+          "x": 128,
+          "y": 128,
+          "z": 128
+        },
+        "infinite_y": true,
+        "line_width": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "max_axis_matches": 3,
+        "max_y": 96,
+        "min_axis_matches": 2,
+        "min_y": -32,
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "primary": "void_matter",
+        "secondary": "void_matter",
+        "warp_scale": 0.0,
+        "warp_strength": 0.0
+      },
+      "type": "grid_pattern"
     }
   ],
   "preview": {

@@ -736,10 +736,10 @@ void Renderer::collectPointLights(const FractalWorld* world, const glm::vec3& ca
     pointLightCount_ = 0;
 
     // Slot 0: player-carried torch light
-    PointLight& playerLight = pointLights_[pointLightCount_++];
-    playerLight.position = playerPos + glm::vec3(0.0f, 0.3f, 0.0f);
-    playerLight.color = glm::vec3(1.0f, 0.9f, 0.75f);
-    playerLight.radius = 14.0f;
+    //PointLight& playerLight = pointLights_[pointLightCount_++];
+    //playerLight.position = playerPos + glm::vec3(0.0f, 0.3f, 0.0f);
+    //playerLight.color = glm::vec3(1.0f, 0.9f, 0.75f);
+    //playerLight.radius = 0.0f;
 
     if (!world) {
         return;

@@ -1,0 +1,10 @@
+{
+  "id": "piece_of_membrane_weave",
+  "display_name": "Piece of Membrane Weave",
+  "categories": [ "utility" ],
+  "stack_limit": 64,
+  "icon_asset": "Assets/Textures/Items/piece_of_membrane_weave.png",
+  "world_preview": {
+    "use_texture_sprite": true
+  }
+}

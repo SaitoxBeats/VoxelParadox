@@ -74,7 +74,7 @@ bool validateEntries(const std::vector<ItemCatalogEntry>& entries) {
 std::vector<ItemCatalogEntry> loadEntries() {
     std::vector<ItemCatalogEntry> fallback = makeFallbackEntries();
     const std::filesystem::path registryPath =
-        AppPaths::assetsRoot() / "Items" / "registry.json";
+        AppPaths::assetsRoot() / "Models" / "Items" / "registry.json";
     const std::string source = readTextFile(registryPath);
     if (source.empty()) {
         return fallback;

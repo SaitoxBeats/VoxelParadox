@@ -35,6 +35,10 @@ void Player::dropSelectedItem(WorldStack& worldStack) {
     Gameplay::BlockInteractionSystem::dropSelectedItem(*this, worldStack);
 }
 
+void Player::dropHeldInventoryItem(WorldStack& worldStack) {
+    Gameplay::BlockInteractionSystem::dropHeldItem(*this, worldStack);
+}
+
 void Player::spawnEnemyAtTarget(WorldStack& worldStack, EnemyType type) {
     Gameplay::BlockInteractionSystem::spawnEnemyAtTarget(*this, worldStack, type);
 }

@@ -202,6 +202,14 @@ void GameAudioController::onPlayerDoubleJump() {
     audioManager_.playEvent("player.double_jump");
 }
 
+void GameAudioController::onPlayerJump() {
+    if (deathScreenActive_) {
+        return;
+    }
+
+    audioManager_.playEvent("player.jump");
+}
+
 void GameAudioController::onDeathSequenceStarted() {
     audioManager_.stopAllActiveSounds();
     // Let syncFrame transition music on the next update instead of tearing

@@ -32,6 +32,28 @@
         "spawn_chance": 0.029999999329447746
       },
       "type": "import_vox_files"
+    },
+    {
+      "blend_mode": "place_on_air",
+      "display_name": "Tree Generator",
+      "enabled": true,
+      "format_version": 1,
+      "id": "tree_generator",
+      "settings": {
+        "density": 0.3499999940395355,
+        "infinite_y": false,
+        "leaves_block": "organic",
+        "max_y": 72,
+        "min_y": -8,
+        "pattern": "random_scatter",
+        "spawn_on_blocks": [
+          "membrane",
+          "organic"
+        ],
+        "tree_type": "strange",
+        "trunk_block": "void_matter"
+      },
+      "type": "tree_generator"
     }
   ],
   "preview": {

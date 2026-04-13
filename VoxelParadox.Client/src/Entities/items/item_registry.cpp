@@ -1,5 +1,5 @@
 // File: VoxelParadox.Client/src/Entities/items/item_registry.cpp
-// Purpose: loads runtime item definitions from Assets/Items with a compiled fallback.
+// Purpose: loads runtime item definitions from Assets/Models/Items with a compiled fallback.
 // Flow: catalog ids stay stable while gameplay and rendering read per-item metadata from data files.
 
 // 1. Standard Library
@@ -475,7 +475,7 @@ void applyDefinitionJson(
 }
 
 std::filesystem::path definitionPathFor(const ItemCatalogEntry& entry) {
-    return AppPaths::assetsRoot() / "Items" / entry.folderName / "item.json";
+    return AppPaths::assetsRoot() / "Models" / "Items" / entry.folderName / "item.json";
 }
 
 std::vector<ItemDefinition> loadDefinitions() {

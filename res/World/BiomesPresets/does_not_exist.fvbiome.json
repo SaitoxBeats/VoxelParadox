@@ -10,7 +10,7 @@
       "format_version": 1,
       "id": "grid_pattern",
       "settings": {
-        "accent": "stone",
+        "accent": "void_matter",
         "accent_noise_scale": 0.07999999821186066,
         "accent_threshold": 0.6800000071525574,
         "cell_size": {
@@ -33,12 +33,34 @@
           "y": 0,
           "z": 0
         },
-        "primary": "stone",
+        "primary": "void_matter",
         "secondary": "organic",
         "warp_scale": 0.041999999433755875,
         "warp_strength": 8.899999618530273
       },
       "type": "grid_pattern"
+    },
+    {
+      "blend_mode": "overwrite_all",
+      "display_name": "Perlin",
+      "enabled": true,
+      "format_version": 1,
+      "id": "perlin",
+      "settings": {
+        "accent": "crystal",
+        "base_scale": 0.04899999871850014,
+        "core": "stone",
+        "density_octaves": 3,
+        "density_persistence": 0.550000011920929,
+        "density_threshold": 0.5,
+        "recess": "void_matter",
+        "shell": "stone",
+        "surface_patch": "organic",
+        "surface_rib": "void_matter",
+        "warp_octaves": 2,
+        "warp_strength": 0.44999998807907104
+      },
+      "type": "perlin_terrain"
     }
   ],
   "preview": {

@@ -5,12 +5,12 @@
 namespace ClientAssets {
 
 inline constexpr char kFontsDirectory[] = "Assets/Fonts";
-inline constexpr char kBlocksDirectory[] = "Assets/Blocks";
-inline constexpr char kBlockRegistryFile[] = "Assets/Blocks/registry.json";
+inline constexpr char kBlocksDirectory[] = "Assets/Models/Blocks";
+inline constexpr char kBlockRegistryFile[] = "Assets/Models/Blocks/registry.json";
 inline constexpr char kBlockTexturesDirectory[] = "Assets/Textures/Blocks";
 inline constexpr char kBlockTextureAtlasMetadataFile[] = "Assets/Textures/Blocks/atlas.json";
-inline constexpr char kItemsDirectory[] = "Assets/Items";
-inline constexpr char kItemRegistryFile[] = "Assets/Items/registry.json";
+inline constexpr char kItemsDirectory[] = "Assets/Models/Items";
+inline constexpr char kItemRegistryFile[] = "Assets/Models/Items/registry.json";
 inline constexpr char kBlockModelsDirectory[] = "Assets/Models/block";
 inline constexpr char kEntityModelsDirectory[] = "Assets/Models/entity";
 inline constexpr char kRecipesDirectory[] = "Assets/Recipes";

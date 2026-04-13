@@ -214,8 +214,9 @@ void drawInventoryTooltipRect(Shader& shader, const glm::ivec4& rect, const glm:
 
 // Funcao: executa 'hudInventoryMenu' na exibicao visual do inventario.
 // Detalhe: usa 'player', 'part' para encapsular esta etapa especifica do subsistema.
-hudInventoryMenu::hudInventoryMenu(Player* player, InventoryMenuVisualPart part)
+hudInventoryMenu::hudInventoryMenu(Player* player, WorldStack* worldStack, InventoryMenuVisualPart part)
     : player(player),
+      worldStack(worldStack),
       part(part),
       sectionText("", 0, 0, glm::vec2(1.0f), 18),
       countText("", 0, 0, glm::vec2(0.9f), 14),
@@ -386,6 +387,15 @@ void hudInventoryMenu::update(int screenWidth, int screenHeight) {
     hoveredSlot = findHoveredSlot(screenWidth, screenHeight, mouseX, mouseY);
 
     if (Input::mousePressed(GLFW_MOUSE_BUTTON_LEFT)) {
+        if (!hoveredSlot.valid() && !player->getHeldInventorySlot().empty() && worldStack) {
+            const auto& config = HUDInventoryMenuPreview::config.layout;
+            const ResolvedInventoryMenuLayout layout =
+                resolveInventoryMenuLayout(config, screenWidth, screenHeight);
+            if (!pointInRect(layout.panelRect, mouseX, mouseY)) {
+                player->dropHeldInventoryItem(*worldStack);
+                return;
+            }
+        }
         handleClick(PlayerHotbar::ClickType::LEFT);
     }
     if (Input::mousePressed(GLFW_MOUSE_BUTTON_RIGHT)) {

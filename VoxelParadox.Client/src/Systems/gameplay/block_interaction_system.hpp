@@ -42,6 +42,11 @@ public:
         WorldStack& worldStack
     );
 
+    static void dropHeldItem(
+        Player& player,
+        WorldStack& worldStack
+    );
+
     static void spawnEnemyAtTarget(
         Player& player,
         WorldStack& worldStack,

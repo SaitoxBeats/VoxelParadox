@@ -35,6 +35,28 @@
         "threshold": 0.08500000089406967
       },
       "type": "cellular_noise"
+    },
+    {
+      "blend_mode": "overwrite_all",
+      "display_name": "Perlin",
+      "enabled": true,
+      "format_version": 1,
+      "id": "perlin",
+      "settings": {
+        "accent": "crystal",
+        "base_scale": 0.1379999965429306,
+        "core": "stone",
+        "density_octaves": 3,
+        "density_persistence": 0.550000011920929,
+        "density_threshold": 0.47099998593330383,
+        "recess": "void_matter",
+        "shell": "stone",
+        "surface_patch": "void_matter",
+        "surface_rib": "void_matter",
+        "warp_octaves": 2,
+        "warp_strength": 0.44999998807907104
+      },
+      "type": "perlin_terrain"
     }
   ],
   "preview": {

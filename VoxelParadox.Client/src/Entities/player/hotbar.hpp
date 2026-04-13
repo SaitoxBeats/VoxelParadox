@@ -175,6 +175,12 @@ public:
         return heldSlot;
     }
 
+    Slot takeHeldSlot() {
+        Slot taken = heldSlot;
+        heldSlot = Slot{};
+        return taken;
+    }
+
     // Funcao: retorna 'getCraftSlot' na hotbar e no inventario do jogador.
     // Detalhe: usa 'index' para expor um dado derivado ou um acesso controlado ao estado interno.
     // Retorno: devolve 'const Slot&' para dar acesso direto ao objeto resolvido por esta rotina.

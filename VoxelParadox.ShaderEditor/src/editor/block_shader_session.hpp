@@ -74,7 +74,7 @@ private:
   static constexpr double kDebounceSeconds = 0.20;
   static constexpr double kRetrySeconds = 0.75;
 
-  std::filesystem::path registryPath_{"Assets/Blocks/registry.json"};
+  std::filesystem::path registryPath_{"Assets/Models/Blocks/registry.json"};
   std::filesystem::path fragmentTemplatePath_{"Assets/Shaders/block.frag"};
   std::filesystem::path vertexPath_{"Assets/Shaders/block.vert"};
   std::filesystem::path blockShaderPath_{};

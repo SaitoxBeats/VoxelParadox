@@ -10,6 +10,7 @@
 #include "enemies/enemy_spawn_system.hpp"
 #include "input/input_action_ids.hpp"
 #include "input/input_action_system.hpp"
+#include "render/config/hand_animation_config.hpp"
 
 namespace RuntimeUI {
 namespace {
@@ -178,6 +179,123 @@ void drawDeveloperViewWindow(const WorldStack& worldStack) {
   ImGui::End();
 }
 
+bool easingCombo(const char* label, EasingType& current) {
+  int index = static_cast<int>(current);
+  bool changed = false;
+  if (ImGui::BeginCombo(label, getEasingName(current))) {
+    for (int i = 0; i < kEasingTypeCount; ++i) {
+      const EasingType e = static_cast<EasingType>(i);
+      const bool selected = (i == index);
+      if (ImGui::Selectable(getEasingName(e), selected)) {
+        current = e;
+        changed = true;
+      }
+      if (selected) {
+        ImGui::SetItemDefaultFocus();
+      }
+    }
+    ImGui::EndCombo();
+  }
+  return changed;
+}
+
+void drawHandAnimationDebugWindow() {
+  ImGui::SetNextWindowPos(ImVec2(360.0f, 24.0f), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(360.0f, 560.0f), ImGuiCond_FirstUseEver);
+
+  if (!ImGui::Begin("Hand Animation")) {
+    ImGui::End();
+    return;
+  }
+
+  auto& config = HandAnimation::config;
+  const auto& state = HandAnimation::state;
+
+  const char* animName = "None";
+  if (state.activeAnimation == HandAnimationState::AnimationType::SWING) {
+    animName = "Swing (Break)";
+  } else if (state.activeAnimation == HandAnimationState::AnimationType::PUNCH) {
+    animName = "Punch (Place)";
+  }
+  ImGui::Text("Active: %s  Progress: %.2f", animName, state.progress);
+  ImGui::ProgressBar(
+      state.progress >= 0.0f ? state.progress * 0.5f : 0.0f,
+      ImVec2(-1.0f, 0.0f));
+  if (state.isPlaceHolding()) {
+    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f),
+                       "Place hold: %.3fs", state.placeHoldTimer);
+  }
+
+  ImGui::Separator();
+  if (ImGui::CollapsingHeader("Break (Swing)", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::DragFloat("Speed##swing", &config.swingSpeed, 0.5f, 1.0f, 40.0f, "%.1f");
+    ImGui::DragFloat("Intensity##swing", &config.swingIntensity,
+                     0.05f, 0.0f, 5.0f, "%.2f");
+    ImGui::Text("Rotation (Pitch / Yaw / Roll):");
+    ImGui::DragFloat("Pitch##swingR", &config.swingRotationDegrees.x,
+                     0.5f, -180.0f, 180.0f, "%.1f deg");
+    ImGui::DragFloat("Yaw##swingR", &config.swingRotationDegrees.y,
+                     0.5f, -180.0f, 180.0f, "%.1f deg");
+    ImGui::DragFloat("Roll##swingR", &config.swingRotationDegrees.z,
+                     0.5f, -180.0f, 180.0f, "%.1f deg");
+    ImGui::Text("Translation (Fwd / Right / Up):");
+    ImGui::DragFloat("Forward##swingT", &config.swingTranslation.x,
+                     0.005f, -0.5f, 0.5f, "%.3f");
+    ImGui::DragFloat("Right##swingT", &config.swingTranslation.y,
+                     0.005f, -0.5f, 0.5f, "%.3f");
+    ImGui::DragFloat("Up##swingT", &config.swingTranslation.z,
+                     0.005f, -0.5f, 0.5f, "%.3f");
+    easingCombo("Ease In##swing", config.swingEaseIn);
+    easingCombo("Ease Out##swing", config.swingEaseOut);
+  }
+
+  if (ImGui::CollapsingHeader("Place (Punch)", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::DragFloat("Speed##punch", &config.punchSpeed, 0.5f, 1.0f, 40.0f, "%.1f");
+    ImGui::DragFloat("Intensity##punch", &config.punchIntensity,
+                     0.05f, 0.0f, 5.0f, "%.2f");
+    ImGui::Text("Rotation (Pitch / Yaw / Roll):");
+    ImGui::DragFloat("Pitch##punchR", &config.punchRotationDegrees.x,
+                     0.5f, -180.0f, 180.0f, "%.1f deg");
+    ImGui::DragFloat("Yaw##punchR", &config.punchRotationDegrees.y,
+                     0.5f, -180.0f, 180.0f, "%.1f deg");
+    ImGui::DragFloat("Roll##punchR", &config.punchRotationDegrees.z,
+                     0.5f, -180.0f, 180.0f, "%.1f deg");
+    ImGui::Text("Translation (Fwd / Right / Up):");
+    ImGui::DragFloat("Forward##punchT", &config.punchTranslation.x,
+                     0.005f, -0.5f, 0.5f, "%.3f");
+    ImGui::DragFloat("Right##punchT", &config.punchTranslation.y,
+                     0.005f, -0.5f, 0.5f, "%.3f");
+    ImGui::DragFloat("Up##punchT", &config.punchTranslation.z,
+                     0.005f, -0.5f, 0.5f, "%.3f");
+    ImGui::DragFloat("Place Hold Delay", &config.placeHoldDelay,
+                     0.01f, 0.0f, 1.0f, "%.3f s");
+    easingCombo("Ease In##punch", config.punchEaseIn);
+    easingCombo("Ease Out##punch", config.punchEaseOut);
+  }
+
+  if (ImGui::CollapsingHeader("Idle Sway")) {
+    ImGui::DragFloat("Sway Speed", &config.idleSwaySpeed,
+                     0.1f, 0.0f, 10.0f, "%.1f");
+    ImGui::DragFloat("Sway Amount", &config.idleSwayAmount,
+                     0.001f, 0.0f, 0.1f, "%.3f");
+  }
+
+  ImGui::Separator();
+  if (ImGui::Button("Test Swing")) {
+    HandAnimation::state.triggerSwing(config.swingSpeed);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Test Punch")) {
+    HandAnimation::state.triggerPunch(config.punchSpeed, config.placeHoldDelay);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Reset Defaults")) {
+    config = HandAnimationConfig{};
+  }
+
+  ImGui::End();
+}
+
 }  // namespace
 
 bool shouldRenderDeveloperUi() {
@@ -187,6 +305,7 @@ bool shouldRenderDeveloperUi() {
 void drawDeveloperUi(const WorldStack& worldStack, const Player& player) {
   if (Input::hasUiFocus()) {
     drawDeveloperViewWindow(worldStack);
+    drawHandAnimationDebugWindow();
   }
 
   drawOrientationGizmoOverlay(player);

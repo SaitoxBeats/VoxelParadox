@@ -24,6 +24,11 @@
       "value": 4,
       "id": "versal",
       "folder": "versal"
+    },
+    {
+      "value": 5,
+      "id": "piece_of_membrane_weave",
+      "folder": "piece_of_membrane_weave"
     }
   ]
 }

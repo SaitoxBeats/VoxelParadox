@@ -33,6 +33,27 @@
         "threshold": 0.019999999552965164
       },
       "type": "fractal_noise"
+    },
+    {
+      "blend_mode": "place_on_air",
+      "display_name": "Tree Generator",
+      "enabled": true,
+      "format_version": 1,
+      "id": "tree_generator",
+      "settings": {
+        "density": 0.3499999940395355,
+        "infinite_y": false,
+        "leaves_block": "organic",
+        "max_y": 72,
+        "min_y": -8,
+        "pattern": "random_scatter",
+        "spawn_on_blocks": [
+          "metal"
+        ],
+        "tree_type": "trunk_only",
+        "trunk_block": "void_matter"
+      },
+      "type": "tree_generator"
     }
   ],
   "preview": {

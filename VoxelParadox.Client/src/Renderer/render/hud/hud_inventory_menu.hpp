@@ -57,7 +57,7 @@ public:
 #pragma region InventoryMenuLifecycleAndFrameApi
     // Funcao: executa 'hudInventoryMenu' na exibicao visual do inventario.
     // Detalhe: usa 'player', 'part' para encapsular esta etapa especifica do subsistema.
-    hudInventoryMenu(Player* player, InventoryMenuVisualPart part);
+    hudInventoryMenu(Player* player, WorldStack* worldStack, InventoryMenuVisualPart part);
 
     // Funcao: atualiza 'update' na exibicao visual do inventario.
     // Detalhe: usa 'screenWidth', 'screenHeight' para sincronizar o estado derivado com o frame atual.
@@ -70,6 +70,7 @@ public:
 private:
 #pragma region InventoryMenuState
     Player* player = nullptr;
+    WorldStack* worldStack = nullptr;
     InventoryMenuVisualPart part = InventoryMenuVisualPart::BACKGROUND;
     hudText sectionText;
     hudText countText;

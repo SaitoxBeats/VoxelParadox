@@ -15,6 +15,7 @@
           "z": 24
         },
         "color_mapping": "ancient_ruins",
+        "default_voxel": "stone",
         "fixed_rotation": 0,
         "include_subdirectories": true,
         "infinite_y": true,
@@ -26,12 +27,48 @@
         "min_y": -8,
         "pattern": "random_scatter",
         "rotation_mode": "random_90",
-        "default_voxel": "stone",
         "seed_offset": 0,
         "source_directory": "Assets/Voxs/Ruins",
         "spawn_chance": 0.25
       },
       "type": "import_vox_files"
+    },
+    {
+      "blend_mode": "place_solids",
+      "display_name": "Grid Pattern",
+      "enabled": true,
+      "format_version": 1,
+      "id": "grid_pattern",
+      "settings": {
+        "accent": "crystal",
+        "accent_noise_scale": 0.07999999821186066,
+        "accent_threshold": 0.6800000071525574,
+        "cell_size": {
+          "x": 128,
+          "y": 128,
+          "z": 128
+        },
+        "infinite_y": true,
+        "line_width": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "max_axis_matches": 3,
+        "max_y": 96,
+        "min_axis_matches": 2,
+        "min_y": -32,
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "primary": "stone",
+        "secondary": "void_matter",
+        "warp_scale": 0.0,
+        "warp_strength": 0.0
+      },
+      "type": "grid_pattern"
     }
   ],
   "preview": {

@@ -24,7 +24,7 @@
   "render": {
     "base_color": [0.76, 0.96, 0.82],
     "shader": "shader.glsl",
-    "custom_model_asset": "Assets/Models/block/membrane_wire.obj",
+    "custom_model_asset": "Assets/Models/Blocks/membrane_wire/membrane_wire.obj",
     "selection_bounds": {
       "min": [0.3, 0.0, 0.3],
       "max": [0.7, 0.65, 0.7]

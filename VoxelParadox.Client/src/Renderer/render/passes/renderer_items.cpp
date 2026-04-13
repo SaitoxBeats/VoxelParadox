@@ -13,6 +13,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "render/config/dust_particle_config.hpp"
+#include "render/config/hand_animation_config.hpp"
 #include "engine/camera.hpp"
 #include "engine/engine.hpp"
 #include "render/config/hotbar_preview_config.hpp"
@@ -414,9 +415,27 @@ void Renderer::renderItemSprite(ItemId itemId, const glm::mat4& vp, const glm::m
 void Renderer::renderHeldItem(const Player& player, const FractalWorld* world,
                               const glm::mat4& vp, int depth, float time,
                               float visibility) {
-    const InventoryItem& heldItem =
+    const float dt = glm::max(ENGINE::GETDELTATIME(), 0.0f);
+    HandAnimation::state.update(dt, HandAnimation::config);
+
+    // Resolve which item to display.
+    // During a place-hold, keep showing the previous item so it doesn't
+    // vanish from the hand the instant the block is placed.
+    static InventoryItem placeHoldSnapshot{};
+
+    const InventoryItem& liveItem =
         heldItemTransition.swapAnimating ? heldItemTransition.currentItem
                                          : player.getSelectedHotbarItem();
+
+    if (!liveItem.empty()) {
+        placeHoldSnapshot = liveItem;
+    }
+
+    const InventoryItem& heldItem =
+        (liveItem.empty() && HandAnimation::state.isPlaceHolding())
+            ? placeHoldSnapshot
+            : liveItem;
+
     if (heldItem.empty() || visibility <= 0.001f) {
         return;
     }
@@ -448,27 +467,34 @@ void Renderer::renderHeldSpriteItem(const Player& player, ItemId heldItemId,
     const glm::vec3 right = glm::normalize(player.camera.getRight());
     const glm::vec3 up = glm::normalize(player.camera.getUp());
     const auto& heldItemConfig = HeldItemDebugView::config;
+    const auto& handAnim = HandAnimation::state;
+    const auto& handConfig = HandAnimation::config;
     const float shownAmount = visibility * visibility * (3.0f - 2.0f * visibility);
-    const float idleLift = std::sin(time * 2.2f) * 0.012f;
+    const float idleLift = std::sin(time * handConfig.idleSwaySpeed) * handConfig.idleSwayAmount;
     const float hiddenOffset = (1.0f - shownAmount) * 0.62f;
 
+    const glm::vec3 animTranslation = handAnim.getTranslationOffset(handConfig);
     const glm::vec3 position =
         player.camera.position + forward * heldItemConfig.spritePositionOffset.x +
         right * heldItemConfig.spritePositionOffset.y +
         up * (heldItemConfig.spritePositionOffset.z - hiddenOffset + idleLift +
-              verticalOffset);
+              verticalOffset) +
+        forward * animTranslation.x +
+        right * animTranslation.y +
+        up * animTranslation.z;
 
     glm::mat4 basis(1.0f);
     basis[0] = glm::vec4(right, 0.0f);
     basis[1] = glm::vec4(up, 0.0f);
     basis[2] = glm::vec4(-forward, 0.0f);
 
+    const glm::vec3 animRotation = handAnim.getRotationOffsetDegrees(handConfig);
     glm::mat4 model = glm::translate(glm::mat4(1.0f), position) * basis;
-    model = glm::rotate(model, glm::radians(heldItemConfig.spriteRotationDegrees.x),
+    model = glm::rotate(model, glm::radians(heldItemConfig.spriteRotationDegrees.x + animRotation.x),
                         glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(heldItemConfig.spriteRotationDegrees.y),
+    model = glm::rotate(model, glm::radians(heldItemConfig.spriteRotationDegrees.y + animRotation.y),
                         glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(heldItemConfig.spriteRotationDegrees.z),
+    model = glm::rotate(model, glm::radians(heldItemConfig.spriteRotationDegrees.z + animRotation.z),
                         glm::vec3(0.0f, 0.0f, 1.0f));
     model = glm::rotate(model, glm::radians(30.0f) * (1.0f - shownAmount),
                         glm::vec3(0.0f, 0.0f, 1.0f));
@@ -492,28 +518,35 @@ void Renderer::renderHeldCustomBlockModel(const Player& player, const FractalWor
     const glm::vec3 right = glm::normalize(player.camera.getRight());
     const glm::vec3 up = glm::normalize(player.camera.getUp());
     const auto& heldItemConfig = HeldItemDebugView::config;
+    const auto& handAnim = HandAnimation::state;
+    const auto& handConfig = HandAnimation::config;
     const float shownAmount = visibility * visibility * (3.0f - 2.0f * visibility);
-    const float idleLift = std::sin(time * 2.0f) * 0.016f;
+    const float idleLift = std::sin(time * handConfig.idleSwaySpeed) * handConfig.idleSwayAmount;
     const float hiddenOffset = (1.0f - shownAmount) * 0.72f;
 
+    const glm::vec3 animTranslation = handAnim.getTranslationOffset(handConfig);
     const glm::vec3 position =
         player.camera.position + forward * heldItemConfig.blockPositionOffset.x +
         right * heldItemConfig.blockPositionOffset.y +
         up * (heldItemConfig.blockPositionOffset.z - hiddenOffset + idleLift +
-              verticalOffset);
+              verticalOffset) +
+        forward * animTranslation.x +
+        right * animTranslation.y +
+        up * animTranslation.z;
 
+    const glm::vec3 animRotation = handAnim.getRotationOffsetDegrees(handConfig);
     glm::mat4 rotationScale(1.0f);
     rotationScale[0] = glm::vec4(right, 0.0f);
     rotationScale[1] = glm::vec4(up, 0.0f);
     rotationScale[2] = glm::vec4(-forward, 0.0f);
     rotationScale =
-        glm::rotate(rotationScale, glm::radians(heldItemConfig.blockRotationDegrees.x),
+        glm::rotate(rotationScale, glm::radians(heldItemConfig.blockRotationDegrees.x + animRotation.x),
                     glm::vec3(1.0f, 0.0f, 0.0f));
     rotationScale =
-        glm::rotate(rotationScale, glm::radians(heldItemConfig.blockRotationDegrees.y),
+        glm::rotate(rotationScale, glm::radians(heldItemConfig.blockRotationDegrees.y + animRotation.y),
                     glm::vec3(0.0f, 1.0f, 0.0f));
     rotationScale =
-        glm::rotate(rotationScale, glm::radians(heldItemConfig.blockRotationDegrees.z),
+        glm::rotate(rotationScale, glm::radians(heldItemConfig.blockRotationDegrees.z + animRotation.z),
                     glm::vec3(0.0f, 0.0f, 1.0f));
     rotationScale = glm::rotate(rotationScale, std::sin(time * 1.6f) * 0.08f,
                                 glm::vec3(0.0f, 1.0f, 0.0f));
@@ -558,25 +591,32 @@ void Renderer::renderHeldBlock(const Player& player, const FractalWorld* world,
     const glm::vec3 right = glm::normalize(player.camera.getRight());
     const glm::vec3 up = glm::normalize(player.camera.getUp());
     const auto& heldItemConfig = HeldItemDebugView::config;
+    const auto& handAnim = HandAnimation::state;
+    const auto& handConfig = HandAnimation::config;
     const float shownAmount = visibility * visibility * (3.0f - 2.0f * visibility);
-    const float idleLift = std::sin(time * 2.0f) * 0.016f;
+    const float idleLift = std::sin(time * handConfig.idleSwaySpeed) * handConfig.idleSwayAmount;
     const float hiddenOffset = (1.0f - shownAmount) * 0.72f;
 
+    const glm::vec3 animTranslation = handAnim.getTranslationOffset(handConfig);
     const glm::vec3 position =
         player.camera.position + forward * heldItemConfig.blockPositionOffset.x +
         right * heldItemConfig.blockPositionOffset.y +
         up * (heldItemConfig.blockPositionOffset.z - hiddenOffset + idleLift +
-              verticalOffset);
+              verticalOffset) +
+        forward * animTranslation.x +
+        right * animTranslation.y +
+        up * animTranslation.z;
 
+    const glm::vec3 animRotation = handAnim.getRotationOffsetDegrees(handConfig);
     glm::mat4 rotation(1.0f);
     rotation[0] = glm::vec4(right, 0.0f);
     rotation[1] = glm::vec4(up, 0.0f);
     rotation[2] = glm::vec4(-forward, 0.0f);
-    rotation = glm::rotate(rotation, glm::radians(heldItemConfig.blockRotationDegrees.x),
+    rotation = glm::rotate(rotation, glm::radians(heldItemConfig.blockRotationDegrees.x + animRotation.x),
                            glm::vec3(1.0f, 0.0f, 0.0f));
-    rotation = glm::rotate(rotation, glm::radians(heldItemConfig.blockRotationDegrees.y),
+    rotation = glm::rotate(rotation, glm::radians(heldItemConfig.blockRotationDegrees.y + animRotation.y),
                            glm::vec3(0.0f, 1.0f, 0.0f));
-    rotation = glm::rotate(rotation, glm::radians(heldItemConfig.blockRotationDegrees.z),
+    rotation = glm::rotate(rotation, glm::radians(heldItemConfig.blockRotationDegrees.z + animRotation.z),
                            glm::vec3(0.0f, 0.0f, 1.0f));
     rotation = glm::rotate(rotation, std::sin(time * 1.6f) * 0.08f,
                            glm::vec3(0.0f, 1.0f, 0.0f));

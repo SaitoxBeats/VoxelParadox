@@ -58,6 +58,21 @@
       "max_concurrency": 3
     },
     {
+      "id": "player.jump",
+      "category": "player",
+      "clips": [
+        "Sounds/Player/double_jump.mp3"
+      ],
+      "base_gain": 0.1,
+      "pitch_range": [ 1.25, 1.96 ],
+      "volume_range": [ 0.96, 1.00 ],
+      "positional": true,
+      "reference_distance": 2.0,
+      "max_distance": 20.0,
+      "rolloff_factor": 0.8,
+      "max_concurrency": 3
+    },
+    {
       "id": "enemy.trigger.activate",
       "category": "hostile",
       "clips": [
