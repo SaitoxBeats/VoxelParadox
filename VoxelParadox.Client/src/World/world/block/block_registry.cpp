@@ -16,18 +16,6 @@
 #include <unordered_map>
 
 // 2. Third-party Libraries
-#ifndef STB_IMAGE_STATIC
-#define STB_IMAGE_STATIC
-#endif
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
-#ifndef STB_IMAGE_WRITE_STATIC
-#define STB_IMAGE_WRITE_STATIC
-#endif
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb_image_write.h>
-
 #include <nlohmann/json.hpp>
 
 // 3. Local Project Modules
@@ -236,30 +224,6 @@ bool tryParsePreferredToolTags(const std::string& rawValue, std::uint32_t& outTa
     return false;
 }
 
-struct BlockTextureAtlasData {
-    std::string textureAssetPath{};
-    glm::ivec2 gridSize{ 1, 1 };
-    std::unordered_map<BlockId, glm::vec4> transformsByBlockId{};
-
-    bool tryResolveTransform(BlockId blockId, glm::vec4& outTransform) const {
-        const auto found = transformsByBlockId.find(blockId);
-        if (found == transformsByBlockId.end()) {
-            return false;
-        }
-
-        outTransform = found->second;
-        return true;
-    }
-};
-
-struct LoadedBlockTexture {
-    BlockId blockId = BlockIds::AIR;
-    std::filesystem::path sourcePath{};
-    int width = 0;
-    int height = 0;
-    std::vector<unsigned char> pixels{};
-};
-
 std::filesystem::path resolveBlockAssetPath(
     const std::filesystem::path& blockDirectory,
     const std::string& rawPath
@@ -302,176 +266,6 @@ std::filesystem::path detectDefaultBlockTexturePath(
 ) {
     const std::filesystem::path defaultTexturePath = blockDirectory / "texture.png";
     return fileExists(defaultTexturePath) ? defaultTexturePath : std::filesystem::path{};
-}
-
-bool tryLoadRgbaTexture(
-    const std::filesystem::path& path,
-    LoadedBlockTexture& outTexture
-) {
-    int width = 0;
-    int height = 0;
-    int channels = 0;
-    unsigned char* data = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
-    if (!data || width <= 0 || height <= 0) {
-        if (data) {
-            stbi_image_free(data);
-        }
-        return false;
-    }
-
-    outTexture.width = width;
-    outTexture.height = height;
-    outTexture.pixels.assign(data, data + (width * height * 4));
-    stbi_image_free(data);
-    return true;
-}
-
-void blitScaledTextureToAtlas(
-    const LoadedBlockTexture& texture,
-    std::vector<unsigned char>& atlasPixels,
-    int atlasWidth,
-    int atlasHeight,
-    int destX,
-    int destY,
-    int tileWidth,
-    int tileHeight
-) {
-    if (texture.width <= 0 || texture.height <= 0 ||
-        tileWidth <= 0 || tileHeight <= 0 ||
-        atlasWidth <= 0 || atlasHeight <= 0) {
-        return;
-    }
-
-    for (int y = 0; y < tileHeight; ++y) {
-        const int srcY = std::min(texture.height - 1, (y * texture.height) / tileHeight);
-        const int atlasY = destY + y;
-        if (atlasY < 0 || atlasY >= atlasHeight) {
-            continue;
-        }
-
-        for (int x = 0; x < tileWidth; ++x) {
-            const int srcX = std::min(texture.width - 1, (x * texture.width) / tileWidth);
-            const int atlasX = destX + x;
-            if (atlasX < 0 || atlasX >= atlasWidth) {
-                continue;
-            }
-
-            const std::size_t srcIndex =
-                static_cast<std::size_t>((srcY * texture.width + srcX) * 4);
-            const std::size_t dstIndex =
-                static_cast<std::size_t>((atlasY * atlasWidth + atlasX) * 4);
-
-            atlasPixels[dstIndex + 0] = texture.pixels[srcIndex + 0];
-            atlasPixels[dstIndex + 1] = texture.pixels[srcIndex + 1];
-            atlasPixels[dstIndex + 2] = texture.pixels[srcIndex + 2];
-            atlasPixels[dstIndex + 3] = texture.pixels[srcIndex + 3];
-        }
-    }
-}
-
-BlockTextureAtlasData buildGeneratedBlockTextureAtlas(
-    const std::vector<BlockDefinition>& definitions
-) {
-    BlockTextureAtlasData atlas{};
-    atlas.textureAssetPath =
-        AppPaths::workspaceFile("artifacts/generated/block_textures/atlas.png").generic_string();
-
-    std::vector<LoadedBlockTexture> loadedTextures;
-    loadedTextures.reserve(definitions.size());
-
-    int tileWidth = 1;
-    int tileHeight = 1;
-
-    for (const BlockDefinition& definition : definitions) {
-        if (definition.textureAssetPath.empty()) {
-            continue;
-        }
-
-        LoadedBlockTexture loadedTexture{};
-        loadedTexture.blockId = definition.idValue;
-        loadedTexture.sourcePath = definition.textureAssetPath;
-
-        if (!tryLoadRgbaTexture(loadedTexture.sourcePath, loadedTexture)) {
-            std::printf("[Blocks] Failed to load block texture: %s\n",
-                        loadedTexture.sourcePath.string().c_str());
-            continue;
-        }
-
-        tileWidth = std::max(tileWidth, loadedTexture.width);
-        tileHeight = std::max(tileHeight, loadedTexture.height);
-        loadedTextures.push_back(std::move(loadedTexture));
-    }
-
-    const int tileCount = std::max(1, static_cast<int>(loadedTextures.size()) + 1);
-    const int columns =
-        std::max(1, static_cast<int>(std::ceil(std::sqrt(static_cast<double>(tileCount)))));
-    const int rows = std::max(1, (tileCount + columns - 1) / columns);
-
-    atlas.gridSize = glm::ivec2(columns, rows);
-
-    const int atlasWidth = columns * tileWidth;
-    const int atlasHeight = rows * tileHeight;
-    std::vector<unsigned char> atlasPixels(
-        static_cast<std::size_t>(atlasWidth * atlasHeight * 4),
-        0
-    );
-
-    for (int y = 0; y < tileHeight; ++y) {
-        for (int x = 0; x < tileWidth; ++x) {
-            const std::size_t dstIndex =
-                static_cast<std::size_t>((y * atlasWidth + x) * 4);
-            atlasPixels[dstIndex + 0] = 255;
-            atlasPixels[dstIndex + 1] = 255;
-            atlasPixels[dstIndex + 2] = 255;
-            atlasPixels[dstIndex + 3] = 255;
-        }
-    }
-
-    for (std::size_t index = 0; index < loadedTextures.size(); ++index) {
-        const int tileIndex = static_cast<int>(index) + 1;
-        const int tileX = tileIndex % columns;
-        const int tileY = tileIndex / columns;
-
-        blitScaledTextureToAtlas(
-            loadedTextures[index],
-            atlasPixels,
-            atlasWidth,
-            atlasHeight,
-            tileX * tileWidth,
-            tileY * tileHeight,
-            tileWidth,
-            tileHeight
-        );
-
-        const glm::vec2 scale(
-            1.0f / static_cast<float>(columns),
-            1.0f / static_cast<float>(rows)
-        );
-        const glm::vec2 offset(
-            static_cast<float>(tileX) * scale.x,
-            1.0f - (static_cast<float>(tileY + 1) * scale.y)
-        );
-
-        atlas.transformsByBlockId[loadedTextures[index].blockId] =
-            glm::vec4(scale, offset);
-    }
-
-    const std::filesystem::path atlasPath = atlas.textureAssetPath;
-    std::error_code ec;
-    std::filesystem::create_directories(atlasPath.parent_path(), ec);
-    ec.clear();
-
-    if (!stbi_write_png(atlasPath.string().c_str(),
-                        atlasWidth,
-                        atlasHeight,
-                        4,
-                        atlasPixels.data(),
-                        atlasWidth * 4)) {
-        std::printf("[Blocks] Failed to write generated block atlas: %s\n",
-                    atlasPath.string().c_str());
-    }
-
-    return atlas;
 }
 
 const char* defaultShaderFor(std::string_view stableId) {
@@ -574,7 +368,7 @@ BlockDefinition makeGenericFallbackDefinition(const BlockCatalogEntry& entry) {
         entry.stableId.c_str(),
         makeDisplayNameFromStableId(entry.stableId).c_str(),
         blockCategoryMask({}),
-        { true, false, false, false, false, BLOCK_TAG_NONE, 1.0f },
+        { true, false, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_NONE, 1.0f },
         { "none", true, 0.0f },
         false,
         true,
@@ -596,7 +390,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Air",
                 blockCategoryMask({}),
-                { false, false, false, false, false, BLOCK_TAG_NONE, 0.0f },
+                { false, false, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_NONE, 0.0f },
                 { "none", true, 0.0f },
                 true,
                 false,
@@ -609,7 +403,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Stone",
                 blockCategoryMask({ BlockCategory::TERRAIN }),
-                { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 7.5f },
+                { true, false, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 7.5f },
                 { "block:stone", false, 1.0f },
                 false,
                 true,
@@ -622,7 +416,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Crystal",
                 blockCategoryMask({ BlockCategory::TERRAIN, BlockCategory::DECORATION }),
-                { true, false, false, true, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 250.0f },
+                { true, false, false, true, glm::vec3{0.15f, 0.85f, 0.95f}, 10.0f, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 250.0f },
                 { "block:crystal", false, 50.0f },
                 false,
                 true,
@@ -635,7 +429,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Void Matter",
                 blockCategoryMask({ BlockCategory::TERRAIN }),
-                { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 7.5f },
+                { true, false, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 7.5f },
                 { "block:void_matter", true, 2.0f },
                 false,
                 true,
@@ -648,7 +442,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Membrane",
                 blockCategoryMask({ BlockCategory::TERRAIN, BlockCategory::ORGANIC }),
-                { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_AXE, 0.75f },
+                { true, false, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_MINEABLE_WITH_AXE, 0.75f },
                 { "block:membrane", true, 1.0f },
                 false,
                 true,
@@ -661,7 +455,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Organic",
                 blockCategoryMask({ BlockCategory::TERRAIN, BlockCategory::ORGANIC }),
-                { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_AXE, 0.75f },
+                { true, false, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_MINEABLE_WITH_AXE, 0.75f },
                 { "block:organic", true, 1.0f },
                 false,
                 true,
@@ -674,7 +468,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Metal",
                 blockCategoryMask({ BlockCategory::TERRAIN, BlockCategory::DECORATION }),
-                { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 25.0f },
+                { true, false, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_MINEABLE_WITH_PICKAXE, 25.0f },
                 { "block:metal", false, 1.0f },
                 false,
                 true,
@@ -687,7 +481,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Portal",
                 blockCategoryMask({ BlockCategory::PORTAL, BlockCategory::DECORATION }),
-                { true, false, false, true, false, BLOCK_TAG_NONE, 25.0f },
+                { true, false, false, true, glm::vec3{0.95f, 0.2f, 0.85f}, 12.0f, false, BLOCK_TAG_NONE, 25.0f },
                 { "none", true, 0.0f },
                 false,
                 true,
@@ -700,7 +494,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 entry.stableId.c_str(),
                 "Membrane Weave",
                 blockCategoryMask({ BlockCategory::DECORATION, BlockCategory::ORGANIC }),
-                { true, false, false, false, false, BLOCK_TAG_MINEABLE_WITH_AXE, 1.5f },
+                { true, false, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_MINEABLE_WITH_AXE, 1.5f },
                 { "block:membrane_weave", true, 1.0f },
                 false,
                 true,
@@ -715,7 +509,7 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
                 blockCategoryMask(
                     { BlockCategory::PLANT, BlockCategory::DECORATION, BlockCategory::ORGANIC }
                 ),
-                { false, true, false, false, false, BLOCK_TAG_NONE, 0.01f },
+                { false, true, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_NONE, 0.01f },
                 { "block:membrane_wire", true, 1.0f },
                 true,
                 true,
@@ -879,6 +673,14 @@ void overlayDefinitionFromJson(
             propertiesValue.value("interactable", definition.properties.interactable);
         definition.properties.emitsLight =
             propertiesValue.value("emits_light", definition.properties.emitsLight);
+        {
+            glm::vec3 lightColor = definition.properties.lightColor;
+            if (tryReadVec3(propertiesValue.value("light_color", json{}), lightColor)) {
+                definition.properties.lightColor = lightColor;
+            }
+        }
+        definition.properties.lightRadius =
+            propertiesValue.value("light_radius", definition.properties.lightRadius);
         definition.properties.hasEntity =
             propertiesValue.value("has_entity", definition.properties.hasEntity);
         definition.properties.tags =
@@ -923,7 +725,6 @@ void overlayDefinitionFromJson(
 
     if (const json& renderValue = root.value("render", json{}); renderValue.is_object()) {
         definition.textureAssetPath.clear();
-        definition.textureTileId.clear();
 
         glm::vec3 baseColor = definition.baseColor;
         if (tryReadVec3(renderValue.value("base_color", json{}), baseColor)) {
@@ -937,7 +738,6 @@ void overlayDefinitionFromJson(
                 resolveBlockAssetPath(blockDirectory, textureAsset);
             if (fileExists(resolvedTexturePath)) {
                 definition.textureAssetPath = resolvedTexturePath.generic_string();
-                definition.textureTileId = definition.id;
             } else {
                 std::printf("[Blocks] Failed to find texture %s for %s.\n",
                             resolvedTexturePath.string().c_str(), definition.id.c_str());
@@ -973,7 +773,6 @@ void overlayDefinitionFromJson(
             detectDefaultBlockTexturePath(blockDirectory);
         if (!defaultTexturePath.empty()) {
             definition.textureAssetPath = defaultTexturePath.generic_string();
-            definition.textureTileId = definition.id;
         }
     }
 
@@ -1070,7 +869,6 @@ BlockRegistry::BlockRegistry()
 void BlockRegistry::reload() {
     definitions_ = makeFallbackDefinitions();
     topDecorationDefinitions_.clear();
-    textureAtlasAssetPath_.clear();
 
     const auto idMap = makeFallbackIdMap(definitions_);
     const std::filesystem::path blocksRoot = AppPaths::resolve(ClientAssets::kBlocksDirectory);
@@ -1082,15 +880,7 @@ void BlockRegistry::reload() {
         overlayDefinitionFromJson(definition, blockDirectory, idMap);
     }
 
-    const BlockTextureAtlasData atlas = buildGeneratedBlockTextureAtlas(definitions_);
-    textureAtlasAssetPath_ = atlas.textureAssetPath;
-
     for (BlockDefinition& definition : definitions_) {
-        definition.hasTextureTile =
-            atlas.tryResolveTransform(definition.idValue, definition.atlasUvTransform);
-        if (definition.hasTextureTile && definition.textureTileId.empty()) {
-            definition.textureTileId = definition.id;
-        }
         if (definition.topDecoration.enabled) {
             topDecorationDefinitions_.push_back(&definition);
         }
@@ -1111,10 +901,6 @@ const std::vector<BlockDefinition>& BlockRegistry::definitions() const {
 
 const std::vector<const BlockDefinition*>& BlockRegistry::topDecorationDefinitions() const {
     return topDecorationDefinitions_;
-}
-
-const std::string& BlockRegistry::textureAtlasAssetPath() const {
-    return textureAtlasAssetPath_;
 }
 
 bool BlockRegistry::tryParseId(const std::string& rawValue, BlockId& outBlockId) const {
@@ -1146,27 +932,30 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
     }
 
     std::ostringstream baseColorBuilder;
-    std::ostringstream atlasSampleBuilder;
+    std::ostringstream textureDeclarationBuilder;
+    std::ostringstream textureSampleBuilder;
     std::ostringstream declarationsBuilder;
     std::ostringstream dispatchBuilder;
     std::ostringstream fallbackDeclarationsBuilder;
     std::ostringstream fallbackDispatchBuilder;
 
+    int textureUnit = 0;
     for (const BlockDefinition& definition : definitions_) {
         baseColorBuilder
             << "    if (materialId == " << definition.materialId << ") {\n"
             << "        return " << formatVec3(definition.baseColor) << ";\n"
             << "    }\n";
 
-        if (definition.hasTextureTile) {
-            atlasSampleBuilder
+        if (!definition.textureAssetPath.empty()) {
+            textureDeclarationBuilder
+                << "layout(binding = " << textureUnit << ") uniform sampler2D uBlockTexture_"
+                << definition.id << ";\n";
+            textureSampleBuilder
                 << "    if (materialId == " << definition.materialId << ") {\n"
-                << "        vec2 atlasUv = vec2(" << formatFloat(definition.atlasUvTransform.z)
-                << ", " << formatFloat(definition.atlasUvTransform.w) << ") + "
-                << "localUv * vec2(" << formatFloat(definition.atlasUvTransform.x) << ", "
-                << formatFloat(definition.atlasUvTransform.y) << ");\n"
-                << "        return texture(uBlockAtlas, atlasUv);\n"
+                << "        return texture(uBlockTexture_" << definition.id
+                << ", localUv);\n"
                 << "    }\n";
+            ++textureUnit;
         }
 
         declarationsBuilder
@@ -1177,9 +966,9 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
             << "    vec2 uv = faceUv(worldPos, faceNormal);\n"
             << "    vec2 localUv = fract(uv + vec2(0.001));\n"
             << "    vec2 centeredUv = localUv - 0.5;\n"
-            << "    vec4 atlasTexel = sampleBlockAtlas(materialId, localUv);\n"
-            << "    vec3 atlasColor = atlasTexel.rgb;\n"
-            << "    float atlasAlpha = atlasTexel.a;\n"
+            << "    vec4 blockTexel = sampleBlockTexture(materialId, localUv);\n"
+            << "    vec3 blockColor = blockTexel.rgb;\n"
+            << "    float blockAlpha = blockTexel.a;\n"
             << "    vec3 cell = floor(worldPos - faceNormal * 0.5 + vec3(0.001));\n"
             << "    float cellHash = hash31(cell + vec3(float(materialId) * 1.6180339, "
             << "2.13, 4.37));\n"
@@ -1199,8 +988,8 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
             << "    vec3 base = blockBaseColor(materialId);\n"
             << "    vec2 uv = faceUv(worldPos, faceNormal);\n"
             << "    vec2 localUv = fract(uv + vec2(0.001));\n"
-            << "    vec4 atlasTexel = sampleBlockAtlas(materialId, localUv);\n"
-            << "    vec3 albedo = base * atlasTexel.rgb;\n"
+            << "    vec4 blockTexel = sampleBlockTexture(materialId, localUv);\n"
+            << "    vec3 albedo = base * blockTexel.rgb;\n"
             << "    return makeSample(clamp(albedo, vec3(0.0), vec3(1.4)), 0.78, 0.10, 0.0);\n"
             << "}\n\n";
 
@@ -1217,12 +1006,16 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
             replaceToken(
                 replaceToken(
                     replaceToken(
-                        fragmentTemplate,
-                        "/*__BLOCK_BASE_COLOR__*/",
-                        baseColorBuilder.str()
+                        replaceToken(
+                            fragmentTemplate,
+                            "/*__BLOCK_BASE_COLOR__*/",
+                            baseColorBuilder.str()
+                        ),
+                        "/*__BLOCK_TEXTURE_DECLARATIONS__*/",
+                        textureDeclarationBuilder.str()
                     ),
-                    "/*__BLOCK_ATLAS_SAMPLE__*/",
-                    atlasSampleBuilder.str()
+                    "/*__BLOCK_TEXTURE_SAMPLE__*/",
+                    textureSampleBuilder.str()
                 ),
                 "/*__BLOCK_SHADER_DECLARATIONS__*/",
                 declarationSource

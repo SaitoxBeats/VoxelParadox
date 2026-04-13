@@ -25,6 +25,7 @@
 #include "client_defaults.hpp"
 #include "render/config/dust_particle_config.hpp"
 #include "render/hud/hud.hpp"
+#include "render/cache/block_texture_cache.hpp"
 #include "render/cache/item_texture_cache.hpp"
 #include "render/core/renderer.hpp"
 #include "render/core/renderer_internal.hpp"
@@ -86,6 +87,16 @@ uniform vec4 uBiomeTint;
 uniform int uUseLocalMaterialSpace;
 uniform vec3 uBreakBlockCenter;
 uniform float uBreakProgress;
+
+struct PointLightData {
+    vec3 position;
+    vec3 color;
+    float radius;
+};
+const int MAX_POINT_LIGHTS = 32;
+uniform int uPointLightCount;
+uniform PointLightData uPointLights[MAX_POINT_LIGHTS];
+
 out vec4 FragColor;
 
 const int MATERIAL_STONE = 1;
@@ -314,6 +325,25 @@ void main() {
 
     vec3 color = material.albedo * light +
                  mix(vec3(specular), material.albedo * specular, 0.25);
+
+    vec3 pointLightContrib = vec3(0.0);
+    for (int i = 0; i < uPointLightCount; ++i) {
+        vec3 toLight = uPointLights[i].position - vWorldPos;
+        float plDist = length(toLight);
+        float r = uPointLights[i].radius;
+        if (plDist >= r) continue;
+        vec3 lDir = toLight / max(plDist, 0.001);
+        float att = 1.0 - plDist / r;
+        att = att * att;
+        float nDotL = max(dot(normal, lDir), 0.0);
+        vec3 plDiffuse = uPointLights[i].color * nDotL * att;
+        vec3 plHalf = normalize(lDir + viewDir);
+        float plSpec = pow(max(dot(normal, plHalf), 0.0), specPower) * material.specular;
+        vec3 plSpecular = uPointLights[i].color * plSpec * att;
+        pointLightContrib += material.albedo * plDiffuse * 0.8 +
+                             mix(plSpecular, material.albedo * plSpecular, 0.25) * 0.5;
+    }
+    color += pointLightContrib * ao;
 
     float pulse = 0.5 + 0.5 * sin(uTime * 3.0 + vWorldPos.x + vWorldPos.z);
     vec2 ditherCoord = faceUv(materialPos, normal) * 8.0;
@@ -623,7 +653,7 @@ bool Renderer::init() {
         return false;
     }
 
-    if (!setupBlockAtlasTexture()) {
+    if (!setupBlockTextures()) {
         return false;
     }
 
@@ -653,7 +683,7 @@ void Renderer::cleanup() {
     RendererInternal::deleteVertexArrayAndBuffer(screenQuadVAO, screenQuadVBO);
     RendererInternal::deleteVertexArrayAndBuffer(itemSpriteVAO, itemSpriteVBO);
     RendererInternal::deleteVertexArrayAndBuffer(dustParticleVAO, dustParticleVBO);
-    cleanupBlockAtlasTexture();
+    cleanupBlockTextures();
     cleanupEntityAssets();
     cleanupBlockModelAssets();
 
@@ -683,49 +713,111 @@ void Renderer::cleanup() {
     heldItemTransition = {};
 }
 
-bool Renderer::setupBlockAtlasTexture() {
-    cleanupBlockAtlasTexture();
+bool Renderer::setupBlockTextures() {
+    cleanupBlockTextures();
+    blockTextures_ =
+        BlockTextureCache::loadBlockTextures(BlockRegistry::instance().definitions());
+    return true;
+}
 
-    const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
-    blockAtlasTexture_ =
-        loadTexture2DFromFile(atlasAssetPath.c_str(), false);
+void Renderer::cleanupBlockTextures() {
+    BlockTextureCache::destroyBlockTextures(blockTextures_);
+}
 
-    if (blockAtlasTexture_ != 0) {
-        return true;
+void Renderer::bindBlockTextures() {
+    BlockTextureCache::bindBlockTextures(blockTextures_);
+}
+#pragma endregion
+
+#pragma region 2b. Point Light Collection
+
+void Renderer::collectPointLights(const FractalWorld* world, const glm::vec3& cameraPos,
+    const glm::vec3& playerPos, float time) {
+    pointLightCount_ = 0;
+
+    // Slot 0: player-carried torch light
+    PointLight& playerLight = pointLights_[pointLightCount_++];
+    playerLight.position = playerPos + glm::vec3(0.0f, 0.3f, 0.0f);
+    playerLight.color = glm::vec3(1.0f, 0.9f, 0.75f);
+    playerLight.radius = 14.0f;
+
+    if (!world) {
+        return;
     }
 
-    std::printf("[Blocks] Failed to load block atlas texture: %s. Using generated fallback.\n",
-                atlasAssetPath.c_str());
-
-    static constexpr unsigned char kFallbackWhitePixel[4] = {
-        255, 255, 255, 255
+    // Collect emissive blocks from loaded chunks near the camera.
+    // We gather candidates then keep the closest ones to fit our budget.
+    struct LightCandidate {
+        glm::vec3 position;
+        glm::vec3 color;
+        float radius;
+        float distSq;
     };
 
-    glGenTextures(1, &blockAtlasTexture_);
-    glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                 kFallbackWhitePixel);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    std::vector<LightCandidate> candidates;
+    candidates.reserve(128);
 
-    return blockAtlasTexture_ != 0;
-}
+    const glm::ivec3 centerChunk =
+        FractalWorld::worldToChunkPos(glm::ivec3(glm::floor(cameraPos)));
+    const int scanRadius = glm::min(world->renderDistance, 4);
 
-void Renderer::cleanupBlockAtlasTexture() {
-    if (blockAtlasTexture_ != 0) {
-        glDeleteTextures(1, &blockAtlasTexture_);
-        blockAtlasTexture_ = 0;
+    for (const auto& [chunkPos, chunk] : world->chunks) {
+        if (!chunk || !chunk->generated) {
+            continue;
+        }
+
+        const glm::ivec3 d = chunkPos - centerChunk;
+        if (std::abs(d.x) > scanRadius || std::abs(d.y) > scanRadius || std::abs(d.z) > scanRadius) {
+            continue;
+        }
+
+        for (const auto& light : chunk->lightBlocks()) {
+            const float distSq = glm::dot(light.worldPos - cameraPos, light.worldPos - cameraPos);
+            const float lightRadius = getBlockLightRadius(light.type);
+            // Skip lights too far to contribute
+            if (distSq > (lightRadius + 8.0f) * (lightRadius + 8.0f)) {
+                continue;
+            }
+
+            candidates.push_back({
+                light.worldPos,
+                getBlockLightColor(light.type),
+                lightRadius,
+                distSq
+            });
+        }
+    }
+
+    // Sort by distance, keep closest
+    std::sort(candidates.begin(), candidates.end(),
+        [](const LightCandidate& a, const LightCandidate& b) {
+            return a.distSq < b.distSq;
+        });
+
+    const int maxBlockLights = kMaxPointLights - pointLightCount_;
+    const int count = glm::min(static_cast<int>(candidates.size()), maxBlockLights);
+    for (int i = 0; i < count; ++i) {
+        PointLight& pl = pointLights_[pointLightCount_++];
+        pl.position = candidates[i].position;
+        pl.color = candidates[i].color;
+        pl.radius = candidates[i].radius;
     }
 }
 
-void Renderer::bindBlockAtlasTexture() {
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
-    blockShader.setInt("uBlockAtlas", 0);
+void Renderer::uploadPointLights() {
+    blockShader.setInt("uPointLightCount", pointLightCount_);
+
+    for (int i = 0; i < pointLightCount_; ++i) {
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "uPointLights[%d].position", i);
+        blockShader.setVec3(buf, pointLights_[i].position);
+        std::snprintf(buf, sizeof(buf), "uPointLights[%d].color", i);
+        blockShader.setVec3(buf, pointLights_[i].color);
+        std::snprintf(buf, sizeof(buf), "uPointLights[%d].radius", i);
+        blockShader.setFloat(buf, pointLights_[i].radius);
+    }
 }
+
 #pragma endregion
 
 #pragma region 3. Frame Rendering
@@ -864,7 +956,15 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
     blockShader.setFloat("uAoStrength", 1.0f);
     blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(world, depth));
     blockShader.setInt("uUseLocalMaterialSpace", 0);
-    bindBlockAtlasTexture();
+    bindBlockTextures();
+
+    if (advancedLightingEnabled_) {
+        collectPointLights(world, sceneCamera.position, player.camera.position, time);
+        uploadPointLights();
+    } else {
+        pointLightCount_ = 0;
+        blockShader.setInt("uPointLightCount", 0);
+    }
 
     setBreakEffectUniforms(breakBlockCenter, breakProgress);
     setHighlightEffectUniforms(highlightBlockCenter, highlightActive);

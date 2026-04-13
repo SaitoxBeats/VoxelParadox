@@ -21,7 +21,8 @@
   },
   "render": {
     "base_color": [0.92, 0.68, 0.22],
-    "shader": "shader.glsl"
+    "shader": "shader.glsl",
+    "texture": "texture.png"
   },
   "placement": {
     "support_mode": "solid",

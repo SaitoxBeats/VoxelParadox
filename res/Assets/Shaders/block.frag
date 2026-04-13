@@ -1,7 +1,7 @@
 #version 460 core
 // block.frag
 // Shared block surface shader template. The block registry injects block base colors,
-// per-block material functions, and the dispatch table into the placeholders below.
+// per-block texture bindings, material functions, and the dispatch table below.
 
 in vec3 vWorldPos;
 in vec3 vLocalPos;
@@ -19,11 +19,21 @@ uniform float uAlpha;
 uniform float uAoStrength;
 uniform vec4 uBiomeTint;
 uniform int uUseLocalMaterialSpace;
-uniform sampler2D uBlockAtlas;
+/*__BLOCK_TEXTURE_DECLARATIONS__*/
 uniform vec3 uBreakBlockCenter;
 uniform float uBreakProgress;
 uniform vec3 uHighlightBlockCenter;
 uniform float uHighlightActive;
+
+struct PointLightData {
+    vec3 position;
+    vec3 color;
+    float radius;
+};
+
+const int MAX_POINT_LIGHTS = 32;
+uniform int uPointLightCount;
+uniform PointLightData uPointLights[MAX_POINT_LIGHTS];
 
 out vec4 FragColor;
 
@@ -240,8 +250,8 @@ vec3 blockBaseColor(int materialId) {
 /*__BLOCK_BASE_COLOR__*/    return vec3(1.0, 0.0, 1.0);
 }
 
-vec4 sampleBlockAtlas(int materialId, vec2 localUv) {
-/*__BLOCK_ATLAS_SAMPLE__*/
+vec4 sampleBlockTexture(int materialId, vec2 localUv) {
+/*__BLOCK_TEXTURE_SAMPLE__*/
     return vec4(1.0);
 }
 
@@ -298,6 +308,30 @@ void main() {
 
     vec3 color = material.albedo * light +
                  mix(vec3(specular), material.albedo * specular, 0.25);
+
+    // Point light accumulation (emissive blocks + player torch)
+    vec3 pointLightContrib = vec3(0.0);
+    for (int i = 0; i < uPointLightCount; ++i) {
+        vec3 toLight = uPointLights[i].position - vWorldPos;
+        float dist = length(toLight);
+        float r = uPointLights[i].radius;
+        if (dist >= r) continue;
+
+        vec3 lDir = toLight / max(dist, 0.001);
+        float attenuation = 1.0 - dist / r;
+        attenuation = attenuation * attenuation;
+
+        float nDotL = max(dot(worldNormal, lDir), 0.0);
+        vec3 plDiffuse = uPointLights[i].color * nDotL * attenuation;
+
+        vec3 plHalf = normalize(lDir + viewDir);
+        float plSpec = pow(max(dot(worldNormal, plHalf), 0.0), specPower) * material.specular;
+        vec3 plSpecular = uPointLights[i].color * plSpec * attenuation;
+
+        pointLightContrib += material.albedo * plDiffuse * 0.8 +
+                             mix(plSpecular, material.albedo * plSpecular, 0.25) * 0.5;
+    }
+    color += pointLightContrib * ao;
 
     float pulse = 0.5 + 0.5 * sin(uTime * 3.0 + vWorldPos.x + vWorldPos.z);
     vec2 ditherCoord = faceUv(materialPos, faceNormal) * 16.0;

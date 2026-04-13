@@ -64,9 +64,6 @@ struct BlockDefinition {
     std::string shaderAssetPath{};
     std::string shaderSource{};
     std::string textureAssetPath{};
-    std::string textureTileId{};
-    bool hasTextureTile = false;
-    glm::vec4 atlasUvTransform{ 1.0f, 1.0f, 0.0f, 0.0f };
     std::string customModelAssetPath{};
     BlockTopDecorationRule topDecoration{};
     BlockScriptDefinition script{};
@@ -91,7 +88,6 @@ public:
     const BlockDefinition& definition(BlockId blockId) const;
     const std::vector<BlockDefinition>& definitions() const;
     const std::vector<const BlockDefinition*>& topDecorationDefinitions() const;
-    const std::string& textureAtlasAssetPath() const;
 
     bool tryParseId(const std::string& rawValue, BlockId& outBlockId) const;
     BlockShaderSources buildShaderSources() const;
@@ -102,5 +98,4 @@ private:
 
     std::vector<BlockDefinition> definitions_{};
     std::vector<const BlockDefinition*> topDecorationDefinitions_{};
-    std::string textureAtlasAssetPath_{};
 };

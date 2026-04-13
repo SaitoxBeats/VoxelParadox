@@ -200,7 +200,8 @@ void Renderer::renderItemPreviewInRect(const glm::ivec4& slotRectTopLeft, int sc
             blockShader.setFloat("uAoStrength", 1.0f);
             blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(world, depth));
             blockShader.setInt("uUseLocalMaterialSpace", 1);
-            bindBlockAtlasTexture();
+            blockShader.setInt("uPointLightCount", 0);
+            bindBlockTextures();
             setBreakEffectUniforms(glm::vec3(0.0f), 0.0f);
             setHighlightEffectUniforms(glm::vec3(0.0f), 0.0f);
 
@@ -600,7 +601,8 @@ void Renderer::renderHeldBlock(const Player& player, const FractalWorld* world,
     blockShader.setFloat("uAoStrength", 1.0f);
     blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(world, depth));
     blockShader.setInt("uUseLocalMaterialSpace", 1);
-    bindBlockAtlasTexture();
+    blockShader.setInt("uPointLightCount", 0);
+    bindBlockTextures();
     setBreakEffectUniforms(glm::vec3(0.0f), 0.0f);
     setHighlightEffectUniforms(glm::vec3(0.0f), 0.0f);
 
@@ -838,7 +840,7 @@ void Renderer::renderDroppedItems(const FractalWorld& world, const glm::mat4& vp
         blockShader.setFloat("uAoStrength", 1.0f);
         blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(&world, depth));
         blockShader.setInt("uUseLocalMaterialSpace", 1);
-        bindBlockAtlasTexture();
+        bindBlockTextures();
         setBreakEffectUniforms(glm::vec3(0.0f), 0.0f);
         setHighlightEffectUniforms(glm::vec3(0.0f), 0.0f);
         glDisable(GL_BLEND);

@@ -5,9 +5,11 @@
 #include <cstddef>
 #include <filesystem>
 #include <string>
+#include <system_error>
 
 // 2. Local Project Modules
 #include "path/app_paths.hpp"
+#include "render/cache/block_texture_cache.hpp"
 #include "render/cache/item_texture_cache.hpp"
 #include "world/block/block_registry.hpp"
 
@@ -56,7 +58,7 @@ bool ShaderEditorRenderer::init() {
     return false;
   }
 
-  return setupBlockAtlasTexture();
+  return setupBlockTextures();
 }
 
 void ShaderEditorRenderer::cleanup() {
@@ -70,7 +72,7 @@ void ShaderEditorRenderer::cleanup() {
   }
 
   destroyFramebuffer();
-  cleanupBlockAtlasTexture();
+  cleanupBlockTextures();
   fallbackShader_.release();
 }
 
@@ -84,7 +86,7 @@ void ShaderEditorRenderer::render(const Shader* activeShader, const Camera& came
   if (!ensureFramebuffer(viewportSize) || !ensureCubeGeometry()) {
     return;
   }
-  if (!ensureBlockAtlasTextureUpToDate()) {
+  if (!ensureBlockTexturesUpToDate()) {
     return;
   }
 
@@ -126,7 +128,7 @@ void ShaderEditorRenderer::render(const Shader* activeShader, const Camera& came
   shader.setFloat("uBreakProgress", settings.breakState);
   shader.setVec3("uHighlightBlockCenter", settings.breakBlockCenter);
   shader.setFloat("uHighlightActive", settings.highlightEnabled ? 1.0f : 0.0f);
-  bindBlockAtlasTexture(shader);
+  bindBlockTextures();
 
   glPolygonMode(GL_FRONT_AND_BACK, settings.wireframe ? GL_LINE : GL_FILL);
   glBindVertexArray(cubeVao_);
@@ -137,90 +139,61 @@ void ShaderEditorRenderer::render(const Shader* activeShader, const Camera& came
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-bool ShaderEditorRenderer::setupBlockAtlasTexture() {
-  cleanupBlockAtlasTexture();
-
-  const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
-  loadedBlockAtlasPath_ = atlasAssetPath;
-  loadedBlockAtlasWriteTime_ = {};
-
-  std::error_code ec;
-  if (!atlasAssetPath.empty()) {
-    const std::filesystem::path atlasPath = AppPaths::resolve(atlasAssetPath);
-    if (std::filesystem::exists(atlasPath, ec)) {
-      loadedBlockAtlasWriteTime_ = std::filesystem::last_write_time(atlasPath, ec);
-    }
-  }
-
-  blockAtlasTexture_ = loadTexture2DFromFile(atlasAssetPath.c_str(), false);
-
-  if (blockAtlasTexture_ != 0) {
-    return true;
-  }
-
-  static constexpr unsigned char kFallbackWhitePixel[4] = {255, 255, 255, 255};
-
-  glGenTextures(1, &blockAtlasTexture_);
-  glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexImage2D(
-      GL_TEXTURE_2D,
-      0,
-      GL_RGBA,
-      1,
-      1,
-      0,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      kFallbackWhitePixel
+bool ShaderEditorRenderer::setupBlockTextures() {
+  cleanupBlockTextures();
+  blockTextures_ = BlockTextureCache::loadBlockTextures(
+      BlockRegistry::instance().definitions(),
+      &loadedBlockTexturePaths_,
+      &loadedBlockTextureWriteTimes_
   );
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  return blockAtlasTexture_ != 0;
+  return true;
 }
 
-void ShaderEditorRenderer::cleanupBlockAtlasTexture() {
-  if (blockAtlasTexture_ == 0) {
-    loadedBlockAtlasPath_.clear();
-    loadedBlockAtlasWriteTime_ = {};
-    return;
-  }
-
-  glDeleteTextures(1, &blockAtlasTexture_);
-  blockAtlasTexture_ = 0;
-  loadedBlockAtlasPath_.clear();
-  loadedBlockAtlasWriteTime_ = {};
+void ShaderEditorRenderer::cleanupBlockTextures() {
+  BlockTextureCache::destroyBlockTextures(blockTextures_);
+  loadedBlockTexturePaths_.clear();
+  loadedBlockTextureWriteTimes_.clear();
 }
 
-bool ShaderEditorRenderer::ensureBlockAtlasTextureUpToDate() {
-  const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
-  if (atlasAssetPath.empty()) {
-    return setupBlockAtlasTexture();
+bool ShaderEditorRenderer::ensureBlockTexturesUpToDate() {
+  const std::vector<BlockDefinition>& definitions = BlockRegistry::instance().definitions();
+
+  std::vector<std::filesystem::path> expectedTexturePaths;
+  std::vector<std::filesystem::file_time_type> expectedWriteTimes;
+  expectedTexturePaths.reserve(definitions.size());
+  expectedWriteTimes.reserve(definitions.size());
+
+  for (const BlockDefinition& definition : definitions) {
+    if (definition.textureAssetPath.empty()) {
+      continue;
+    }
+
+    const std::filesystem::path resolvedPath =
+        AppPaths::resolve(definition.textureAssetPath);
+    std::error_code ec;
+    const bool exists = std::filesystem::exists(resolvedPath, ec);
+    const std::filesystem::file_time_type writeTime =
+        (!ec && exists) ? std::filesystem::last_write_time(resolvedPath, ec)
+                        : std::filesystem::file_time_type{};
+
+    expectedTexturePaths.push_back(resolvedPath);
+    expectedWriteTimes.push_back(writeTime);
   }
 
-  const std::filesystem::path atlasPath = AppPaths::resolve(atlasAssetPath);
-  std::error_code ec;
-  const bool exists = std::filesystem::exists(atlasPath, ec);
-  const std::filesystem::file_time_type writeTime =
-      (!ec && exists) ? std::filesystem::last_write_time(atlasPath, ec)
-                      : std::filesystem::file_time_type{};
+  const bool needsReload =
+      blockTextures_.size() != expectedTexturePaths.size() ||
+      loadedBlockTexturePaths_ != expectedTexturePaths ||
+      loadedBlockTextureWriteTimes_ != expectedWriteTimes;
 
-  if (blockAtlasTexture_ == 0 ||
-      atlasAssetPath != loadedBlockAtlasPath_ ||
-      (exists && writeTime != loadedBlockAtlasWriteTime_)) {
-    return setupBlockAtlasTexture();
+  if (needsReload) {
+    return setupBlockTextures();
   }
 
   return true;
 }
 
-void ShaderEditorRenderer::bindBlockAtlasTexture(const Shader& shader) {
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
-  shader.setInt("uBlockAtlas", 0);
+void ShaderEditorRenderer::bindBlockTextures() {
+  BlockTextureCache::bindBlockTextures(blockTextures_);
 }
 
 void ShaderEditorRenderer::destroyFramebuffer() {

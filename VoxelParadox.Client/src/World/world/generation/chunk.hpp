@@ -29,6 +29,11 @@ public:
         BlockId type = BlockIds::AIR;
     };
 
+    struct LightBlockInstance {
+        glm::vec3 worldPos{0.0f};
+        BlockId type = BlockIds::AIR;
+    };
+
     glm::ivec3 chunkPos;
     BlockId blocks[SIZE][SIZE][SIZE];
     GLuint vao = 0;
@@ -113,6 +118,7 @@ public:
             ENGINE::Meshing::buildGreedyChunkMesh(input);
         meshVertices = std::move(meshResult.vertices);
         rebuildCustomModelBlockInstances();
+        rebuildLightBlockInstances();
         vertexCount = static_cast<int>(meshVertices.size());
 
         uploadMeshVertices();
@@ -128,6 +134,10 @@ public:
 
     const std::vector<CustomModelBlockInstance>& customModelBlocks() const {
         return customModelBlocks_;
+    }
+
+    const std::vector<LightBlockInstance>& lightBlocks() const {
+        return lightBlocks_;
     }
 
 private:
@@ -194,8 +204,28 @@ private:
         glBindVertexArray(0);
     }
 
+    void rebuildLightBlockInstances() {
+        lightBlocks_.clear();
+        const glm::vec3 origin = glm::vec3(chunkPos) * static_cast<float>(SIZE);
+        for (int x = 0; x < SIZE; ++x) {
+            for (int y = 0; y < SIZE; ++y) {
+                for (int z = 0; z < SIZE; ++z) {
+                    const BlockId type = blocks[x][y][z];
+                    if (!isEmissive(type)) {
+                        continue;
+                    }
+                    lightBlocks_.push_back(LightBlockInstance{
+                        origin + glm::vec3(x, y, z) + glm::vec3(0.5f),
+                        type
+                    });
+                }
+            }
+        }
+    }
+
     std::vector<Vertex> meshVertices;
     std::vector<CustomModelBlockInstance> customModelBlocks_;
+    std::vector<LightBlockInstance> lightBlocks_;
     std::size_t vboCapacityBytes = 0;
 };
 #pragma endregion

@@ -5,6 +5,7 @@
 
 // 2. Local Project Modules
 #include "engine/engine.hpp"
+#include "render/cache/block_texture_cache.hpp"
 #include "render/cache/item_texture_cache.hpp"
 #include "world/block/block_registry.hpp"
 
@@ -24,7 +25,7 @@ bool EditorRenderer::init() {
     return false;
   }
 
-  return setupBlockAtlasTexture();
+  return setupBlockTextures();
 }
 
 void EditorRenderer::destroyFramebuffer() {
@@ -46,7 +47,7 @@ void EditorRenderer::destroyFramebuffer() {
 
 void EditorRenderer::cleanup() {
   destroyFramebuffer();
-  cleanupBlockAtlasTexture();
+  cleanupBlockTextures();
   blockShader_.release();
 }
 
@@ -99,7 +100,7 @@ void EditorRenderer::renderToViewport(PreviewWorldController& world, const Camer
   blockShader_.setFloat("uBreakProgress", 0.0f);
   blockShader_.setVec3("uHighlightBlockCenter", glm::vec3(0.0f));
   blockShader_.setFloat("uHighlightActive", 0.0f);
-  bindBlockAtlasTexture();
+  bindBlockTextures();
 
   world.render(camera.position, viewProjection);
 
@@ -140,53 +141,19 @@ bool EditorRenderer::ensureFramebuffer(const glm::ivec2& size) {
   return complete;
 }
 
-bool EditorRenderer::setupBlockAtlasTexture() {
-  cleanupBlockAtlasTexture();
-
-  const std::string atlasAssetPath = BlockRegistry::instance().textureAtlasAssetPath();
-  blockAtlasTexture_ = loadTexture2DFromFile(atlasAssetPath.c_str(), false);
-
-  if (blockAtlasTexture_ != 0) {
-    return true;
-  }
-
-  static constexpr unsigned char kFallbackWhitePixel[4] = {255, 255, 255, 255};
-
-  glGenTextures(1, &blockAtlasTexture_);
-  glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexImage2D(
-      GL_TEXTURE_2D,
-      0,
-      GL_RGBA,
-      1,
-      1,
-      0,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      kFallbackWhitePixel
-  );
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  return blockAtlasTexture_ != 0;
+bool EditorRenderer::setupBlockTextures() {
+  cleanupBlockTextures();
+  blockTextures_ =
+      BlockTextureCache::loadBlockTextures(BlockRegistry::instance().definitions());
+  return true;
 }
 
-void EditorRenderer::cleanupBlockAtlasTexture() {
-  if (blockAtlasTexture_ == 0) {
-    return;
-  }
-
-  glDeleteTextures(1, &blockAtlasTexture_);
-  blockAtlasTexture_ = 0;
+void EditorRenderer::cleanupBlockTextures() {
+  BlockTextureCache::destroyBlockTextures(blockTextures_);
 }
 
-void EditorRenderer::bindBlockAtlasTexture() {
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, blockAtlasTexture_);
-  blockShader_.setInt("uBlockAtlas", 0);
+void EditorRenderer::bindBlockTextures() {
+  BlockTextureCache::bindBlockTextures(blockTextures_);
 }
 
 glm::vec4 EditorRenderer::getFogColor(int depth) const {

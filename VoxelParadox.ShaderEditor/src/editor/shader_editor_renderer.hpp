@@ -3,6 +3,7 @@
 // 1. Standard Library
 #include <filesystem>
 #include <string>
+#include <vector>
 
 // 2. External Libraries
 #include <glad/glad.h>
@@ -47,7 +48,7 @@ private:
   };
 
   Shader fallbackShader_{};
-  GLuint blockAtlasTexture_ = 0;
+  std::vector<GLuint> blockTextures_{};
   GLuint framebuffer_ = 0;
   GLuint colorTexture_ = 0;
   GLuint depthStencilRenderbuffer_ = 0;
@@ -55,13 +56,13 @@ private:
   GLuint cubeVbo_ = 0;
   glm::ivec2 viewportSize_{0};
   BlockId currentBlockType_ = BlockIds::AIR;
-  std::string loadedBlockAtlasPath_{};
-  std::filesystem::file_time_type loadedBlockAtlasWriteTime_{};
+  std::vector<std::filesystem::path> loadedBlockTexturePaths_{};
+  std::vector<std::filesystem::file_time_type> loadedBlockTextureWriteTimes_{};
 
-  bool setupBlockAtlasTexture();
-  bool ensureBlockAtlasTextureUpToDate();
-  void cleanupBlockAtlasTexture();
-  void bindBlockAtlasTexture(const Shader& shader);
+  bool setupBlockTextures();
+  bool ensureBlockTexturesUpToDate();
+  void cleanupBlockTextures();
+  void bindBlockTextures();
   void destroyFramebuffer();
   bool ensureFramebuffer(const glm::ivec2& size);
   bool ensureCubeGeometry();

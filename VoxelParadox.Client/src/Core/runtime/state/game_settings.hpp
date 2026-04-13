@@ -32,6 +32,7 @@ struct GameSettings {
   ENGINE::VIEWPORTMODE windowMode = ENGINE::VIEWPORTMODE::WINDOWMODE;
   bool vSyncEnabled = false;
   bool showFpsCounterOnly = false;
+  bool advancedLightingEnabled = true;
   ENGINE::AUDIO::AudioSettings audioSettings{};
   InputMapping::ControlBindingOverrides controlOverrides{};
 

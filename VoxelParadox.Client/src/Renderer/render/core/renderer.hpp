@@ -6,6 +6,7 @@
 // 1. Standard Library
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <unordered_map>
 #include <vector>
 
@@ -141,6 +142,9 @@ public:
     void setRenderScale(float scale);
     float getRenderScale() const { return renderScale_; }
 
+    void setAdvancedLightingEnabled(bool enabled) { advancedLightingEnabled_ = enabled; }
+    bool isAdvancedLightingEnabled() const { return advancedLightingEnabled_; }
+
     void render(WorldStack& worldStack, Player& player, float aspect, float time,
         bool wireframeMode = false, bool debugThirdPersonView = false);
 
@@ -180,7 +184,7 @@ private:
     GLuint itemSpriteVBO = 0;
     GLuint dustParticleVAO = 0;
     GLuint dustParticleVBO = 0;
-    GLuint blockAtlasTexture_ = 0;
+    std::vector<GLuint> blockTextures_{};
 
     std::size_t dustParticleCapacity = 0;
     DustTransitionState dustTransition{};
@@ -193,8 +197,24 @@ private:
     std::vector<DustParticleVertex> dustParticleScratch{};
     SceneRenderTarget sceneRenderTarget_{};
     float renderScale_ = 1.0f;
+    bool advancedLightingEnabled_ = true;
 
-    // --- 4. Atmosphere & Transitions ---
+    // --- 4. Atmosphere, Transitions & Lighting ---
+
+    static constexpr int kMaxPointLights = 32;
+
+    struct PointLight {
+        glm::vec3 position{0.0f};
+        glm::vec3 color{1.0f};
+        float radius = 8.0f;
+    };
+
+    void collectPointLights(const FractalWorld* world, const glm::vec3& cameraPos,
+        const glm::vec3& playerPos, float time);
+    void uploadPointLights();
+
+    int pointLightCount_ = 0;
+    PointLight pointLights_[kMaxPointLights]{};
 
     glm::vec4 getBiomeMaterialTint(const FractalWorld* world, int depth) const;
     glm::vec4 getFogColor(int depth);
@@ -215,9 +235,9 @@ private:
     void setupBreakBlockCube();
     void setupItemSpriteQuad();
     GLuint getItemTexture(ItemId itemId);
-    bool setupBlockAtlasTexture();
-    void cleanupBlockAtlasTexture();
-    void bindBlockAtlasTexture();
+    bool setupBlockTextures();
+    void cleanupBlockTextures();
+    void bindBlockTextures();
 
     void renderItemSprite(ItemId itemId, const glm::mat4& vp, const glm::mat4& model,
         float alpha, bool depthTest);

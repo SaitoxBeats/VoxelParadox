@@ -3,7 +3,7 @@ warpedUv.x += sin((localUv.y * 12.0) + uTime * 2.0 + cellHash * 6.0) * 0.03;
 warpedUv.y += cos((localUv.x * 10.0) - uTime * 1.6 + cellHash * 4.0) * 0.03;
 warpedUv = clamp(warpedUv, vec2(0.001), vec2(0.999));
 
-vec4 warpedTexel = sampleBlockAtlas(materialId, warpedUv);
+vec4 warpedTexel = sampleBlockTexture(materialId, warpedUv);
 vec3 warpedColor = warpedTexel.rgb;
 
 float bands = 0.5 + 0.5 * sin((warpedUv.x * 18.0) + uTime * 1.5 + cellHash * 4.0);

@@ -319,6 +319,12 @@ void Renderer::renderNestedPreviewWorld(WorldStack& worldStack, FractalWorld& ne
     blockShader.setFloat("uAlpha", portal.fade);
     blockShader.setFloat("uAoStrength", 1.0f);
     blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(&nestedWorld, childDepth));
+    if (advancedLightingEnabled_) {
+        collectPointLights(&nestedWorld, previewCamera.position, previewCamera.position, time);
+        uploadPointLights();
+    } else {
+        blockShader.setInt("uPointLightCount", 0);
+    }
     setBreakEffectUniforms(glm::vec3(0.0f), 0.0f);
     setHighlightEffectUniforms(glm::vec3(0.0f), 0.0f);
 

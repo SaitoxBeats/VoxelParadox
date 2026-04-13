@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <string>
 
+// 2. Third-party Libraries
+#include <glm/glm.hpp>
+
 using BlockId = std::uint8_t;
 
 enum class BlockCategory : std::uint32_t {
@@ -41,6 +44,8 @@ struct BlockProperties {
     bool transparent = false;
     bool interactable = false;
     bool emitsLight = false;
+    glm::vec3 lightColor{1.0f};
+    float lightRadius = 8.0f;
     bool hasEntity = false;
     std::uint32_t tags = BLOCK_TAG_NONE;
     float hardness = 0.0f;

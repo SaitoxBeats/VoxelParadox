@@ -34,6 +34,14 @@ inline bool isEmissive(BlockId blockId) {
     return getBlockProperties(blockId).emitsLight;
 }
 
+inline glm::vec3 getBlockLightColor(BlockId blockId) {
+    return getBlockProperties(blockId).lightColor;
+}
+
+inline float getBlockLightRadius(BlockId blockId) {
+    return getBlockProperties(blockId).lightRadius;
+}
+
 inline bool usesCustomBlockModel(BlockId blockId) {
     return !getBlockDefinition(blockId).customModelAssetPath.empty();
 }

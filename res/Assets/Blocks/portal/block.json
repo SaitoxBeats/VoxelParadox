@@ -11,6 +11,8 @@
     "transparent": false,
     "interactable": false,
     "emits_light": true,
+    "light_color": [0.95, 0.2, 0.85],
+    "light_radius": 12.0,
     "has_entity": false,
     "preferred_tool": "pickaxe",
     "hardness": 25.0

@@ -2,6 +2,7 @@
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
+#include <vector>
 
 #include "engine/camera.hpp"
 #include "engine/shader.hpp"
@@ -28,15 +29,15 @@ public:
 
 private:
   Shader blockShader_;
-  GLuint blockAtlasTexture_ = 0;
+  std::vector<GLuint> blockTextures_{};
   GLuint framebuffer_ = 0;
   GLuint colorTexture_ = 0;
   GLuint depthStencilRenderbuffer_ = 0;
   glm::ivec2 viewportSize_{0};
 
-  bool setupBlockAtlasTexture();
-  void cleanupBlockAtlasTexture();
-  void bindBlockAtlasTexture();
+  bool setupBlockTextures();
+  void cleanupBlockTextures();
+  void bindBlockTextures();
   void destroyFramebuffer();
   bool ensureFramebuffer(const glm::ivec2& size);
   glm::vec4 getFogColor(int depth) const;

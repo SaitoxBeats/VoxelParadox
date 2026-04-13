@@ -505,7 +505,7 @@ private:
     // --- 8. Internal Constants & State ---
 
     static constexpr float kPhysicsMaxStep = 1.0f / 120.0f;
-    static constexpr float kSafeFaceDistance = 0.10f; //distancia da camera ao portal.
+    static constexpr float kSafeFaceDistance = 0.07f; //distancia da camera ao portal.
     static constexpr float kGroundProbeDistance = 0.05f;
     static constexpr float kMaxStepHeight = 0.60f;
     static constexpr float kGroundSnapDistance = 0.05f;

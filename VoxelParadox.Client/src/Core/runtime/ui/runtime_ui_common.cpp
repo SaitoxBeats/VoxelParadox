@@ -128,6 +128,7 @@ bool sameGameSettings(const GameSettings& a, const GameSettings& b) {
          a.windowMode == b.windowMode &&
          a.vSyncEnabled == b.vSyncEnabled &&
          a.showFpsCounterOnly == b.showFpsCounterOnly &&
+         a.advancedLightingEnabled == b.advancedLightingEnabled &&
          sameAudioSettings(a.audioSettings, b.audioSettings) &&
          sameControlOverrides(a.controlOverrides, b.controlOverrides);
 }
@@ -329,6 +330,10 @@ void toggleFpsCounterOnlySelection(GameSettings& settings) {
   settings.showFpsCounterOnly = !settings.showFpsCounterOnly;
 }
 
+void toggleAdvancedLightingSelection(GameSettings& settings) {
+  settings.advancedLightingEnabled = !settings.advancedLightingEnabled;
+}
+
 std::string audioVolumeText(float value) {
   char buffer[32];
   std::snprintf(buffer, sizeof(buffer), "%.0f%%",
@@ -448,6 +453,12 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
   if (appliedSettings.showFpsCounterOnly != pendingSettings.showFpsCounterOnly) {
     std::printf("[Settings] FPS counter only: %s\n",
                 onOffText(pendingSettings.showFpsCounterOnly));
+  }
+
+  if (appliedSettings.advancedLightingEnabled != pendingSettings.advancedLightingEnabled) {
+    renderer.setAdvancedLightingEnabled(pendingSettings.advancedLightingEnabled);
+    std::printf("[Settings] Advanced lighting: %s\n",
+                onOffText(pendingSettings.advancedLightingEnabled));
   }
 
   if (audioChanged) {

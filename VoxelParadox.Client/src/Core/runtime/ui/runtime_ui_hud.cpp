@@ -735,6 +735,13 @@ namespace RuntimeUI::Detail {
             [&pendingSettings]() { toggleFpsCounterOnlySelection(pendingSettings); }
         );
 
+        addSettingRow(
+            generalGroup, "Advanced Lighting", generalRowStart + generalRowStep * 9.0f,
+            [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.advancedLightingEnabled); },
+            [&pendingSettings]() { toggleAdvancedLightingSelection(pendingSettings); },
+            [&pendingSettings]() { toggleAdvancedLightingSelection(pendingSettings); }
+        );
+
         // --- Sound Tab Settings ---
         const auto addAudioVolumeRow = [&](ENGINE::AUDIO::SoundCategoryId category, float yOffset) {
             addSettingRow(
