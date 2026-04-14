@@ -179,6 +179,10 @@ private:
   void applyRidgedNoiseLayer(Chunk& chunk, const BiomeModule& module) const;
   void applyDomainWarpedNoiseLayer(Chunk& chunk, const BiomeModule& module) const;
   void applyTreeGeneratorLayer(Chunk& chunk, const BiomeModule& module) const;
+  void applyFloatingIslandsLayer(Chunk& chunk, const BiomeModule& module) const;
+  void applyOneBlockLayer(Chunk& chunk, const BiomeModule& module) const;
+  void applyBackroomsLayer(Chunk& chunk, const BiomeModule& module) const;
+  void applyMinecraftStyleLayer(Chunk& chunk, const BiomeModule& module) const;
   // Funcao: aplica 'applyImportVoxLayer' na geracao procedural baseada em presets.
   // Detalhe: usa 'chunk', 'runtime' para propagar o efeito calculado sobre o estado do jogo ou do subsistema.
   void applyImportVoxLayer(Chunk& chunk, const ImportVoxRuntime& runtime) const;

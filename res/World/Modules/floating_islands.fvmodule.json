@@ -1,0 +1,42 @@
+{
+  "format_version": 1,
+  "id": "floating_islands",
+  "display_name": "Floating Islands",
+  "type": "floating_islands",
+  "enabled": true,
+  "blend_mode": "place_solids",
+  "settings": {
+    "primary": "stone",
+    "secondary": "organic",
+    "accent": "crystal",
+    "offset": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "infinite_y": false,
+    "min_y": 32,
+    "max_y": 128,
+    "cell_size": {
+      "x": 96,
+      "z": 96
+    },
+    "jitter": {
+      "x": 28,
+      "z": 28
+    },
+    "vertical_spacing": 96,
+    "vertical_jitter": 20,
+    "spawn_chance": 0.72,
+    "min_radius": 14,
+    "max_radius": 34,
+    "min_height": 8,
+    "max_height": 22,
+    "surface_thickness": 3.0,
+    "underside_steepness": 1.35,
+    "edge_noise_scale": 0.045,
+    "edge_noise_strength": 0.22,
+    "accent_noise_scale": 0.08,
+    "accent_threshold": 0.62
+  }
+}

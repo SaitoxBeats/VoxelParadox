@@ -376,6 +376,10 @@ namespace BiomeMaker {
             {"ridged_noise", ModuleType::RIDGED_NOISE},
             {"domain_warped_noise", ModuleType::DOMAIN_WARPED_NOISE},
             {"tree_generator", ModuleType::TREE_GENERATOR},
+            {"floating_islands", ModuleType::FLOATING_ISLANDS},
+            {"one_block", ModuleType::ONE_BLOCK},
+            {"backrooms", ModuleType::BACKROOMS},
+            {"minecraft_style", ModuleType::MINECRAFT_STYLE},
         };
 
         for (const DefaultModuleSeed& seed : defaults) {
@@ -398,6 +402,10 @@ namespace BiomeMaker {
             case ModuleType::RIDGED_NOISE:        module = BiomeModule::makeRidgedNoise(seed.id); break;
             case ModuleType::DOMAIN_WARPED_NOISE: module = BiomeModule::makeDomainWarpedNoise(seed.id); break;
             case ModuleType::TREE_GENERATOR:      module = BiomeModule::makeTreeGenerator(seed.id); break;
+            case ModuleType::FLOATING_ISLANDS:    module = BiomeModule::makeFloatingIslands(seed.id); break;
+            case ModuleType::ONE_BLOCK:           module = BiomeModule::makeOneBlock(seed.id); break;
+            case ModuleType::BACKROOMS:           module = BiomeModule::makeBackrooms(seed.id); break;
+            case ModuleType::MINECRAFT_STYLE:     module = BiomeModule::makeMinecraftStyle(seed.id); break;
             }
 
             std::string error;
@@ -1528,6 +1536,28 @@ namespace BiomeMaker {
                 drawTricolorPalette(noise.palette);
                 };
 
+            const auto drawMinecraftPalette = [&](MaterialPaletteModule& palette) {
+                ImGui::SeparatorText("Minecraft Palette");
+                if (drawBlockIdCombo("Surface Block", palette.surfaceRib)) {
+                    markSelectedModuleDirty("Updated Minecraft surface block.");
+                }
+                if (drawBlockIdCombo("Subsurface Block", palette.surfacePatch)) {
+                    markSelectedModuleDirty("Updated Minecraft subsurface block.");
+                }
+                if (drawBlockIdCombo("Stone Block", palette.shell)) {
+                    markSelectedModuleDirty("Updated Minecraft stone block.");
+                }
+                if (drawBlockIdCombo("Deep Block", palette.core)) {
+                    markSelectedModuleDirty("Updated Minecraft deep block.");
+                }
+                if (drawBlockIdCombo("Ore Block", palette.accent)) {
+                    markSelectedModuleDirty("Updated Minecraft ore block.");
+                }
+                if (drawBlockIdCombo("Bedrock Block", palette.recess)) {
+                    markSelectedModuleDirty("Updated Minecraft bedrock block.");
+                }
+                };
+
             // --- 6. Module Type Details ---
             if (module->type == ModuleType::PERLIN_TERRAIN) {
                 ImGui::SeparatorText("Perlin");
@@ -1923,6 +1953,371 @@ namespace BiomeMaker {
                 }
 
                 drawVolumeNoiseSettings(warped.noise);
+
+            }
+            else if (module->type == ModuleType::FLOATING_ISLANDS) {
+                ImGui::SeparatorText("Floating Islands");
+                FloatingIslandsModule& islands = module->floatingIslands;
+
+                std::array<int, 3> offset = { islands.offset.x, islands.offset.y, islands.offset.z };
+                if (ImGui::InputInt3("Offset", offset.data())) {
+                    islands.offset = glm::ivec3(offset[0], offset[1], offset[2]);
+                    markSelectedModuleDirty("Updated floating islands offset.");
+                }
+
+                if (ImGui::Checkbox("Infinite Y", &islands.infiniteY)) {
+                    markSelectedModuleDirty(islands.infiniteY ? "Enabled infinite floating islands Y." : "Disabled infinite floating islands Y.");
+                }
+
+                int minY = islands.minY;
+                int maxY = islands.maxY;
+                ImGui::BeginDisabled(islands.infiniteY);
+                if (ImGui::InputInt("Min Y", &minY)) {
+                    islands.minY = minY;
+                    if (islands.maxY < islands.minY) {
+                        islands.maxY = islands.minY;
+                    }
+                    markSelectedModuleDirty("Updated floating islands minimum height.");
+                }
+                if (ImGui::InputInt("Max Y", &maxY)) {
+                    islands.maxY = std::max(maxY, islands.minY);
+                    markSelectedModuleDirty("Updated floating islands maximum height.");
+                }
+                ImGui::EndDisabled();
+
+                std::array<int, 2> cellSize = { islands.cellSize.x, islands.cellSize.y };
+                if (ImGui::InputInt2("Cell Size X/Z", cellSize.data())) {
+                    islands.cellSize = glm::max(glm::ivec2(cellSize[0], cellSize[1]), glm::ivec2(8));
+                    markSelectedModuleDirty("Updated floating islands cell size.");
+                }
+
+                std::array<int, 2> jitter = { islands.jitter.x, islands.jitter.y };
+                if (ImGui::InputInt2("Jitter X/Z", jitter.data())) {
+                    islands.jitter = glm::max(glm::ivec2(jitter[0], jitter[1]), glm::ivec2(0));
+                    markSelectedModuleDirty("Updated floating islands jitter.");
+                }
+
+                if (ImGui::InputInt("Vertical Spacing", &islands.verticalSpacing)) {
+                    islands.verticalSpacing = std::max(islands.verticalSpacing, 8);
+                    markSelectedModuleDirty("Updated floating islands vertical spacing.");
+                }
+                if (ImGui::InputInt("Vertical Jitter", &islands.verticalJitter)) {
+                    islands.verticalJitter = std::max(islands.verticalJitter, 0);
+                    markSelectedModuleDirty("Updated floating islands vertical jitter.");
+                }
+                if (ImGui::SliderFloat("Spawn Chance", &islands.spawnChance, 0.0f, 1.0f, "%.2f")) {
+                    islands.spawnChance = std::clamp(islands.spawnChance, 0.0f, 1.0f);
+                    markSelectedModuleDirty("Updated floating islands spawn chance.");
+                }
+                if (ImGui::InputInt("Min Radius", &islands.minRadius)) {
+                    islands.minRadius = std::max(islands.minRadius, 1);
+                    islands.maxRadius = std::max(islands.maxRadius, islands.minRadius);
+                    markSelectedModuleDirty("Updated floating islands minimum radius.");
+                }
+                if (ImGui::InputInt("Max Radius", &islands.maxRadius)) {
+                    islands.maxRadius = std::max(islands.maxRadius, islands.minRadius);
+                    markSelectedModuleDirty("Updated floating islands maximum radius.");
+                }
+                if (ImGui::InputInt("Min Height", &islands.minHeight)) {
+                    islands.minHeight = std::max(islands.minHeight, 1);
+                    islands.maxHeight = std::max(islands.maxHeight, islands.minHeight);
+                    markSelectedModuleDirty("Updated floating islands minimum height span.");
+                }
+                if (ImGui::InputInt("Max Height", &islands.maxHeight)) {
+                    islands.maxHeight = std::max(islands.maxHeight, islands.minHeight);
+                    markSelectedModuleDirty("Updated floating islands maximum height span.");
+                }
+                if (ImGui::SliderFloat("Surface Thickness", &islands.surfaceThickness, 0.0f, 12.0f, "%.2f")) {
+                    markSelectedModuleDirty("Updated floating islands surface thickness.");
+                }
+                if (ImGui::SliderFloat("Underside Steepness", &islands.undersideSteepness, 0.20f, 4.0f, "%.2f")) {
+                    markSelectedModuleDirty("Updated floating islands underside steepness.");
+                }
+                if (ImGui::SliderFloat("Edge Noise Scale", &islands.edgeNoiseScale, 0.0f, 0.25f, "%.3f")) {
+                    markSelectedModuleDirty("Updated floating islands edge noise scale.");
+                }
+                if (ImGui::SliderFloat("Edge Noise Strength", &islands.edgeNoiseStrength, 0.0f, 1.0f, "%.2f")) {
+                    markSelectedModuleDirty("Updated floating islands edge noise strength.");
+                }
+                if (ImGui::SliderFloat("Accent Noise Scale", &islands.accentNoiseScale, 0.0f, 0.25f, "%.3f")) {
+                    markSelectedModuleDirty("Updated floating islands accent noise scale.");
+                }
+                if (ImGui::SliderFloat("Accent Threshold", &islands.accentThreshold, -1.0f, 1.0f, "%.3f")) {
+                    markSelectedModuleDirty("Updated floating islands accent threshold.");
+                }
+
+                drawTricolorPalette(islands.palette);
+
+            }
+            else if (module->type == ModuleType::ONE_BLOCK) {
+                ImGui::SeparatorText("One Block");
+                OneBlockModule& one = module->oneBlock;
+
+                if (drawBlockIdCombo("Support Block", one.supportBlock)) {
+                    markSelectedModuleDirty("Updated one-block support block.");
+                }
+                if (drawBlockIdCombo("Generated Block", one.block)) {
+                    markSelectedModuleDirty("Updated one-block generated block.");
+                }
+                if (drawBlockIdCombo("Accent Block", one.accentBlock)) {
+                    markSelectedModuleDirty("Updated one-block accent block.");
+                }
+
+                if (ImGui::BeginCombo("Pattern", voxPlacementPatternDisplayName(one.pattern))) {
+                    constexpr VoxPlacementPattern kPatterns[] = {
+                        VoxPlacementPattern::GRID,
+                        VoxPlacementPattern::RANDOM_SCATTER,
+                    };
+                    for (VoxPlacementPattern candidate : kPatterns) {
+                        const bool selected = candidate == one.pattern;
+                        if (ImGui::Selectable(voxPlacementPatternDisplayName(candidate), selected)) {
+                            one.pattern = candidate;
+                            markSelectedModuleDirty("Updated one-block pattern.");
+                        }
+                        if (selected) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+
+                if (ImGui::SliderFloat("Density", &one.density, 0.0f, 1.0f, "%.2f")) {
+                    one.density = std::clamp(one.density, 0.0f, 1.0f);
+                    markSelectedModuleDirty("Updated one-block density.");
+                }
+
+                std::array<int, 2> cellSize = { one.cellSize.x, one.cellSize.y };
+                if (ImGui::InputInt2("Cell Size X/Z", cellSize.data())) {
+                    one.cellSize = glm::max(glm::ivec2(cellSize[0], cellSize[1]), glm::ivec2(1));
+                    markSelectedModuleDirty("Updated one-block cell size.");
+                }
+
+                std::array<int, 2> jitter = { one.jitter.x, one.jitter.y };
+                if (ImGui::InputInt2("Jitter X/Z", jitter.data())) {
+                    one.jitter = glm::max(glm::ivec2(jitter[0], jitter[1]), glm::ivec2(0));
+                    markSelectedModuleDirty("Updated one-block jitter.");
+                }
+
+                if (ImGui::Checkbox("Infinite Y", &one.infiniteY)) {
+                    markSelectedModuleDirty(one.infiniteY ? "Enabled infinite one-block Y." : "Disabled infinite one-block Y.");
+                }
+
+                int minY = one.minY;
+                int maxY = one.maxY;
+                ImGui::BeginDisabled(one.infiniteY);
+                if (ImGui::InputInt("Min Y", &minY)) {
+                    one.minY = minY;
+                    if (one.maxY < one.minY) {
+                        one.maxY = one.minY;
+                    }
+                    markSelectedModuleDirty("Updated one-block minimum height.");
+                }
+                if (ImGui::InputInt("Max Y", &maxY)) {
+                    one.maxY = std::max(maxY, one.minY);
+                    markSelectedModuleDirty("Updated one-block maximum height.");
+                }
+                ImGui::EndDisabled();
+
+                if (ImGui::InputInt("Min Blocks", &one.minBlocks)) {
+                    one.minBlocks = std::max(one.minBlocks, 1);
+                    one.maxBlocks = std::max(one.maxBlocks, one.minBlocks);
+                    markSelectedModuleDirty("Updated one-block minimum count.");
+                }
+                if (ImGui::InputInt("Max Blocks", &one.maxBlocks)) {
+                    one.maxBlocks = std::max(one.maxBlocks, one.minBlocks);
+                    markSelectedModuleDirty("Updated one-block maximum count.");
+                }
+                if (ImGui::SliderFloat("Accent Chance", &one.accentChance, 0.0f, 1.0f, "%.2f")) {
+                    one.accentChance = std::clamp(one.accentChance, 0.0f, 1.0f);
+                    markSelectedModuleDirty("Updated one-block accent chance.");
+                }
+                if (ImGui::Checkbox("Require Air", &one.requireAir)) {
+                    markSelectedModuleDirty(one.requireAir ? "Enabled one-block air requirement." : "Disabled one-block air requirement.");
+                }
+
+            }
+            else if (module->type == ModuleType::BACKROOMS) {
+                ImGui::SeparatorText("Backrooms");
+                BackroomsModule& backrooms = module->backrooms;
+
+                std::array<int, 3> offset = { backrooms.offset.x, backrooms.offset.y, backrooms.offset.z };
+                if (ImGui::InputInt3("Offset", offset.data())) {
+                    backrooms.offset = glm::ivec3(offset[0], offset[1], offset[2]);
+                    markSelectedModuleDirty("Updated backrooms offset.");
+                }
+
+                if (ImGui::Checkbox("Infinite Y", &backrooms.infiniteY)) {
+                    markSelectedModuleDirty(backrooms.infiniteY ? "Enabled infinite backrooms Y." : "Disabled infinite backrooms Y.");
+                }
+
+                int minY = backrooms.minY;
+                int maxY = backrooms.maxY;
+                ImGui::BeginDisabled(backrooms.infiniteY);
+                if (ImGui::InputInt("Min Y", &minY)) {
+                    backrooms.minY = minY;
+                    if (backrooms.maxY < backrooms.minY) {
+                        backrooms.maxY = backrooms.minY;
+                    }
+                    markSelectedModuleDirty("Updated backrooms minimum height.");
+                }
+                if (ImGui::InputInt("Max Y", &maxY)) {
+                    backrooms.maxY = std::max(maxY, backrooms.minY);
+                    markSelectedModuleDirty("Updated backrooms maximum height.");
+                }
+                ImGui::EndDisabled();
+
+                std::array<int, 2> cellSize = { backrooms.cellSize.x, backrooms.cellSize.y };
+                if (ImGui::InputInt2("Cell Size X/Z", cellSize.data())) {
+                    backrooms.cellSize = glm::max(glm::ivec2(cellSize[0], cellSize[1]), glm::ivec2(4));
+                    markSelectedModuleDirty("Updated backrooms cell size.");
+                }
+
+                if (ImGui::InputInt("Story Height", &backrooms.storyHeight)) {
+                    backrooms.storyHeight = std::max(backrooms.storyHeight, 4);
+                    backrooms.floorThickness = std::min(backrooms.floorThickness, backrooms.storyHeight - 2);
+                    backrooms.ceilingThickness = std::min(backrooms.ceilingThickness, backrooms.storyHeight - backrooms.floorThickness - 1);
+                    markSelectedModuleDirty("Updated backrooms story height.");
+                }
+                if (ImGui::InputInt("Wall Thickness", &backrooms.wallThickness)) {
+                    const int maxWallThickness = std::max(1, std::min(backrooms.cellSize.x, backrooms.cellSize.y) / 2);
+                    backrooms.wallThickness = std::clamp(backrooms.wallThickness, 1, maxWallThickness);
+                    markSelectedModuleDirty("Updated backrooms wall thickness.");
+                }
+                if (ImGui::InputInt("Passage Width", &backrooms.passageWidth)) {
+                    const int maxPassageWidth = std::max(1, std::min(backrooms.cellSize.x, backrooms.cellSize.y) - backrooms.wallThickness * 2);
+                    backrooms.passageWidth = std::clamp(backrooms.passageWidth, 1, maxPassageWidth);
+                    markSelectedModuleDirty("Updated backrooms passage width.");
+                }
+                if (ImGui::InputInt("Floor Thickness", &backrooms.floorThickness)) {
+                    backrooms.floorThickness = std::clamp(backrooms.floorThickness, 1, std::max(1, backrooms.storyHeight - 2));
+                    markSelectedModuleDirty("Updated backrooms floor thickness.");
+                }
+                if (ImGui::InputInt("Ceiling Thickness", &backrooms.ceilingThickness)) {
+                    backrooms.ceilingThickness = std::clamp(backrooms.ceilingThickness, 1, std::max(1, backrooms.storyHeight - backrooms.floorThickness - 1));
+                    markSelectedModuleDirty("Updated backrooms ceiling thickness.");
+                }
+                if (ImGui::SliderFloat("Passage Chance", &backrooms.passageChance, 0.0f, 1.0f, "%.2f")) {
+                    backrooms.passageChance = std::clamp(backrooms.passageChance, 0.0f, 1.0f);
+                    markSelectedModuleDirty("Updated backrooms passage chance.");
+                }
+                if (ImGui::SliderFloat("Accent Noise Scale", &backrooms.accentNoiseScale, 0.0f, 0.25f, "%.3f")) {
+                    markSelectedModuleDirty("Updated backrooms accent noise scale.");
+                }
+                if (ImGui::SliderFloat("Accent Threshold", &backrooms.accentThreshold, -1.0f, 1.0f, "%.3f")) {
+                    markSelectedModuleDirty("Updated backrooms accent threshold.");
+                }
+                if (ImGui::SliderFloat("Light Chance", &backrooms.lightChance, 0.0f, 1.0f, "%.2f")) {
+                    backrooms.lightChance = std::clamp(backrooms.lightChance, 0.0f, 1.0f);
+                    markSelectedModuleDirty("Updated backrooms light chance.");
+                }
+
+                ImGui::SeparatorText("Backrooms Palette");
+                if (drawBlockIdCombo("Wall Block", backrooms.palette.primary)) {
+                    markSelectedModuleDirty("Updated backrooms wall block.");
+                }
+                if (drawBlockIdCombo("Floor/Ceiling Block", backrooms.palette.secondary)) {
+                    markSelectedModuleDirty("Updated backrooms floor block.");
+                }
+                if (drawBlockIdCombo("Light/Accent Block", backrooms.palette.accent)) {
+                    markSelectedModuleDirty("Updated backrooms accent block.");
+                }
+
+            }
+            else if (module->type == ModuleType::MINECRAFT_STYLE) {
+                ImGui::SeparatorText("Minecraft Style");
+                MinecraftStyleModule& minecraft = module->minecraftStyle;
+
+                std::array<int, 3> offset = { minecraft.offset.x, minecraft.offset.y, minecraft.offset.z };
+                if (ImGui::InputInt3("Offset", offset.data())) {
+                    minecraft.offset = glm::ivec3(offset[0], offset[1], offset[2]);
+                    markSelectedModuleDirty("Updated Minecraft offset.");
+                }
+
+                if (ImGui::Checkbox("Infinite Y", &minecraft.infiniteY)) {
+                    markSelectedModuleDirty(minecraft.infiniteY ? "Enabled infinite Minecraft Y." : "Disabled infinite Minecraft Y.");
+                }
+
+                int minY = minecraft.minY;
+                int maxY = minecraft.maxY;
+                ImGui::BeginDisabled(minecraft.infiniteY);
+                if (ImGui::InputInt("Min Y", &minY)) {
+                    minecraft.minY = minY;
+                    if (minecraft.maxY < minecraft.minY) {
+                        minecraft.maxY = minecraft.minY;
+                    }
+                    markSelectedModuleDirty("Updated Minecraft minimum height.");
+                }
+                if (ImGui::InputInt("Max Y", &maxY)) {
+                    minecraft.maxY = std::max(maxY, minecraft.minY);
+                    markSelectedModuleDirty("Updated Minecraft maximum height.");
+                }
+                ImGui::EndDisabled();
+
+                if (ImGui::InputInt("World Height", &minecraft.worldHeight)) {
+                    minecraft.worldHeight = std::max(minecraft.worldHeight, 16);
+                    minecraft.baseHeight = std::clamp(minecraft.baseHeight, 1, minecraft.worldHeight - 2);
+                    markSelectedModuleDirty("Updated Minecraft world height.");
+                }
+                if (ImGui::InputInt("Base Height", &minecraft.baseHeight)) {
+                    minecraft.baseHeight = std::clamp(minecraft.baseHeight, 1, minecraft.worldHeight - 2);
+                    markSelectedModuleDirty("Updated Minecraft base height.");
+                }
+                if (ImGui::InputInt("Height Amplitude", &minecraft.heightAmplitude)) {
+                    minecraft.heightAmplitude = std::max(minecraft.heightAmplitude, 0);
+                    markSelectedModuleDirty("Updated Minecraft height amplitude.");
+                }
+                if (ImGui::InputInt("Detail Amplitude", &minecraft.detailAmplitude)) {
+                    minecraft.detailAmplitude = std::max(minecraft.detailAmplitude, 0);
+                    markSelectedModuleDirty("Updated Minecraft detail amplitude.");
+                }
+                if (ImGui::InputInt("Soil Depth", &minecraft.soilDepth)) {
+                    minecraft.soilDepth = std::max(minecraft.soilDepth, 1);
+                    markSelectedModuleDirty("Updated Minecraft soil depth.");
+                }
+                if (ImGui::InputInt("Bedrock Thickness", &minecraft.bedrockThickness)) {
+                    minecraft.bedrockThickness = std::max(minecraft.bedrockThickness, 1);
+                    markSelectedModuleDirty("Updated Minecraft bedrock thickness.");
+                }
+                if (ImGui::SliderFloat("Terrain Scale", &minecraft.terrainScale, 0.0005f, 0.10f, "%.4f", ImGuiSliderFlags_Logarithmic)) {
+                    minecraft.terrainScale = std::max(minecraft.terrainScale, 0.0001f);
+                    markSelectedModuleDirty("Updated Minecraft terrain scale.");
+                }
+                if (ImGui::SliderInt("Terrain Octaves", &minecraft.terrainOctaves, 1, 8)) {
+                    markSelectedModuleDirty("Updated Minecraft terrain octaves.");
+                }
+                if (ImGui::SliderFloat("Terrain Persistence", &minecraft.terrainPersistence, 0.05f, 0.95f, "%.3f")) {
+                    markSelectedModuleDirty("Updated Minecraft terrain persistence.");
+                }
+                if (ImGui::SliderFloat("Detail Scale", &minecraft.detailScale, 0.0f, 0.25f, "%.3f")) {
+                    markSelectedModuleDirty("Updated Minecraft detail scale.");
+                }
+
+                if (ImGui::Checkbox("Caves Enabled", &minecraft.cavesEnabled)) {
+                    markSelectedModuleDirty(minecraft.cavesEnabled ? "Enabled Minecraft caves." : "Disabled Minecraft caves.");
+                }
+                ImGui::BeginDisabled(!minecraft.cavesEnabled);
+                if (ImGui::SliderFloat("Cave Scale", &minecraft.caveScale, 0.0f, 0.25f, "%.3f")) {
+                    markSelectedModuleDirty("Updated Minecraft cave scale.");
+                }
+                if (ImGui::SliderFloat("Cave Threshold", &minecraft.caveThreshold, -1.0f, 1.0f, "%.3f")) {
+                    markSelectedModuleDirty("Updated Minecraft cave threshold.");
+                }
+                if (ImGui::SliderFloat("Cave Warp Scale", &minecraft.caveWarpScale, 0.0f, 0.10f, "%.3f")) {
+                    markSelectedModuleDirty("Updated Minecraft cave warp scale.");
+                }
+                if (ImGui::SliderFloat("Cave Warp Strength", &minecraft.caveWarpStrength, 0.0f, 24.0f, "%.2f")) {
+                    markSelectedModuleDirty("Updated Minecraft cave warp strength.");
+                }
+                ImGui::EndDisabled();
+
+                if (ImGui::SliderFloat("Ore Scale", &minecraft.oreScale, 0.0f, 0.25f, "%.3f")) {
+                    markSelectedModuleDirty("Updated Minecraft ore scale.");
+                }
+                if (ImGui::SliderFloat("Ore Threshold", &minecraft.oreThreshold, -1.0f, 1.0f, "%.3f")) {
+                    markSelectedModuleDirty("Updated Minecraft ore threshold.");
+                }
+
+                drawMinecraftPalette(minecraft.palette);
 
             }
             else if (module->type == ModuleType::TREE_GENERATOR) {

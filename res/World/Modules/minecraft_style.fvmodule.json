@@ -1,0 +1,41 @@
+{
+  "format_version": 1,
+  "id": "minecraft_style",
+  "display_name": "Minecraft Style",
+  "type": "minecraft_style",
+  "enabled": true,
+  "blend_mode": "overwrite_all",
+  "settings": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "infinite_y": false,
+    "min_y": -64,
+    "max_y": 128,
+    "world_height": 192,
+    "base_height": 72,
+    "height_amplitude": 28,
+    "detail_amplitude": 8,
+    "soil_depth": 4,
+    "bedrock_thickness": 3,
+    "terrain_scale": 0.008,
+    "terrain_octaves": 5,
+    "terrain_persistence": 0.52,
+    "detail_scale": 0.035,
+    "caves_enabled": true,
+    "cave_scale": 0.045,
+    "cave_threshold": 0.36,
+    "cave_warp_scale": 0.018,
+    "cave_warp_strength": 8.0,
+    "ore_scale": 0.08,
+    "ore_threshold": 0.72,
+    "surface_block": "organic",
+    "subsurface_block": "membrane",
+    "stone_block": "stone",
+    "deep_block": "void_matter",
+    "ore_block": "crystal",
+    "bedrock_block": "metal"
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "display_name": "Floating Islands",
+  "format_version": 3,
+  "id": "floating_islands",
+  "modules": [
+    {
+      "blend_mode": "overwrite_all",
+      "display_name": "One Block",
+      "enabled": true,
+      "format_version": 1,
+      "id": "one_block",
+      "settings": {
+        "accent_block": "portal",
+        "accent_chance": 0.11999999731779099,
+        "block": "membrane_wire",
+        "cell_size": {
+          "x": 8,
+          "z": 8
+        },
+        "density": 0.05000000074505806,
+        "infinite_y": true,
+        "jitter": {
+          "x": 3,
+          "z": 3
+        },
+        "max_blocks": 4,
+        "max_y": 96,
+        "min_blocks": 1,
+        "min_y": -8,
+        "pattern": "random_scatter",
+        "require_air": true,
+        "support_block": "organic"
+      },
+      "type": "one_block"
+    },
+    {
+      "blend_mode": "place_solids",
+      "display_name": "Floating Islands",
+      "enabled": true,
+      "format_version": 1,
+      "id": "floating_islands",
+      "settings": {
+        "accent": "crystal",
+        "accent_noise_scale": 0.07999999821186066,
+        "accent_threshold": 0.6200000047683716,
+        "cell_size": {
+          "x": 128,
+          "z": 128
+        },
+        "edge_noise_scale": 0.04500000178813934,
+        "edge_noise_strength": 0.2199999988079071,
+        "infinite_y": true,
+        "jitter": {
+          "x": 28,
+          "z": 28
+        },
+        "max_height": 64,
+        "max_radius": 128,
+        "max_y": 128,
+        "min_height": 8,
+        "min_radius": 14,
+        "min_y": 32,
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "primary": "stone",
+        "secondary": "organic",
+        "spawn_chance": 0.7200000286102295,
+        "surface_thickness": 3.0,
+        "underside_steepness": 1.350000023841858,
+        "vertical_jitter": 20,
+        "vertical_spacing": 96
+      },
+      "type": "floating_islands"
+    },
+    {
+      "blend_mode": "place_solids",
+      "display_name": "Grid Pattern",
+      "enabled": true,
+      "format_version": 1,
+      "id": "grid_pattern",
+      "settings": {
+        "accent": "void_matter",
+        "accent_noise_scale": 0.07999999821186066,
+        "accent_threshold": 0.6800000071525574,
+        "cell_size": {
+          "x": 86,
+          "y": 86,
+          "z": 86
+        },
+        "infinite_y": true,
+        "line_width": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "max_axis_matches": 3,
+        "max_y": 96,
+        "min_axis_matches": 2,
+        "min_y": -32,
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "primary": "void_matter",
+        "secondary": "void_matter",
+        "warp_scale": 0.0,
+        "warp_strength": 0.0
+      },
+      "type": "grid_pattern"
+    }
+  ],
+  "preview": {
+    "default_mode": "streaming",
+    "depth": 0,
+    "sandbox_radius": {
+      "x": 2,
+      "y": 1,
+      "z": 2
+    },
+    "seed": 42,
+    "stream_render_distance": 5
+  }
+}

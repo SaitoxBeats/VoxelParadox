@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "id": "one_block",
+  "display_name": "One Block",
+  "type": "one_block",
+  "enabled": true,
+  "blend_mode": "place_on_air",
+  "settings": {
+    "support_block": "organic",
+    "block": "membrane_wire",
+    "accent_block": "crystal",
+    "pattern": "random_scatter",
+    "density": 0.45,
+    "cell_size": {
+      "x": 8,
+      "z": 8
+    },
+    "jitter": {
+      "x": 3,
+      "z": 3
+    },
+    "infinite_y": false,
+    "min_y": -8,
+    "max_y": 96,
+    "min_blocks": 1,
+    "max_blocks": 4,
+    "accent_chance": 0.12,
+    "require_air": true
+  }
+}

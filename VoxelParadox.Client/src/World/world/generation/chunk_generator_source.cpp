@@ -391,7 +391,8 @@ void PresetModuleGeneratorSource::generateBaseChunk(Chunk& chunk) const {
        reverseIndex--) {
     const std::size_t index = reverseIndex - 1;
     const BiomeModule& module = preset_->modules[index];
-    if (!module.enabled || module.type == ModuleType::TREE_GENERATOR) {
+    if (!module.enabled || module.type == ModuleType::TREE_GENERATOR ||
+        module.type == ModuleType::ONE_BLOCK) {
       continue;
     }
 
@@ -436,6 +437,18 @@ void PresetModuleGeneratorSource::applyModuleLayer(
     break;
   case ModuleType::TREE_GENERATOR:
     applyTreeGeneratorLayer(chunk, module);
+    break;
+  case ModuleType::FLOATING_ISLANDS:
+    applyFloatingIslandsLayer(chunk, module);
+    break;
+  case ModuleType::ONE_BLOCK:
+    applyOneBlockLayer(chunk, module);
+    break;
+  case ModuleType::BACKROOMS:
+    applyBackroomsLayer(chunk, module);
+    break;
+  case ModuleType::MINECRAFT_STYLE:
+    applyMinecraftStyleLayer(chunk, module);
     break;
   }
 }
@@ -1607,6 +1620,607 @@ void PresetModuleGeneratorSource::applyTreeGeneratorLayer(
 
       stampWorldBlock(glm::ivec3(trunkBase.x, canopyBaseY + 3, trunkBase.z),
                       tree.leavesBlock);
+    }
+  }
+}
+
+void PresetModuleGeneratorSource::applyFloatingIslandsLayer(
+    Chunk& chunk, const BiomeModule& module) const {
+  const FloatingIslandsModule& islands = module.floatingIslands;
+  if (!chunkIntersectsVerticalRange(chunk, islands.infiniteY, islands.minY,
+                                    islands.maxY)) {
+    return;
+  }
+  if (islands.spawnChance <= 0.0f) {
+    return;
+  }
+
+  const glm::ivec3 chunkMin(chunk.chunkPos.x * Chunk::SIZE,
+                            chunk.chunkPos.y * Chunk::SIZE,
+                            chunk.chunkPos.z * Chunk::SIZE);
+  const glm::ivec3 chunkMax = chunkMin + glm::ivec3(Chunk::SIZE - 1);
+  const int maxRadius = std::max(islands.minRadius, islands.maxRadius);
+  const int maxHeight = std::max(islands.minHeight, islands.maxHeight);
+  const int horizontalReach =
+      maxRadius + std::max(islands.jitter.x, islands.jitter.y) + 2;
+  const int verticalReach =
+      maxHeight + (islands.infiniteY ? islands.verticalJitter : 0) + 4;
+
+  const int cellMinX =
+      floorDiv(chunkMin.x - islands.offset.x - horizontalReach,
+               islands.cellSize.x);
+  const int cellMaxX =
+      floorDiv(chunkMax.x - islands.offset.x + horizontalReach,
+               islands.cellSize.x);
+  const int cellMinZ =
+      floorDiv(chunkMin.z - islands.offset.z - horizontalReach,
+               islands.cellSize.y);
+  const int cellMaxZ =
+      floorDiv(chunkMax.z - islands.offset.z + horizontalReach,
+               islands.cellSize.y);
+  const int cellMinY =
+      islands.infiniteY
+          ? floorDiv(chunkMin.y - islands.offset.y - verticalReach,
+                     islands.verticalSpacing)
+          : 0;
+  const int cellMaxY =
+      islands.infiniteY
+          ? floorDiv(chunkMax.y - islands.offset.y + verticalReach,
+                     islands.verticalSpacing)
+          : 0;
+
+  const std::uint32_t moduleSeed =
+      seed() ^ hashString(module.id) ^ 0x4cf5ad43u;
+  const SeedOffset edgeOffset = makeSeedOffset(moduleSeed ^ 0xa511e9b3u);
+  const SeedOffset accentOffset = makeSeedOffset(moduleSeed ^ 0x9e3779b9u);
+  const bool useEdgeNoise =
+      islands.edgeNoiseScale > 0.0f && islands.edgeNoiseStrength > 0.0f;
+  const bool useAccentNoise = islands.accentNoiseScale > 0.0f;
+
+  for (int cellX = cellMinX; cellX <= cellMaxX; ++cellX) {
+    for (int cellY = cellMinY; cellY <= cellMaxY; ++cellY) {
+      for (int cellZ = cellMinZ; cellZ <= cellMaxZ; ++cellZ) {
+        std::uint32_t state =
+            hash3i(cellX, islands.infiniteY ? cellY : runtimeDepth_, cellZ,
+                   moduleSeed);
+        if (hash01(state) > islands.spawnChance) {
+          continue;
+        }
+
+        glm::ivec3 center(islands.offset.x + cellX * islands.cellSize.x +
+                              islands.cellSize.x / 2,
+                          0,
+                          islands.offset.z + cellZ * islands.cellSize.y +
+                              islands.cellSize.y / 2);
+        center.x += randRange(state, -islands.jitter.x, islands.jitter.x);
+        center.z += randRange(state, -islands.jitter.y, islands.jitter.y);
+        center.y = islands.infiniteY
+                       ? islands.offset.y + cellY * islands.verticalSpacing +
+                             islands.verticalSpacing / 2 +
+                             randRange(state, -islands.verticalJitter,
+                                       islands.verticalJitter)
+                       : randRange(state, islands.minY, islands.maxY);
+
+        const int radiusX = randRange(state, islands.minRadius, islands.maxRadius);
+        const int radiusZ = randRange(state, islands.minRadius, islands.maxRadius);
+        const int islandHeight =
+            randRange(state, islands.minHeight, islands.maxHeight);
+
+        const glm::ivec3 islandMin(center.x - radiusX - 2,
+                                   center.y - islandHeight - 2,
+                                   center.z - radiusZ - 2);
+        const glm::ivec3 islandMax(center.x + radiusX + 2,
+                                   center.y + islandHeight / 2 + 4,
+                                   center.z + radiusZ + 2);
+        if (islandMax.x < chunkMin.x || islandMin.x > chunkMax.x ||
+            islandMax.y < chunkMin.y || islandMin.y > chunkMax.y ||
+            islandMax.z < chunkMin.z || islandMin.z > chunkMax.z) {
+          continue;
+        }
+
+        const int localMinX = std::max(0, islandMin.x - chunkMin.x);
+        const int localMaxX =
+            std::min(Chunk::SIZE - 1, islandMax.x - chunkMin.x);
+        const int localMinY = std::max(0, islandMin.y - chunkMin.y);
+        const int localMaxY =
+            std::min(Chunk::SIZE - 1, islandMax.y - chunkMin.y);
+        const int localMinZ = std::max(0, islandMin.z - chunkMin.z);
+        const int localMaxZ =
+            std::min(Chunk::SIZE - 1, islandMax.z - chunkMin.z);
+
+        for (int x = localMinX; x <= localMaxX; ++x) {
+          const float worldX = static_cast<float>(chunkMin.x + x) + 0.5f;
+          const float nx =
+              (worldX - static_cast<float>(center.x)) /
+              static_cast<float>(std::max(radiusX, 1));
+          for (int z = localMinZ; z <= localMaxZ; ++z) {
+            const float worldZ = static_cast<float>(chunkMin.z + z) + 0.5f;
+            const float nz =
+                (worldZ - static_cast<float>(center.z)) /
+                static_cast<float>(std::max(radiusZ, 1));
+            const float radial = std::sqrt(nx * nx + nz * nz);
+
+            float edgeNoise = 0.0f;
+            if (useEdgeNoise) {
+              edgeNoise =
+                  seededFbm(worldX * islands.edgeNoiseScale,
+                            static_cast<float>(center.y) * islands.edgeNoiseScale,
+                            worldZ * islands.edgeNoiseScale, edgeOffset, 3, 0.55f);
+            }
+            const float edgeAllowance =
+                std::clamp(1.0f + edgeNoise * islands.edgeNoiseStrength, 0.55f,
+                           1.45f);
+            if (radial > edgeAllowance) {
+              continue;
+            }
+
+            const float normalizedRadial = radial / edgeAllowance;
+            const float dome =
+                std::clamp(1.0f - normalizedRadial * normalizedRadial, 0.0f,
+                           1.0f);
+            const float topY =
+                static_cast<float>(center.y) + islands.surfaceThickness +
+                dome * static_cast<float>(islandHeight) * 0.35f +
+                edgeNoise * static_cast<float>(islandHeight) * 0.10f;
+            const float bottomY =
+                static_cast<float>(center.y) -
+                (0.15f + std::pow(dome, islands.undersideSteepness)) *
+                    static_cast<float>(islandHeight);
+
+            for (int y = localMinY; y <= localMaxY; ++y) {
+              const float worldY = static_cast<float>(chunkMin.y + y) + 0.5f;
+              if (worldY < bottomY || worldY > topY) {
+                continue;
+              }
+
+              const float surfaceDistance = topY - worldY;
+              BlockId value =
+                  surfaceDistance <= islands.surfaceThickness
+                      ? islands.palette.secondary
+                      : islands.palette.primary;
+              if (useAccentNoise) {
+                const float accentNoise =
+                    seededFbm(worldX * islands.accentNoiseScale,
+                              worldY * islands.accentNoiseScale,
+                              worldZ * islands.accentNoiseScale, accentOffset, 2,
+                              0.50f);
+                if (accentNoise > islands.accentThreshold &&
+                    surfaceDistance > islands.surfaceThickness * 0.5f) {
+                  value = islands.palette.accent;
+                }
+              }
+
+              writeLayerBlock(chunk.blocks[x][y][z], value, module.blendMode);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+void PresetModuleGeneratorSource::applyOneBlockLayer(
+    Chunk& chunk, const BiomeModule& module) const {
+  const OneBlockModule& one = module.oneBlock;
+  if (one.density <= 0.0f) {
+    return;
+  }
+
+  const glm::ivec3 chunkMin(chunk.chunkPos.x * Chunk::SIZE,
+                            chunk.chunkPos.y * Chunk::SIZE,
+                            chunk.chunkPos.z * Chunk::SIZE);
+  const glm::ivec3 chunkMax = chunkMin + glm::ivec3(Chunk::SIZE - 1);
+  if (!one.infiniteY &&
+      (chunkMax.y < one.minY + 1 || chunkMin.y > one.maxY + one.maxBlocks)) {
+    return;
+  }
+
+  const int jitterX =
+      one.pattern == VoxPlacementPattern::RANDOM_SCATTER ? one.jitter.x : 0;
+  const int jitterZ =
+      one.pattern == VoxPlacementPattern::RANDOM_SCATTER ? one.jitter.y : 0;
+  const int cellMinX = floorDiv(chunkMin.x - jitterX, one.cellSize.x);
+  const int cellMaxX = floorDiv(chunkMax.x + jitterX, one.cellSize.x);
+  const int cellMinZ = floorDiv(chunkMin.z - jitterZ, one.cellSize.y);
+  const int cellMaxZ = floorDiv(chunkMax.z + jitterZ, one.cellSize.y);
+  const int supportMinY =
+      one.infiniteY ? chunkMin.y - one.maxBlocks
+                    : std::max(one.minY, chunkMin.y - one.maxBlocks);
+  const int supportMaxY =
+      one.infiniteY ? chunkMax.y - 1 : std::min(one.maxY, chunkMax.y - 1);
+  if (supportMaxY < supportMinY) {
+    return;
+  }
+
+  std::unordered_map<ChunkCacheKey, Chunk, ChunkCacheKeyHasher> baseChunkCache;
+  const auto sampleBaseBlockAt = [&](const glm::ivec3& worldPos) -> BlockId {
+    const ChunkCacheKey key{floorDiv(worldPos.x, Chunk::SIZE),
+                            floorDiv(worldPos.y, Chunk::SIZE),
+                            floorDiv(worldPos.z, Chunk::SIZE)};
+    auto iterator = baseChunkCache.find(key);
+    if (iterator == baseChunkCache.end()) {
+      iterator = baseChunkCache
+                     .try_emplace(key, glm::ivec3(key.x, key.y, key.z))
+                     .first;
+      generateBaseChunk(iterator->second);
+    }
+
+    const int localX = positiveModInt(worldPos.x, Chunk::SIZE);
+    const int localY = positiveModInt(worldPos.y, Chunk::SIZE);
+    const int localZ = positiveModInt(worldPos.z, Chunk::SIZE);
+    return iterator->second.blocks[localX][localY][localZ];
+  };
+
+  const auto stampWorldBlock = [&](const glm::ivec3& worldPos, BlockId value) {
+    if (worldPos.x < chunkMin.x || worldPos.x > chunkMax.x ||
+        worldPos.y < chunkMin.y || worldPos.y > chunkMax.y ||
+        worldPos.z < chunkMin.z || worldPos.z > chunkMax.z) {
+      return;
+    }
+
+    const glm::ivec3 localPos = worldPos - chunkMin;
+    writeLayerBlock(chunk.blocks[localPos.x][localPos.y][localPos.z], value,
+                    module.blendMode);
+  };
+
+  const std::uint32_t moduleSeed =
+      seed() ^ hashString(module.id) ^ 0x2f6e2b1du;
+  for (int cellX = cellMinX; cellX <= cellMaxX; ++cellX) {
+    for (int cellZ = cellMinZ; cellZ <= cellMaxZ; ++cellZ) {
+      std::uint32_t state = hash3i(cellX, runtimeDepth_, cellZ, moduleSeed);
+      if (hash01(state) > one.density) {
+        continue;
+      }
+
+      glm::ivec3 column(cellX * one.cellSize.x + one.cellSize.x / 2, 0,
+                        cellZ * one.cellSize.y + one.cellSize.y / 2);
+      if (one.pattern == VoxPlacementPattern::RANDOM_SCATTER) {
+        column.x += randRange(state, -jitterX, jitterX);
+        column.z += randRange(state, -jitterZ, jitterZ);
+      }
+
+      int supportY = std::numeric_limits<int>::min();
+      for (int y = supportMaxY; y >= supportMinY; --y) {
+        if (sampleBaseBlockAt(glm::ivec3(column.x, y, column.z)) !=
+            one.supportBlock) {
+          continue;
+        }
+        if (one.requireAir &&
+            !isReplaceableBlock(
+                sampleBaseBlockAt(glm::ivec3(column.x, y + 1, column.z)))) {
+          continue;
+        }
+
+        supportY = y;
+        break;
+      }
+      if (supportY == std::numeric_limits<int>::min()) {
+        continue;
+      }
+
+      std::uint32_t plantState =
+          hash3i(column.x, supportY, column.z, moduleSeed ^ 0x9e3779b9u);
+      const int blockCount = randRange(plantState, one.minBlocks, one.maxBlocks);
+
+      bool hasClearance = true;
+      if (one.requireAir) {
+        for (int index = 1; index <= blockCount; ++index) {
+          if (!isReplaceableBlock(sampleBaseBlockAt(
+                  glm::ivec3(column.x, supportY + index, column.z)))) {
+            hasClearance = false;
+            break;
+          }
+        }
+      }
+      if (!hasClearance) {
+        continue;
+      }
+
+      for (int index = 1; index <= blockCount; ++index) {
+        const float accentRoll =
+            hash01(hash3i(column.x, supportY + index, column.z,
+                          moduleSeed ^ 0x68bc21ebu));
+        const BlockId value =
+            accentRoll < one.accentChance ? one.accentBlock : one.block;
+        stampWorldBlock(glm::ivec3(column.x, supportY + index, column.z), value);
+      }
+    }
+  }
+}
+
+void PresetModuleGeneratorSource::applyBackroomsLayer(
+    Chunk& chunk, const BiomeModule& module) const {
+  const BackroomsModule& backrooms = module.backrooms;
+  if (!chunkIntersectsVerticalRange(chunk, backrooms.infiniteY, backrooms.minY,
+                                    backrooms.maxY)) {
+    return;
+  }
+
+  const int wx0 = chunk.chunkPos.x * Chunk::SIZE;
+  const int wy0 = chunk.chunkPos.y * Chunk::SIZE;
+  const int wz0 = chunk.chunkPos.z * Chunk::SIZE;
+  const std::uint32_t moduleSeed =
+      seed() ^ hashString(module.id) ^ 0x7f4a7c15u;
+  const SeedOffset accentOffset = makeSeedOffset(moduleSeed ^ 0xa4093822u);
+  const bool useAccentNoise = backrooms.accentNoiseScale > 0.0f;
+  const int floorThickness =
+      std::min(backrooms.floorThickness, backrooms.storyHeight - 2);
+  const int ceilingThickness =
+      std::min(backrooms.ceilingThickness,
+               backrooms.storyHeight - floorThickness - 1);
+
+  const auto passageOnXBoundary = [&](int boundaryX, int cellZ, int storyIndex,
+                                      int localZ) {
+    const std::uint32_t state =
+        hash3i(boundaryX, storyIndex, cellZ, moduleSeed ^ 0x3c6ef372u);
+    if (hash01(state) > backrooms.passageChance) {
+      return false;
+    }
+
+    const int usableWidth =
+        std::max(1, backrooms.cellSize.y - backrooms.wallThickness * 2 -
+                        backrooms.passageWidth);
+    const int doorStart =
+        backrooms.wallThickness +
+        static_cast<int>(hash01(state ^ 0x1b56c4e9u) *
+                         static_cast<float>(usableWidth));
+    return localZ >= doorStart && localZ < doorStart + backrooms.passageWidth;
+  };
+
+  const auto passageOnZBoundary = [&](int cellX, int boundaryZ, int storyIndex,
+                                      int localX) {
+    const std::uint32_t state =
+        hash3i(cellX, storyIndex, boundaryZ, moduleSeed ^ 0x510e527fu);
+    if (hash01(state) > backrooms.passageChance) {
+      return false;
+    }
+
+    const int usableWidth =
+        std::max(1, backrooms.cellSize.x - backrooms.wallThickness * 2 -
+                        backrooms.passageWidth);
+    const int doorStart =
+        backrooms.wallThickness +
+        static_cast<int>(hash01(state ^ 0x94d049bbu) *
+                         static_cast<float>(usableWidth));
+    return localX >= doorStart && localX < doorStart + backrooms.passageWidth;
+  };
+
+  for (int x = 0; x < Chunk::SIZE; ++x) {
+    const int worldX = wx0 + x;
+    const int cellSourceX = worldX - backrooms.offset.x;
+    const int cellX = floorDiv(cellSourceX, backrooms.cellSize.x);
+    const int localX = positiveModInt(cellSourceX, backrooms.cellSize.x);
+    const bool nearWest = localX < backrooms.wallThickness;
+    const bool nearEast =
+        localX >= backrooms.cellSize.x - backrooms.wallThickness;
+
+    for (int y = 0; y < Chunk::SIZE; ++y) {
+      const int worldY = wy0 + y;
+      if (!backrooms.infiniteY &&
+          (worldY < backrooms.minY || worldY > backrooms.maxY)) {
+        continue;
+      }
+
+      const int storySourceY =
+          worldY - (backrooms.infiniteY ? backrooms.offset.y
+                                        : backrooms.minY + backrooms.offset.y);
+      const int storyIndex = floorDiv(storySourceY, backrooms.storyHeight);
+      const int localY = positiveModInt(storySourceY, backrooms.storyHeight);
+
+      for (int z = 0; z < Chunk::SIZE; ++z) {
+        const int worldZ = wz0 + z;
+        const int cellSourceZ = worldZ - backrooms.offset.z;
+        const int cellZ = floorDiv(cellSourceZ, backrooms.cellSize.y);
+        const int localZ = positiveModInt(cellSourceZ, backrooms.cellSize.y);
+        const bool nearNorth = localZ < backrooms.wallThickness;
+        const bool nearSouth =
+            localZ >= backrooms.cellSize.y - backrooms.wallThickness;
+
+        BlockId value = BlockIds::AIR;
+        if (localY < floorThickness ||
+            localY >= backrooms.storyHeight - ceilingThickness) {
+          value = backrooms.palette.secondary;
+
+          const bool lightSlot =
+              localY == backrooms.storyHeight - ceilingThickness &&
+              localX == backrooms.cellSize.x / 2 &&
+              localZ == backrooms.cellSize.y / 2;
+          if (lightSlot &&
+              hash01(hash3i(cellX, storyIndex, cellZ,
+                            moduleSeed ^ 0x27d4eb2du)) < backrooms.lightChance) {
+            value = backrooms.palette.accent;
+          }
+        } else {
+          bool wall = false;
+          if (nearWest &&
+              !passageOnXBoundary(cellX, cellZ, storyIndex, localZ)) {
+            wall = true;
+          }
+          if (nearEast &&
+              !passageOnXBoundary(cellX + 1, cellZ, storyIndex, localZ)) {
+            wall = true;
+          }
+          if (nearNorth &&
+              !passageOnZBoundary(cellX, cellZ, storyIndex, localX)) {
+            wall = true;
+          }
+          if (nearSouth &&
+              !passageOnZBoundary(cellX, cellZ + 1, storyIndex, localX)) {
+            wall = true;
+          }
+
+          if (wall) {
+            value = backrooms.palette.primary;
+            if (useAccentNoise) {
+              const float accentNoise =
+                  seededFbm(static_cast<float>(worldX) * backrooms.accentNoiseScale,
+                            static_cast<float>(worldY) * backrooms.accentNoiseScale,
+                            static_cast<float>(worldZ) * backrooms.accentNoiseScale,
+                            accentOffset, 2, 0.50f);
+              if (accentNoise > backrooms.accentThreshold) {
+                value = backrooms.palette.accent;
+              }
+            }
+          }
+        }
+
+        if (value != BlockIds::AIR || module.blendMode == LayerBlendMode::OVERWRITE_ALL) {
+          writeLayerBlock(chunk.blocks[x][y][z], value, module.blendMode);
+        }
+      }
+    }
+  }
+}
+
+void PresetModuleGeneratorSource::applyMinecraftStyleLayer(
+    Chunk& chunk, const BiomeModule& module) const {
+  const MinecraftStyleModule& minecraft = module.minecraftStyle;
+  if (!chunkIntersectsVerticalRange(chunk, minecraft.infiniteY, minecraft.minY,
+                                    minecraft.maxY)) {
+    return;
+  }
+
+  const int wx0 = chunk.chunkPos.x * Chunk::SIZE;
+  const int wy0 = chunk.chunkPos.y * Chunk::SIZE;
+  const int wz0 = chunk.chunkPos.z * Chunk::SIZE;
+  const int finiteHeight = std::max(16, minecraft.maxY - minecraft.minY + 1);
+  const int worldHeight =
+      minecraft.infiniteY ? minecraft.worldHeight : finiteHeight;
+  const int minSurface =
+      std::min(worldHeight - 2,
+               minecraft.bedrockThickness + minecraft.soilDepth + 2);
+  const int maxSurface = std::max(minSurface, worldHeight - 2);
+
+  const std::uint32_t moduleSeed =
+      seed() ^ hashString(module.id) ^ 0xb5297a4du;
+  const SeedOffset terrainOffset = makeSeedOffset(moduleSeed ^ 0x243f6a88u);
+  const SeedOffset detailOffset = makeSeedOffset(moduleSeed ^ 0x85a308d3u);
+  const SeedOffset caveOffset = makeSeedOffset(moduleSeed ^ 0x13198a2eu);
+  const SeedOffset caveWarpOffset = makeSeedOffset(moduleSeed ^ 0x299f31d0u);
+  const SeedOffset oreOffset = makeSeedOffset(moduleSeed ^ 0x6c8e9cf5u);
+
+  std::array<float, Chunk::SIZE> baseX{};
+  std::array<float, Chunk::SIZE> baseZ{};
+  std::array<std::array<int, Chunk::SIZE>, Chunk::SIZE> surfaceHeights{};
+  for (int x = 0; x < Chunk::SIZE; ++x) {
+    baseX[x] = static_cast<float>(wx0 + x - minecraft.offset.x) + 0.5f;
+  }
+  for (int z = 0; z < Chunk::SIZE; ++z) {
+    baseZ[z] = static_cast<float>(wz0 + z - minecraft.offset.z) + 0.5f;
+  }
+
+  for (int x = 0; x < Chunk::SIZE; ++x) {
+    for (int z = 0; z < Chunk::SIZE; ++z) {
+      const float terrain =
+          seededFbm(baseX[x] * minecraft.terrainScale, 0.0f,
+                    baseZ[z] * minecraft.terrainScale, terrainOffset,
+                    minecraft.terrainOctaves, minecraft.terrainPersistence);
+      const float detail =
+          minecraft.detailScale > 0.0f
+              ? seededFbm(baseX[x] * minecraft.detailScale, 31.0f,
+                          baseZ[z] * minecraft.detailScale, detailOffset, 3,
+                          0.50f)
+              : 0.0f;
+      const int localSurface =
+          static_cast<int>(std::round(static_cast<float>(minecraft.baseHeight) +
+                                      terrain *
+                                          static_cast<float>(
+                                              minecraft.heightAmplitude) +
+                                      detail *
+                                          static_cast<float>(
+                                              minecraft.detailAmplitude)));
+      surfaceHeights[x][z] = std::clamp(localSurface, minSurface, maxSurface);
+    }
+  }
+
+  const auto writeMaybeAir = [&](BlockId& target, BlockId value) {
+    if (value != BlockIds::AIR || module.blendMode == LayerBlendMode::OVERWRITE_ALL) {
+      writeLayerBlock(target, value, module.blendMode);
+    }
+  };
+
+  for (int x = 0; x < Chunk::SIZE; ++x) {
+    for (int y = 0; y < Chunk::SIZE; ++y) {
+      const int worldY = wy0 + y;
+      if (!minecraft.infiniteY &&
+          (worldY < minecraft.minY || worldY > minecraft.maxY)) {
+        continue;
+      }
+
+      const int localY =
+          minecraft.infiniteY
+              ? positiveModInt(worldY - minecraft.offset.y, worldHeight)
+              : worldY - minecraft.minY;
+      if (localY < 0 || localY >= worldHeight) {
+        continue;
+      }
+
+      const int sliceBaseY = worldY - localY;
+      for (int z = 0; z < Chunk::SIZE; ++z) {
+        const int surfaceY = sliceBaseY + surfaceHeights[x][z];
+        if (worldY > surfaceY) {
+          writeMaybeAir(chunk.blocks[x][y][z], BlockIds::AIR);
+          continue;
+        }
+
+        const int depthBelowSurface = surfaceY - worldY;
+        if (minecraft.cavesEnabled && minecraft.caveScale > 0.0f &&
+            depthBelowSurface > minecraft.soilDepth &&
+            localY > minecraft.bedrockThickness + 1) {
+          glm::vec3 cavePoint(baseX[x], static_cast<float>(localY) + 0.5f,
+                              baseZ[z]);
+          if (minecraft.caveWarpScale > 0.0f && minecraft.caveWarpStrength > 0.0f) {
+            const float warp =
+                seededFbm(cavePoint.x * minecraft.caveWarpScale,
+                          cavePoint.y * minecraft.caveWarpScale,
+                          cavePoint.z * minecraft.caveWarpScale, caveWarpOffset,
+                          2, 0.55f);
+            cavePoint += glm::vec3(warp * minecraft.caveWarpStrength);
+          }
+
+          const float caveNoise =
+              seededFbm(cavePoint.x * minecraft.caveScale,
+                        cavePoint.y * minecraft.caveScale,
+                        cavePoint.z * minecraft.caveScale, caveOffset, 3, 0.55f);
+          if (caveNoise > minecraft.caveThreshold) {
+            writeMaybeAir(chunk.blocks[x][y][z], BlockIds::AIR);
+            continue;
+          }
+        }
+
+        BlockId value = minecraft.palette.shell;
+        const std::uint32_t bedrockHash =
+            hash3i(wx0 + x, localY, wz0 + z, moduleSeed ^ 0x68bc21ebu);
+        const int jaggedBedrock =
+            minecraft.bedrockThickness +
+            static_cast<int>(hash01(bedrockHash) * 2.0f);
+        if (localY <= jaggedBedrock) {
+          value = minecraft.palette.recess;
+        } else if (depthBelowSurface == 0) {
+          value = minecraft.palette.surfaceRib;
+        } else if (depthBelowSurface <= minecraft.soilDepth) {
+          value = minecraft.palette.surfacePatch;
+        } else {
+          const float oreNoise =
+              minecraft.oreScale > 0.0f
+                  ? seededFbm(baseX[x] * minecraft.oreScale,
+                              static_cast<float>(localY) * minecraft.oreScale,
+                              baseZ[z] * minecraft.oreScale, oreOffset, 2, 0.50f)
+                  : -1.0f;
+          if (oreNoise > minecraft.oreThreshold) {
+            value = minecraft.palette.accent;
+          } else {
+            const float strata =
+                std::sin(static_cast<float>(localY) * 0.13f +
+                         static_cast<float>(runtimeDepth_) * 0.37f);
+            value = (localY < minecraft.baseHeight / 2 || strata < -0.45f)
+                        ? minecraft.palette.core
+                        : minecraft.palette.shell;
+          }
+        }
+
+        writeLayerBlock(chunk.blocks[x][y][z], value, module.blendMode);
+      }
     }
   }
 }

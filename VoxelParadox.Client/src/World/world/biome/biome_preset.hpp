@@ -58,6 +58,10 @@ enum class ModuleType : std::uint8_t {
   RIDGED_NOISE = 7,
   DOMAIN_WARPED_NOISE = 8,
   TREE_GENERATOR = 9,
+  FLOATING_ISLANDS = 10,
+  ONE_BLOCK = 11,
+  BACKROOMS = 12,
+  MINECRAFT_STYLE = 13,
 };
 
 const char* moduleTypeId(ModuleType type);
@@ -266,6 +270,89 @@ struct TreeGeneratorModule {
   int maxY = 72;
 };
 
+struct FloatingIslandsModule {
+  glm::ivec3 offset{0, 0, 0};
+  bool infiniteY = false;
+  int minY = 32;
+  int maxY = 128;
+  glm::ivec2 cellSize{96, 96};
+  glm::ivec2 jitter{28, 28};
+  int verticalSpacing = 96;
+  int verticalJitter = 20;
+  float spawnChance = 0.72f;
+  int minRadius = 14;
+  int maxRadius = 34;
+  int minHeight = 8;
+  int maxHeight = 22;
+  float surfaceThickness = 3.0f;
+  float undersideSteepness = 1.35f;
+  float edgeNoiseScale = 0.045f;
+  float edgeNoiseStrength = 0.22f;
+  float accentNoiseScale = 0.08f;
+  float accentThreshold = 0.62f;
+  TricolorPaletteModule palette{};
+};
+
+struct OneBlockModule {
+  BlockId supportBlock = BlockIds::ORGANIC;
+  BlockId block = BlockIds::MEMBRANE_WIRE;
+  BlockId accentBlock = BlockIds::CRYSTAL;
+  VoxPlacementPattern pattern = VoxPlacementPattern::RANDOM_SCATTER;
+  float density = 0.45f;
+  glm::ivec2 cellSize{8, 8};
+  glm::ivec2 jitter{3, 3};
+  bool infiniteY = false;
+  int minY = -8;
+  int maxY = 96;
+  int minBlocks = 1;
+  int maxBlocks = 4;
+  float accentChance = 0.12f;
+  bool requireAir = true;
+};
+
+struct BackroomsModule {
+  glm::ivec3 offset{0, 0, 0};
+  bool infiniteY = false;
+  int minY = 0;
+  int maxY = 8;
+  glm::ivec2 cellSize{12, 12};
+  int storyHeight = 8;
+  int wallThickness = 1;
+  int passageWidth = 3;
+  int floorThickness = 1;
+  int ceilingThickness = 1;
+  float passageChance = 0.72f;
+  float accentNoiseScale = 0.12f;
+  float accentThreshold = 0.70f;
+  float lightChance = 0.08f;
+  TricolorPaletteModule palette{};
+};
+
+struct MinecraftStyleModule {
+  glm::ivec3 offset{0, 0, 0};
+  bool infiniteY = false;
+  int minY = -64;
+  int maxY = 128;
+  int worldHeight = 192;
+  int baseHeight = 72;
+  int heightAmplitude = 28;
+  int detailAmplitude = 8;
+  int soilDepth = 4;
+  int bedrockThickness = 3;
+  float terrainScale = 0.008f;
+  int terrainOctaves = 5;
+  float terrainPersistence = 0.52f;
+  float detailScale = 0.035f;
+  bool cavesEnabled = true;
+  float caveScale = 0.045f;
+  float caveThreshold = 0.36f;
+  float caveWarpScale = 0.018f;
+  float caveWarpStrength = 8.0f;
+  float oreScale = 0.080f;
+  float oreThreshold = 0.72f;
+  MaterialPaletteModule palette{};
+};
+
 // -----------------------------------------------------------------------------
 // Public asset types used by runtime and editor.
 // -----------------------------------------------------------------------------
@@ -289,6 +376,10 @@ struct BiomeModule {
   RidgedNoiseModule ridgedNoise{};
   DomainWarpedNoiseModule domainWarpedNoise{};
   TreeGeneratorModule treeGenerator{};
+  FloatingIslandsModule floatingIslands{};
+  OneBlockModule oneBlock{};
+  BackroomsModule backrooms{};
+  MinecraftStyleModule minecraftStyle{};
 
   static BiomeModule makePerlinTerrain(const std::string& id = "perlin",
                                        int depth = 0);
@@ -304,6 +395,12 @@ struct BiomeModule {
       const std::string& id = "domain_warped_noise");
   static BiomeModule makeTreeGenerator(
       const std::string& id = "tree_generator");
+  static BiomeModule makeFloatingIslands(
+      const std::string& id = "floating_islands");
+  static BiomeModule makeOneBlock(const std::string& id = "one_block");
+  static BiomeModule makeBackrooms(const std::string& id = "backrooms");
+  static BiomeModule makeMinecraftStyle(
+      const std::string& id = "minecraft_style");
 };
 
 struct BiomePreset {

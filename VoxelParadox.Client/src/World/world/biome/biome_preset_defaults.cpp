@@ -174,6 +174,14 @@ const char* moduleTypeId(ModuleType type) {
     return "domain_warped_noise";
   case ModuleType::TREE_GENERATOR:
     return "tree_generator";
+  case ModuleType::FLOATING_ISLANDS:
+    return "floating_islands";
+  case ModuleType::ONE_BLOCK:
+    return "one_block";
+  case ModuleType::BACKROOMS:
+    return "backrooms";
+  case ModuleType::MINECRAFT_STYLE:
+    return "minecraft_style";
   default:
     return "unknown";
   }
@@ -201,6 +209,14 @@ const char* moduleTypeDisplayName(ModuleType type) {
     return "Domain Warped Noise";
   case ModuleType::TREE_GENERATOR:
     return "Tree Generator";
+  case ModuleType::FLOATING_ISLANDS:
+    return "Floating Islands";
+  case ModuleType::ONE_BLOCK:
+    return "One Block";
+  case ModuleType::BACKROOMS:
+    return "Backrooms";
+  case ModuleType::MINECRAFT_STYLE:
+    return "Minecraft Style";
   default:
     return "Unknown";
   }
@@ -245,6 +261,22 @@ bool tryParseModuleType(const std::string& value, ModuleType& outType) {
   }
   if (value == "tree_generator") {
     outType = ModuleType::TREE_GENERATOR;
+    return true;
+  }
+  if (value == "floating_islands") {
+    outType = ModuleType::FLOATING_ISLANDS;
+    return true;
+  }
+  if (value == "one_block") {
+    outType = ModuleType::ONE_BLOCK;
+    return true;
+  }
+  if (value == "backrooms") {
+    outType = ModuleType::BACKROOMS;
+    return true;
+  }
+  if (value == "minecraft_style") {
+    outType = ModuleType::MINECRAFT_STYLE;
     return true;
   }
   outType = ModuleType::PERLIN_TERRAIN;
@@ -521,6 +553,54 @@ BiomeModule BiomeModule::makeTreeGenerator(const std::string& id) {
   result.treeGenerator.infiniteY = false;
   result.treeGenerator.minY = -8;
   result.treeGenerator.maxY = 72;
+  return result;
+}
+
+BiomeModule BiomeModule::makeFloatingIslands(const std::string& id) {
+  BiomeModule result =
+      makeBaseModule(id, "Floating Islands", ModuleType::FLOATING_ISLANDS,
+                     LayerBlendMode::PLACE_SOLIDS);
+  result.floatingIslands = {};
+  result.floatingIslands.palette = makeStoneOrganicCrystalPalette();
+  result.floatingIslands.palette.primary = BlockIds::STONE;
+  result.floatingIslands.palette.secondary = BlockIds::ORGANIC;
+  result.floatingIslands.palette.accent = BlockIds::CRYSTAL;
+  return result;
+}
+
+BiomeModule BiomeModule::makeOneBlock(const std::string& id) {
+  BiomeModule result =
+      makeBaseModule(id, "One Block", ModuleType::ONE_BLOCK,
+                     LayerBlendMode::PLACE_ON_AIR);
+  result.oneBlock = {};
+  result.oneBlock.supportBlock = BlockIds::ORGANIC;
+  result.oneBlock.block = BlockIds::MEMBRANE_WIRE;
+  result.oneBlock.accentBlock = BlockIds::CRYSTAL;
+  return result;
+}
+
+BiomeModule BiomeModule::makeBackrooms(const std::string& id) {
+  BiomeModule result =
+      makeBaseModule(id, "Backrooms", ModuleType::BACKROOMS,
+                     LayerBlendMode::OVERWRITE_ALL);
+  result.backrooms = {};
+  result.backrooms.palette.primary = BlockIds::MEMBRANE;
+  result.backrooms.palette.secondary = BlockIds::STONE;
+  result.backrooms.palette.accent = BlockIds::CRYSTAL;
+  return result;
+}
+
+BiomeModule BiomeModule::makeMinecraftStyle(const std::string& id) {
+  BiomeModule result =
+      makeBaseModule(id, "Minecraft Style", ModuleType::MINECRAFT_STYLE,
+                     LayerBlendMode::OVERWRITE_ALL);
+  result.minecraftStyle = {};
+  result.minecraftStyle.palette.surfaceRib = BlockIds::ORGANIC;
+  result.minecraftStyle.palette.surfacePatch = BlockIds::MEMBRANE;
+  result.minecraftStyle.palette.shell = BlockIds::STONE;
+  result.minecraftStyle.palette.core = BlockIds::VOID_MATTER;
+  result.minecraftStyle.palette.accent = BlockIds::CRYSTAL;
+  result.minecraftStyle.palette.recess = BlockIds::METAL;
   return result;
 }
 

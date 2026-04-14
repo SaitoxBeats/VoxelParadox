@@ -40,7 +40,7 @@ struct EnemySpawnConfig {
     int minSpawnDistanceBlocks = 12;
     int maxSpawnDistanceBlocks = 34;
     int minEnemySpacingBlocks = 6;
-    int minVerticalClearanceBlocks = 4;
+    int minVerticalClearanceBlocks = 3;
     int verticalSearchUpBlocks = 10;
     int verticalSearchDownBlocks = 32;
     float retryDelaySeconds = 15.0f;

@@ -1,0 +1,34 @@
+{
+  "format_version": 1,
+  "id": "backrooms",
+  "display_name": "Backrooms",
+  "type": "backrooms",
+  "enabled": true,
+  "blend_mode": "overwrite_all",
+  "settings": {
+    "primary": "membrane",
+    "secondary": "stone",
+    "accent": "crystal",
+    "offset": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "infinite_y": false,
+    "min_y": 0,
+    "max_y": 8,
+    "cell_size": {
+      "x": 12,
+      "z": 12
+    },
+    "story_height": 8,
+    "wall_thickness": 1,
+    "passage_width": 3,
+    "floor_thickness": 1,
+    "ceiling_thickness": 1,
+    "passage_chance": 0.72,
+    "accent_noise_scale": 0.12,
+    "accent_threshold": 0.70,
+    "light_chance": 0.08
+  }
+}

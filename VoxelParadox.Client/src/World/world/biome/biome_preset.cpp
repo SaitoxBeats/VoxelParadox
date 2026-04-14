@@ -811,6 +811,384 @@ bool fromJson(const json& value, TreeGeneratorModule& outModule,
   return true;
 }
 
+json toJson(const FloatingIslandsModule& module) {
+  json root = toJson(module.palette);
+  root["offset"] = toJson(module.offset);
+  root["infinite_y"] = module.infiniteY;
+  root["min_y"] = module.minY;
+  root["max_y"] = module.maxY;
+  root["cell_size"] = toJsonXZ(module.cellSize);
+  root["jitter"] = toJsonXZ(module.jitter);
+  root["vertical_spacing"] = module.verticalSpacing;
+  root["vertical_jitter"] = module.verticalJitter;
+  root["spawn_chance"] = module.spawnChance;
+  root["min_radius"] = module.minRadius;
+  root["max_radius"] = module.maxRadius;
+  root["min_height"] = module.minHeight;
+  root["max_height"] = module.maxHeight;
+  root["surface_thickness"] = module.surfaceThickness;
+  root["underside_steepness"] = module.undersideSteepness;
+  root["edge_noise_scale"] = module.edgeNoiseScale;
+  root["edge_noise_strength"] = module.edgeNoiseStrength;
+  root["accent_noise_scale"] = module.accentNoiseScale;
+  root["accent_threshold"] = module.accentThreshold;
+  return root;
+}
+
+bool fromJson(const json& value, FloatingIslandsModule& outModule,
+              std::string& outError) {
+  if (!value.is_object()) {
+    outError = "floating_islands.settings must be an object.";
+    return false;
+  }
+
+  glm::ivec3 offset = outModule.offset;
+  if (!fromJson(value.value("offset", json::object()), offset)) {
+    outError = "floating_islands.settings.offset must be an object with x/y/z.";
+    return false;
+  }
+  outModule.offset = offset;
+
+  outModule.infiniteY = value.value("infinite_y", outModule.infiniteY);
+  outModule.minY = value.value("min_y", outModule.minY);
+  outModule.maxY = value.value("max_y", outModule.maxY);
+  if (outModule.maxY < outModule.minY) {
+    std::swap(outModule.minY, outModule.maxY);
+  }
+
+  glm::ivec2 cellSize = outModule.cellSize;
+  if (!fromJsonXZ(value.value("cell_size", json::object()), cellSize)) {
+    outError = "floating_islands.settings.cell_size must be an object with x/z.";
+    return false;
+  }
+  outModule.cellSize = clampPositiveIvec2(cellSize, 8);
+
+  glm::ivec2 jitter = outModule.jitter;
+  if (!fromJsonXZ(value.value("jitter", json::object()), jitter)) {
+    outError = "floating_islands.settings.jitter must be an object with x/z.";
+    return false;
+  }
+  outModule.jitter = glm::max(jitter, glm::ivec2(0));
+
+  outModule.verticalSpacing =
+      std::max(8, value.value("vertical_spacing", outModule.verticalSpacing));
+  outModule.verticalJitter =
+      std::max(0, value.value("vertical_jitter", outModule.verticalJitter));
+  outModule.spawnChance =
+      std::clamp(value.value("spawn_chance", outModule.spawnChance), 0.0f, 1.0f);
+  outModule.minRadius =
+      std::max(1, value.value("min_radius", outModule.minRadius));
+  outModule.maxRadius =
+      std::max(outModule.minRadius,
+               value.value("max_radius", outModule.maxRadius));
+  outModule.minHeight =
+      std::max(1, value.value("min_height", outModule.minHeight));
+  outModule.maxHeight =
+      std::max(outModule.minHeight,
+               value.value("max_height", outModule.maxHeight));
+  outModule.surfaceThickness =
+      std::max(0.0f, value.value("surface_thickness", outModule.surfaceThickness));
+  outModule.undersideSteepness =
+      std::clamp(value.value("underside_steepness",
+                             outModule.undersideSteepness),
+                 0.20f, 4.0f);
+  outModule.edgeNoiseScale =
+      std::max(0.0f, value.value("edge_noise_scale", outModule.edgeNoiseScale));
+  outModule.edgeNoiseStrength =
+      std::clamp(value.value("edge_noise_strength",
+                             outModule.edgeNoiseStrength),
+                 0.0f, 1.0f);
+  outModule.accentNoiseScale =
+      std::max(0.0f,
+               value.value("accent_noise_scale", outModule.accentNoiseScale));
+  outModule.accentThreshold =
+      std::clamp(value.value("accent_threshold", outModule.accentThreshold),
+                 -1.0f, 1.0f);
+
+  return fromJson(value, outModule.palette, outError, "floating_islands");
+}
+
+json toJson(const OneBlockModule& module) {
+  return json{
+      {"support_block", toJson(module.supportBlock)},
+      {"block", toJson(module.block)},
+      {"accent_block", toJson(module.accentBlock)},
+      {"pattern", voxPlacementPatternId(module.pattern)},
+      {"density", module.density},
+      {"cell_size", toJsonXZ(module.cellSize)},
+      {"jitter", toJsonXZ(module.jitter)},
+      {"infinite_y", module.infiniteY},
+      {"min_y", module.minY},
+      {"max_y", module.maxY},
+      {"min_blocks", module.minBlocks},
+      {"max_blocks", module.maxBlocks},
+      {"accent_chance", module.accentChance},
+      {"require_air", module.requireAir},
+  };
+}
+
+bool fromJson(const json& value, OneBlockModule& outModule,
+              std::string& outError) {
+  if (!value.is_object()) {
+    outError = "one_block.settings must be an object.";
+    return false;
+  }
+
+  BlockId supportBlock = outModule.supportBlock;
+  if (!fromJson(value.value("support_block", json()), supportBlock) ||
+      supportBlock == BlockIds::AIR || supportBlock == BlockIds::COUNT) {
+    outError = "one_block.settings.support_block uses an unknown block id.";
+    return false;
+  }
+  outModule.supportBlock = supportBlock;
+
+  BlockId block = outModule.block;
+  if (!fromJson(value.value("block", json()), block) ||
+      block == BlockIds::AIR || block == BlockIds::COUNT) {
+    outError = "one_block.settings.block uses an unknown block id.";
+    return false;
+  }
+  outModule.block = block;
+
+  BlockId accentBlock = outModule.accentBlock;
+  if (!fromJson(value.value("accent_block", json()), accentBlock) ||
+      accentBlock == BlockIds::AIR || accentBlock == BlockIds::COUNT) {
+    outError = "one_block.settings.accent_block uses an unknown block id.";
+    return false;
+  }
+  outModule.accentBlock = accentBlock;
+
+  VoxPlacementPattern pattern = outModule.pattern;
+  if (!tryParseVoxPlacementPattern(
+          value.value("pattern",
+                      std::string(voxPlacementPatternId(outModule.pattern))),
+          pattern)) {
+    outError = "Unsupported one_block.settings.pattern value.";
+    return false;
+  }
+  outModule.pattern = pattern;
+  outModule.density =
+      std::clamp(value.value("density", outModule.density), 0.0f, 1.0f);
+
+  glm::ivec2 cellSize = outModule.cellSize;
+  if (!fromJsonXZ(value.value("cell_size", json::object()), cellSize)) {
+    outError = "one_block.settings.cell_size must be an object with x/z.";
+    return false;
+  }
+  outModule.cellSize = clampPositiveIvec2(cellSize, 1);
+
+  glm::ivec2 jitter = outModule.jitter;
+  if (!fromJsonXZ(value.value("jitter", json::object()), jitter)) {
+    outError = "one_block.settings.jitter must be an object with x/z.";
+    return false;
+  }
+  outModule.jitter = glm::max(jitter, glm::ivec2(0));
+
+  outModule.infiniteY = value.value("infinite_y", outModule.infiniteY);
+  outModule.minY = value.value("min_y", outModule.minY);
+  outModule.maxY = value.value("max_y", outModule.maxY);
+  if (outModule.maxY < outModule.minY) {
+    std::swap(outModule.minY, outModule.maxY);
+  }
+  outModule.minBlocks =
+      std::max(1, value.value("min_blocks", outModule.minBlocks));
+  outModule.maxBlocks =
+      std::max(outModule.minBlocks,
+               value.value("max_blocks", outModule.maxBlocks));
+  outModule.accentChance =
+      std::clamp(value.value("accent_chance", outModule.accentChance),
+                 0.0f, 1.0f);
+  outModule.requireAir = value.value("require_air", outModule.requireAir);
+  return true;
+}
+
+json toJson(const BackroomsModule& module) {
+  json root = toJson(module.palette);
+  root["offset"] = toJson(module.offset);
+  root["infinite_y"] = module.infiniteY;
+  root["min_y"] = module.minY;
+  root["max_y"] = module.maxY;
+  root["cell_size"] = toJsonXZ(module.cellSize);
+  root["story_height"] = module.storyHeight;
+  root["wall_thickness"] = module.wallThickness;
+  root["passage_width"] = module.passageWidth;
+  root["floor_thickness"] = module.floorThickness;
+  root["ceiling_thickness"] = module.ceilingThickness;
+  root["passage_chance"] = module.passageChance;
+  root["accent_noise_scale"] = module.accentNoiseScale;
+  root["accent_threshold"] = module.accentThreshold;
+  root["light_chance"] = module.lightChance;
+  return root;
+}
+
+bool fromJson(const json& value, BackroomsModule& outModule,
+              std::string& outError) {
+  if (!value.is_object()) {
+    outError = "backrooms.settings must be an object.";
+    return false;
+  }
+
+  glm::ivec3 offset = outModule.offset;
+  if (!fromJson(value.value("offset", json::object()), offset)) {
+    outError = "backrooms.settings.offset must be an object with x/y/z.";
+    return false;
+  }
+  outModule.offset = offset;
+
+  outModule.infiniteY = value.value("infinite_y", outModule.infiniteY);
+  outModule.minY = value.value("min_y", outModule.minY);
+  outModule.maxY = value.value("max_y", outModule.maxY);
+  if (outModule.maxY < outModule.minY) {
+    std::swap(outModule.minY, outModule.maxY);
+  }
+
+  glm::ivec2 cellSize = outModule.cellSize;
+  if (!fromJsonXZ(value.value("cell_size", json::object()), cellSize)) {
+    outError = "backrooms.settings.cell_size must be an object with x/z.";
+    return false;
+  }
+  outModule.cellSize = clampPositiveIvec2(cellSize, 4);
+
+  outModule.storyHeight =
+      std::max(4, value.value("story_height", outModule.storyHeight));
+  outModule.wallThickness =
+      std::clamp(value.value("wall_thickness", outModule.wallThickness), 1,
+                 std::max(1, std::min(outModule.cellSize.x, outModule.cellSize.y) / 2));
+  outModule.passageWidth =
+      std::clamp(value.value("passage_width", outModule.passageWidth), 1,
+                 std::max(1, std::min(outModule.cellSize.x, outModule.cellSize.y) -
+                                outModule.wallThickness * 2));
+  outModule.floorThickness =
+      std::clamp(value.value("floor_thickness", outModule.floorThickness), 1,
+                 std::max(1, outModule.storyHeight - 2));
+  outModule.ceilingThickness =
+      std::clamp(value.value("ceiling_thickness", outModule.ceilingThickness), 1,
+                 std::max(1, outModule.storyHeight - outModule.floorThickness - 1));
+  outModule.passageChance =
+      std::clamp(value.value("passage_chance", outModule.passageChance),
+                 0.0f, 1.0f);
+  outModule.accentNoiseScale =
+      std::max(0.0f,
+               value.value("accent_noise_scale", outModule.accentNoiseScale));
+  outModule.accentThreshold =
+      std::clamp(value.value("accent_threshold", outModule.accentThreshold),
+                 -1.0f, 1.0f);
+  outModule.lightChance =
+      std::clamp(value.value("light_chance", outModule.lightChance), 0.0f, 1.0f);
+
+  return fromJson(value, outModule.palette, outError, "backrooms");
+}
+
+json toJson(const MinecraftStyleModule& module) {
+  return json{
+      {"offset", toJson(module.offset)},
+      {"infinite_y", module.infiniteY},
+      {"min_y", module.minY},
+      {"max_y", module.maxY},
+      {"world_height", module.worldHeight},
+      {"base_height", module.baseHeight},
+      {"height_amplitude", module.heightAmplitude},
+      {"detail_amplitude", module.detailAmplitude},
+      {"soil_depth", module.soilDepth},
+      {"bedrock_thickness", module.bedrockThickness},
+      {"terrain_scale", module.terrainScale},
+      {"terrain_octaves", module.terrainOctaves},
+      {"terrain_persistence", module.terrainPersistence},
+      {"detail_scale", module.detailScale},
+      {"caves_enabled", module.cavesEnabled},
+      {"cave_scale", module.caveScale},
+      {"cave_threshold", module.caveThreshold},
+      {"cave_warp_scale", module.caveWarpScale},
+      {"cave_warp_strength", module.caveWarpStrength},
+      {"ore_scale", module.oreScale},
+      {"ore_threshold", module.oreThreshold},
+      {"surface_block", toJson(module.palette.surfaceRib)},
+      {"subsurface_block", toJson(module.palette.surfacePatch)},
+      {"stone_block", toJson(module.palette.shell)},
+      {"deep_block", toJson(module.palette.core)},
+      {"ore_block", toJson(module.palette.accent)},
+      {"bedrock_block", toJson(module.palette.recess)},
+  };
+}
+
+bool fromJson(const json& value, MinecraftStyleModule& outModule,
+              std::string& outError) {
+  if (!value.is_object()) {
+    outError = "minecraft_style.settings must be an object.";
+    return false;
+  }
+
+  glm::ivec3 offset = outModule.offset;
+  if (!fromJson(value.value("offset", json::object()), offset)) {
+    outError = "minecraft_style.settings.offset must be an object with x/y/z.";
+    return false;
+  }
+  outModule.offset = offset;
+
+  outModule.infiniteY = value.value("infinite_y", outModule.infiniteY);
+  outModule.minY = value.value("min_y", outModule.minY);
+  outModule.maxY = value.value("max_y", outModule.maxY);
+  if (outModule.maxY < outModule.minY) {
+    std::swap(outModule.minY, outModule.maxY);
+  }
+  outModule.worldHeight =
+      std::max(16, value.value("world_height", outModule.worldHeight));
+  outModule.baseHeight =
+      std::clamp(value.value("base_height", outModule.baseHeight), 1,
+                 outModule.worldHeight - 2);
+  outModule.heightAmplitude =
+      std::max(0, value.value("height_amplitude", outModule.heightAmplitude));
+  outModule.detailAmplitude =
+      std::max(0, value.value("detail_amplitude", outModule.detailAmplitude));
+  outModule.soilDepth =
+      std::clamp(value.value("soil_depth", outModule.soilDepth), 1,
+                 std::max(1, outModule.worldHeight / 2));
+  outModule.bedrockThickness =
+      std::clamp(value.value("bedrock_thickness", outModule.bedrockThickness), 1,
+                 std::max(1, outModule.worldHeight / 4));
+  outModule.terrainScale =
+      std::max(0.0001f, value.value("terrain_scale", outModule.terrainScale));
+  outModule.terrainOctaves =
+      std::clamp(value.value("terrain_octaves", outModule.terrainOctaves), 1, 8);
+  outModule.terrainPersistence =
+      std::clamp(value.value("terrain_persistence", outModule.terrainPersistence),
+                 0.05f, 0.99f);
+  outModule.detailScale =
+      std::max(0.0f, value.value("detail_scale", outModule.detailScale));
+  outModule.cavesEnabled =
+      value.value("caves_enabled", outModule.cavesEnabled);
+  outModule.caveScale =
+      std::max(0.0f, value.value("cave_scale", outModule.caveScale));
+  outModule.caveThreshold =
+      std::clamp(value.value("cave_threshold", outModule.caveThreshold),
+                 -1.0f, 1.0f);
+  outModule.caveWarpScale =
+      std::max(0.0f, value.value("cave_warp_scale", outModule.caveWarpScale));
+  outModule.caveWarpStrength =
+      std::max(0.0f,
+               value.value("cave_warp_strength", outModule.caveWarpStrength));
+  outModule.oreScale =
+      std::max(0.0f, value.value("ore_scale", outModule.oreScale));
+  outModule.oreThreshold =
+      std::clamp(value.value("ore_threshold", outModule.oreThreshold),
+                 -1.0f, 1.0f);
+
+  if (!fromJson(value.value("surface_block", json()),
+                outModule.palette.surfaceRib) ||
+      !fromJson(value.value("subsurface_block", json()),
+                outModule.palette.surfacePatch) ||
+      !fromJson(value.value("stone_block", json()), outModule.palette.shell) ||
+      !fromJson(value.value("deep_block", json()), outModule.palette.core) ||
+      !fromJson(value.value("ore_block", json()), outModule.palette.accent) ||
+      !fromJson(value.value("bedrock_block", json()),
+                outModule.palette.recess)) {
+    outError = "minecraft_style.settings uses unknown block ids.";
+    return false;
+  }
+
+  return true;
+}
+
 // Funcao: executa 'toJson' na serializacao e utilitarios de preset de biome.
 // Detalhe: usa 'module' para encapsular esta etapa especifica do subsistema.
 // Retorno: devolve 'json' com o resultado composto por esta chamada.
@@ -853,6 +1231,18 @@ json toJson(const BiomeModule& module) {
     break;
   case ModuleType::TREE_GENERATOR:
     root["settings"] = toJson(module.treeGenerator);
+    break;
+  case ModuleType::FLOATING_ISLANDS:
+    root["settings"] = toJson(module.floatingIslands);
+    break;
+  case ModuleType::ONE_BLOCK:
+    root["settings"] = toJson(module.oneBlock);
+    break;
+  case ModuleType::BACKROOMS:
+    root["settings"] = toJson(module.backrooms);
+    break;
+  case ModuleType::MINECRAFT_STYLE:
+    root["settings"] = toJson(module.minecraftStyle);
     break;
   }
 
@@ -943,6 +1333,26 @@ bool fromJson(const json& value, BiomeModule& outModule, std::string& outError) 
     break;
   case ModuleType::TREE_GENERATOR:
     if (!fromJson(settings, module.treeGenerator, outError)) {
+      return false;
+    }
+    break;
+  case ModuleType::FLOATING_ISLANDS:
+    if (!fromJson(settings, module.floatingIslands, outError)) {
+      return false;
+    }
+    break;
+  case ModuleType::ONE_BLOCK:
+    if (!fromJson(settings, module.oneBlock, outError)) {
+      return false;
+    }
+    break;
+  case ModuleType::BACKROOMS:
+    if (!fromJson(settings, module.backrooms, outError)) {
+      return false;
+    }
+    break;
+  case ModuleType::MINECRAFT_STYLE:
+    if (!fromJson(settings, module.minecraftStyle, outError)) {
       return false;
     }
     break;

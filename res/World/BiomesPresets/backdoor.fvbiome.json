@@ -1,0 +1,52 @@
+{
+  "display_name": "Backdoor",
+  "format_version": 3,
+  "id": "backdoor",
+  "modules": [
+    {
+      "blend_mode": "overwrite_all",
+      "display_name": "Backrooms",
+      "enabled": true,
+      "format_version": 1,
+      "id": "backrooms",
+      "settings": {
+        "accent": "crystal",
+        "accent_noise_scale": 0.11999999731779099,
+        "accent_threshold": 0.699999988079071,
+        "ceiling_thickness": 1,
+        "cell_size": {
+          "x": 12,
+          "z": 12
+        },
+        "floor_thickness": 1,
+        "infinite_y": true,
+        "light_chance": 1.0,
+        "max_y": 8,
+        "min_y": 0,
+        "offset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "passage_chance": 0.7200000286102295,
+        "passage_width": 5,
+        "primary": "membrane",
+        "secondary": "metal",
+        "story_height": 5,
+        "wall_thickness": 1
+      },
+      "type": "backrooms"
+    }
+  ],
+  "preview": {
+    "default_mode": "sandbox",
+    "depth": 0,
+    "sandbox_radius": {
+      "x": 2,
+      "y": 1,
+      "z": 2
+    },
+    "seed": 42,
+    "stream_render_distance": 5
+  }
+}
