@@ -105,6 +105,34 @@
         "warp_strength": 0.0
       },
       "type": "grid_pattern"
+    },
+    {
+      "blend_mode": "place_on_air",
+      "display_name": "Cloud Generator",
+      "enabled": true,
+      "format_version": 1,
+      "id": "cloud_generator",
+      "settings": {
+        "base_y": 96,
+        "cell_size": 4,
+        "cloud_type": "nimbostratus",
+        "coverage": 0.3400000035762787,
+        "density_threshold": 1.1799999475479126,
+        "direction_degrees": 35.0,
+        "infinite_y": true,
+        "jitter": 2,
+        "layer_height": 10,
+        "max_mesh_pages_per_frame": 1,
+        "max_visible_pages": 512,
+        "max_y": 160,
+        "min_y": 64,
+        "opacity": 0.3799999952316284,
+        "render_distance": 6,
+        "speed": 2.0,
+        "vertical_jitter": 12,
+        "vertical_spacing": 96
+      },
+      "type": "cloud_generator"
     }
   ],
   "preview": {

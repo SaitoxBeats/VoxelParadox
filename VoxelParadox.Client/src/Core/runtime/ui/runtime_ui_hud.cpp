@@ -106,6 +106,7 @@ namespace RuntimeUI::Detail {
         HUD::createGroup(RuntimeHudIds::kSettingsMenu, RuntimeHudIds::kSettingsMenuLayer, false, HUDGroupCategory::MENU);
 
         HUD::createGroup(RuntimeHudIds::kSettingsGeneralTab, RuntimeHudIds::kSettingsTabLayer, false, HUDGroupCategory::MENU);
+        HUD::createGroup(RuntimeHudIds::kSettingsVideoTab, RuntimeHudIds::kSettingsTabLayer, false, HUDGroupCategory::MENU);
         HUD::createGroup(RuntimeHudIds::kSettingsSoundTab, RuntimeHudIds::kSettingsTabLayer, false, HUDGroupCategory::MENU);
         HUD::createGroup(RuntimeHudIds::kSettingsControlsTab, RuntimeHudIds::kSettingsTabLayer, false, HUDGroupCategory::MENU);
         HUD::createGroup(RuntimeHudIds::kSettingsConfirmMenu, RuntimeHudIds::kSettingsConfirmLayer, false, HUDGroupCategory::MENU);
@@ -520,6 +521,7 @@ namespace RuntimeUI::Detail {
         const SettingsMenuHUDStyle& style = HUDStyles::kSettingsMenu;
 
         const char* generalGroup = RuntimeHudIds::kSettingsGeneralTab;
+        const char* videoGroup = RuntimeHudIds::kSettingsVideoTab;
         const char* soundGroup = RuntimeHudIds::kSettingsSoundTab;
         const char* controlsGroup = RuntimeHudIds::kSettingsControlsTab;
 
@@ -589,19 +591,30 @@ namespace RuntimeUI::Detail {
             ));
             };
 
-        addTabButton("General", -150.0f, RuntimeUI::SettingsMenuTab::General);
-        addTabButton("Controls", 0.0f, RuntimeUI::SettingsMenuTab::Controls);
-        addTabButton("Sound", 130.0f, RuntimeUI::SettingsMenuTab::Sound);
+        addTabButton("General", -210.0f, RuntimeUI::SettingsMenuTab::General);
+        addTabButton("Video", -70.0f, RuntimeUI::SettingsMenuTab::Video);
+        addTabButton("Controls", 70.0f, RuntimeUI::SettingsMenuTab::Controls);
+        addTabButton("Sound", 210.0f, RuntimeUI::SettingsMenuTab::Sound);
 
         // --- Section Title ---
         if (auto* sectionTitle = attachToHUDGroup(
             HUD::watchText(
                 [&uiState](std::string& out) {
-                    out = uiState.activeSettingsTab == RuntimeUI::SettingsMenuTab::General
-                        ? "Display & Controls"
-                        : uiState.activeSettingsTab == RuntimeUI::SettingsMenuTab::Sound
-                        ? "Audio & Music"
-                        : "Input Mapping";
+                    switch (uiState.activeSettingsTab) {
+                    case RuntimeUI::SettingsMenuTab::General:
+                        out = "Gameplay & Interface";
+                        break;
+                    case RuntimeUI::SettingsMenuTab::Video:
+                        out = "Display & Graphics";
+                        break;
+                    case RuntimeUI::SettingsMenuTab::Sound:
+                        out = "Audio & Music";
+                        break;
+                    case RuntimeUI::SettingsMenuTab::Controls:
+                    default:
+                        out = "Input Mapping";
+                        break;
+                    }
                 },
                 makeHUDLayout(HUDAnchor::CENTER, HUDAnchor::CENTER, glm::vec2(0.0f, -125.0f)),
                 glm::vec2(1.0f), 22
@@ -676,35 +689,50 @@ namespace RuntimeUI::Detail {
         );
 
         addSettingRow(
-            generalGroup, "Font", generalRowStart + generalRowStep * 1.0f,
-            [&pendingSettings, &availableFonts](std::string& out) { out = fontSelectionText(pendingSettings, availableFonts); },
-            [&pendingSettings, &availableFonts]() { stepFontSelection(pendingSettings, availableFonts, -1); },
-            [&pendingSettings, &availableFonts]() { stepFontSelection(pendingSettings, availableFonts, 1); }
-        );
-
-        addSettingRow(
-            generalGroup, "Mouse Sensitivity", generalRowStart + generalRowStep * 2.0f,
+            generalGroup, "Mouse Sensitivity", generalRowStart + generalRowStep * 1.0f,
             [&pendingSettings](std::string& out) { out = mouseSensitivityText(pendingSettings.mouseSensitivity); },
             [&pendingSettings]() { stepMouseSensitivitySelection(pendingSettings, -ClientDefaults::kMouseSensitivityStep); },
             [&pendingSettings]() { stepMouseSensitivitySelection(pendingSettings, ClientDefaults::kMouseSensitivityStep); }
         );
 
         addSettingRow(
-            generalGroup, "Field of View", generalRowStart + generalRowStep * 3.0f,
+            generalGroup, "Advanced Lighting", generalRowStart + generalRowStep * 2.0f,
+            [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.advancedLightingEnabled); },
+            [&pendingSettings]() { toggleAdvancedLightingSelection(pendingSettings); },
+            [&pendingSettings]() { toggleAdvancedLightingSelection(pendingSettings); }
+        );
+
+        addSettingRow(
+            generalGroup, "Clouds", generalRowStart + generalRowStep * 3.0f,
+            [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.cloudsEnabled); },
+            [&pendingSettings]() { toggleCloudsSelection(pendingSettings); },
+            [&pendingSettings]() { toggleCloudsSelection(pendingSettings); }
+        );
+
+        // --- Video Tab Settings ---
+        addSettingRow(
+            videoGroup, "Font", generalRowStart + generalRowStep * 0.0f,
+            [&pendingSettings, &availableFonts](std::string& out) { out = fontSelectionText(pendingSettings, availableFonts); },
+            [&pendingSettings, &availableFonts]() { stepFontSelection(pendingSettings, availableFonts, -1); },
+            [&pendingSettings, &availableFonts]() { stepFontSelection(pendingSettings, availableFonts, 1); }
+        );
+
+        addSettingRow(
+            videoGroup, "Field of View", generalRowStart + generalRowStep * 1.0f,
             [&pendingSettings](std::string& out) { out = fieldOfViewText(pendingSettings.fieldOfView); },
             [&pendingSettings]() { stepFieldOfViewSelection(pendingSettings, -ClientDefaults::kFieldOfViewStep); },
             [&pendingSettings]() { stepFieldOfViewSelection(pendingSettings, ClientDefaults::kFieldOfViewStep); }
         );
 
         addSettingRow(
-            generalGroup, "Render Scale", generalRowStart + generalRowStep * 4.0f,
+            videoGroup, "Render Scale", generalRowStart + generalRowStep * 2.0f,
             [&pendingSettings](std::string& out) { out = renderScaleText(pendingSettings.renderScale); },
             [&pendingSettings]() { stepRenderScaleSelection(pendingSettings, -ClientDefaults::kRenderScaleStep); },
             [&pendingSettings]() { stepRenderScaleSelection(pendingSettings, ClientDefaults::kRenderScaleStep); }
         );
 
         addSettingRow(
-            generalGroup, "Resolution", generalRowStart + generalRowStep * 5.0f,
+            videoGroup, "Resolution", generalRowStart + generalRowStep * 3.0f,
             [&pendingSettings, &availableResolutions](std::string& out) {
                 out = resolutionSelectionText(pendingSettings, availableResolutions,
                     pendingSettings.windowMode == ENGINE::VIEWPORTMODE::BORDERLESS);
@@ -715,31 +743,24 @@ namespace RuntimeUI::Detail {
         );
 
         addSettingRow(
-            generalGroup, "Window Mode", generalRowStart + generalRowStep * 6.0f,
+            videoGroup, "Window Mode", generalRowStart + generalRowStep * 4.0f,
             [&pendingSettings](std::string& out) { out = Bootstrap::viewportModeName(pendingSettings.windowMode); },
             [&pendingSettings]() { stepWindowModeSelection(pendingSettings, -1); },
             [&pendingSettings]() { stepWindowModeSelection(pendingSettings, 1); }
         );
 
         addSettingRow(
-            generalGroup, "VSync", generalRowStart + generalRowStep * 7.0f,
+            videoGroup, "VSync", generalRowStart + generalRowStep * 5.0f,
             [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.vSyncEnabled); },
             [&pendingSettings]() { toggleVSyncSelection(pendingSettings); },
             [&pendingSettings]() { toggleVSyncSelection(pendingSettings); }
         );
 
         addSettingRow(
-            generalGroup, "Show FPS", generalRowStart + generalRowStep * 8.0f,
+            videoGroup, "Show FPS", generalRowStart + generalRowStep * 6.0f,
             [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.showFpsCounterOnly); },
             [&pendingSettings]() { toggleFpsCounterOnlySelection(pendingSettings); },
             [&pendingSettings]() { toggleFpsCounterOnlySelection(pendingSettings); }
-        );
-
-        addSettingRow(
-            generalGroup, "Advanced Lighting", generalRowStart + generalRowStep * 9.0f,
-            [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.advancedLightingEnabled); },
-            [&pendingSettings]() { toggleAdvancedLightingSelection(pendingSettings); },
-            [&pendingSettings]() { toggleAdvancedLightingSelection(pendingSettings); }
         );
 
         // --- Sound Tab Settings ---
@@ -1156,6 +1177,11 @@ namespace RuntimeUI {
         HUD::setGroupEnabled(
             RuntimeHudIds::kSettingsGeneralTab,
             settingsVisible && uiState.activeSettingsTab == SettingsMenuTab::General
+        );
+
+        HUD::setGroupEnabled(
+            RuntimeHudIds::kSettingsVideoTab,
+            settingsVisible && uiState.activeSettingsTab == SettingsMenuTab::Video
         );
 
         HUD::setGroupEnabled(

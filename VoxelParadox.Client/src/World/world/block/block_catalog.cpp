@@ -35,7 +35,8 @@ std::vector<BlockCatalogEntry> makeFallbackEntries() {
         { 7, "portal", "portal" },
         { 8, "membrane_weave", "membrane_weave" },
         { 9, "membrane_wire", "membrane_wire" },
-        { 10, "atlas_demo", "atlas_demo" }
+        { 10, "atlas_demo", "atlas_demo" },
+        { 11, "cloud_chunk", "cloud_chunk" }
     };
 }
 

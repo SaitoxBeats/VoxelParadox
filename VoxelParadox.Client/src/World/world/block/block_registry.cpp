@@ -124,6 +124,15 @@ return makeSample(clamp(albedo, vec3(0.0), vec3(1.5)), 0.18, 0.32,
                   0.24 + strand * 0.22 + pulse * 0.10);
 )";
 
+constexpr const char* kFallbackCloudChunkShader = R"(
+float billow = fbm21(uv * 2.2 + vec2(cellHash * 7.0, uTime * 0.015));
+float wisp = fbm21(uv * 7.5 + vec2(-uTime * 0.025, cellHash * 11.0));
+float rim = pow(1.0 - max(dot(worldNormal, viewDir), 0.0), 2.0);
+vec3 albedo = mix(base * 0.84, vec3(1.0), billow * 0.38 + wisp * 0.12);
+albedo += vec3(0.10) * rim;
+return makeSample(clamp(albedo, vec3(0.0), vec3(1.3)), 0.94, 0.02, 0.0);
+)";
+
 std::string trimCopy(const std::string& value) {
     const std::size_t first = value.find_first_not_of(" \t\r\n");
     if (first == std::string::npos) {
@@ -298,6 +307,9 @@ const char* defaultShaderFor(std::string_view stableId) {
     }
     if (stableId == "membrane_wire") {
         return kFallbackMembraneWireShader;
+    }
+    if (stableId == "cloud_chunk") {
+        return kFallbackCloudChunkShader;
     }
 
     return "return makeSample(vec3(1.0, 0.0, 1.0), 1.0, 0.0, 0.0);";
@@ -529,6 +541,19 @@ std::vector<BlockDefinition> makeFallbackDefinitions() {
             definition.topDecoration.spawnChance = 0.11f;
             definition.topDecoration.verticalOffset = 1;
             definition.topDecoration.seedKey = "membrane_wire";
+        } else if (entry.stableId == "cloud_chunk") {
+            definition = makeDefinition(
+                entry.value,
+                entry.stableId.c_str(),
+                "Cloud Chunk",
+                blockCategoryMask({ BlockCategory::DECORATION }),
+                { false, true, false, false, glm::vec3{1.0f}, 8.0f, false, BLOCK_TAG_NONE, 1000000.0f },
+                { "none", true, 0.0f },
+                false,
+                false,
+                false,
+                glm::vec3(1.0f)
+            );
         } else {
             definition = makeGenericFallbackDefinition(entry);
         }

@@ -1,0 +1,28 @@
+{
+  "id": "cloud_chunk",
+  "display_name": "Cloud Chunk",
+  "categories": ["decoration"],
+  "replaceable": false,
+  "placeable": false,
+  "targetable": false,
+  "requires_top_placement": false,
+  "material_id": 11,
+  "properties": {
+    "solid": false,
+    "transparent": true,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "preferred_tool": "none",
+    "hardness": 1000000.0
+  },
+  "data": {
+    "drop_item": "none",
+    "drop_without_tool": false,
+    "break_experience_multiplier": 0.0
+  },
+  "render": {
+    "base_color": [1.0, 1.0, 1.0],
+    "shader": "shader.glsl"
+  }
+}

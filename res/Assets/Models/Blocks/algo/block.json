@@ -1,0 +1,31 @@
+{
+  "id": "algo",
+  "display_name": "algo",
+  "categories": ["terrain", "decoration"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 12,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "preferred_tool": "pickaxe",
+    "hardness": 3.0
+  },
+  "data": {
+    "drop_item": "block:algo",
+    "drop_without_tool": true
+  },
+  "render": {
+    "base_color": [0.92, 0.68, 0.22],
+    "shader": "shader.glsl",
+    "texture": "texture.png"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

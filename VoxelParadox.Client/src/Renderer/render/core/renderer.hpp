@@ -18,6 +18,7 @@
 // 3. Local Project Modules
 #include "engine/shader.hpp"
 #include "entities/fbx_entity_model.hpp"
+#include "render/cloud/cloud_renderer.hpp"
 #include "render/config/item_preview_config.hpp"
 #include "items/item_catalog.hpp"
 #include "render/models/obj_block_model.hpp"
@@ -145,6 +146,9 @@ public:
     void setAdvancedLightingEnabled(bool enabled) { advancedLightingEnabled_ = enabled; }
     bool isAdvancedLightingEnabled() const { return advancedLightingEnabled_; }
 
+    void setCloudsEnabled(bool enabled) { cloudsEnabled_ = enabled; }
+    bool areCloudsEnabled() const { return cloudsEnabled_; }
+
     void render(WorldStack& worldStack, Player& player, float aspect, float time,
         bool wireframeMode = false, bool debugThirdPersonView = false);
 
@@ -192,12 +196,14 @@ private:
 
     LoadedEntityModel guyModel_{};
     std::unordered_map<int, LoadedObjBlockModel> customBlockModels_{};
+    VoxelGame::CloudRenderer cloudRenderer_{};
 
     std::unordered_map<ItemId, GLuint> itemTextureCache{};
     std::vector<DustParticleVertex> dustParticleScratch{};
     SceneRenderTarget sceneRenderTarget_{};
     float renderScale_ = 1.0f;
     bool advancedLightingEnabled_ = true;
+    bool cloudsEnabled_ = true;
 
     // --- 4. Atmosphere, Transitions & Lighting ---
 

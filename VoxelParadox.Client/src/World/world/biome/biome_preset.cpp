@@ -1189,6 +1189,87 @@ bool fromJson(const json& value, MinecraftStyleModule& outModule,
   return true;
 }
 
+json toJson(const CloudGeneratorModule& module) {
+  return json{
+      {"cloud_type", cloudTypeId(module.cloudType)},
+      {"speed", module.speed},
+      {"direction_degrees", module.directionDegrees},
+      {"coverage", module.coverage},
+      {"opacity", module.opacity},
+      {"density_threshold", module.densityThreshold},
+      {"cell_size", module.cellSize},
+      {"jitter", module.jitter},
+      {"layer_height", module.layerHeight},
+      {"base_y", module.baseY},
+      {"min_y", module.minY},
+      {"max_y", module.maxY},
+      {"infinite_y", module.infiniteY},
+      {"vertical_spacing", module.verticalSpacing},
+      {"vertical_jitter", module.verticalJitter},
+      {"render_distance", module.renderDistance},
+      {"max_mesh_pages_per_frame", module.maxMeshPagesPerFrame},
+      {"max_visible_pages", module.maxVisiblePages},
+  };
+}
+
+bool fromJson(const json& value, CloudGeneratorModule& outModule,
+              std::string& outError) {
+  if (!value.is_object()) {
+    outError = "cloud_generator.settings must be an object.";
+    return false;
+  }
+
+  CloudType parsedType = outModule.cloudType;
+  if (!tryParseCloudType(value.value("cloud_type", std::string("random")),
+                         parsedType)) {
+    parsedType = CloudType::RANDOM;
+  }
+  outModule.cloudType = parsedType;
+
+  outModule.speed = std::clamp(value.value("speed", outModule.speed),
+                               0.0f, 128.0f);
+  outModule.directionDegrees =
+      value.value("direction_degrees", outModule.directionDegrees);
+  outModule.coverage = std::clamp(value.value("coverage", outModule.coverage),
+                                  0.0f, 1.0f);
+  outModule.opacity = std::clamp(value.value("opacity", outModule.opacity),
+                                 0.05f, 0.85f);
+  outModule.densityThreshold =
+      std::clamp(value.value("density_threshold", outModule.densityThreshold),
+                 0.0f, 1.5f);
+  outModule.cellSize =
+      std::clamp(value.value("cell_size", outModule.cellSize), 1, 64);
+  outModule.jitter =
+      std::clamp(value.value("jitter", outModule.jitter), 0, 64);
+  outModule.layerHeight =
+      std::clamp(value.value("layer_height", outModule.layerHeight), 1, 128);
+  outModule.baseY = value.value("base_y", outModule.baseY);
+  outModule.minY = value.value("min_y", outModule.minY);
+  outModule.maxY = value.value("max_y", outModule.maxY);
+  if (outModule.maxY < outModule.minY) {
+    std::swap(outModule.minY, outModule.maxY);
+  }
+
+  outModule.infiniteY = value.value("infinite_y", outModule.infiniteY);
+  outModule.verticalSpacing =
+      std::clamp(value.value("vertical_spacing", outModule.verticalSpacing),
+                 std::max(outModule.layerHeight + 1, 2), 4096);
+  outModule.verticalJitter =
+      std::clamp(value.value("vertical_jitter", outModule.verticalJitter),
+                 0, outModule.verticalSpacing / 2);
+  outModule.renderDistance =
+      std::clamp(value.value("render_distance", outModule.renderDistance),
+                 1, 16);
+  outModule.maxMeshPagesPerFrame =
+      std::clamp(value.value("max_mesh_pages_per_frame",
+                             outModule.maxMeshPagesPerFrame),
+                 1, 64);
+  outModule.maxVisiblePages =
+      std::clamp(value.value("max_visible_pages", outModule.maxVisiblePages),
+                 16, 4096);
+  return true;
+}
+
 // Funcao: executa 'toJson' na serializacao e utilitarios de preset de biome.
 // Detalhe: usa 'module' para encapsular esta etapa especifica do subsistema.
 // Retorno: devolve 'json' com o resultado composto por esta chamada.
@@ -1243,6 +1324,9 @@ json toJson(const BiomeModule& module) {
     break;
   case ModuleType::MINECRAFT_STYLE:
     root["settings"] = toJson(module.minecraftStyle);
+    break;
+  case ModuleType::CLOUD_GENERATOR:
+    root["settings"] = toJson(module.cloudGenerator);
     break;
   }
 
@@ -1353,6 +1437,11 @@ bool fromJson(const json& value, BiomeModule& outModule, std::string& outError) 
     break;
   case ModuleType::MINECRAFT_STYLE:
     if (!fromJson(settings, module.minecraftStyle, outError)) {
+      return false;
+    }
+    break;
+  case ModuleType::CLOUD_GENERATOR:
+    if (!fromJson(settings, module.cloudGenerator, outError)) {
       return false;
     }
     break;

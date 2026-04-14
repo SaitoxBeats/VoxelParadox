@@ -13,6 +13,7 @@ inline constexpr char kInventoryMenu[] = "hud_inventory_menu";
 inline constexpr char kPauseMenu[] = "hud_pause_menu";
 inline constexpr char kSettingsMenu[] = "hud_settings_menu";
 inline constexpr char kSettingsGeneralTab[] = "hud_settings_general_tab";
+inline constexpr char kSettingsVideoTab[] = "hud_settings_video_tab";
 inline constexpr char kSettingsSoundTab[] = "hud_settings_sound_tab";
 inline constexpr char kSettingsControlsTab[] = "hud_settings_controls_tab";
 inline constexpr char kSettingsConfirmMenu[] = "hud_settings_confirm_menu";

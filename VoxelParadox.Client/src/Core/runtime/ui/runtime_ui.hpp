@@ -22,6 +22,7 @@ namespace RuntimeUI {
 
 enum class SettingsMenuTab : std::uint8_t {
   General = 0,
+  Video,
   Sound,
   Controls,
 };

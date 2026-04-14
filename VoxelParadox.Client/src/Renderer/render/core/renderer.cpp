@@ -686,6 +686,7 @@ void Renderer::cleanup() {
     cleanupBlockTextures();
     cleanupEntityAssets();
     cleanupBlockModelAssets();
+    cloudRenderer_.cleanup();
 
     // --- 2. Asset Caches ---
     for (auto& [key, texture] : itemTextureCache) {
@@ -1005,6 +1006,22 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
     if (world) {
         renderDroppedItems(*world, vp, sceneCamera.position, fog, depth, world->renderDistance,
             time, 1.0f);
+    }
+
+    if (cloudsEnabled_ && world && world->biomePreset) {
+        bindBlockTextures();
+        VoxelGame::CloudRenderContext cloudContext{};
+        cloudContext.preset = world->biomePreset.get();
+        cloudContext.seed = world->seed;
+        cloudContext.depth = depth;
+        cloudContext.cameraPosition = sceneCamera.position;
+        cloudContext.viewProjection = vp;
+        cloudContext.fogColor = fog;
+        cloudContext.fogDensity = computeFogDensity(depth, world->renderDistance);
+        cloudContext.timeSeconds = time;
+        cloudContext.fallbackRenderDistance = world->renderDistance;
+        cloudContext.alphaMultiplier = 1.0f;
+        cloudRenderer_.render(cloudContext, blockShader);
     }
 
     if (world && player.hasTargetBlock() && HUD::isVisible()) {

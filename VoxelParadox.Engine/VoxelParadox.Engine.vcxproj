@@ -67,6 +67,7 @@
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\biome\biome_registry.cpp" />
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\block\block_catalog.cpp" />
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\block\block_registry.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_generator.cpp" />
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\generation\chunk_generator_source.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -82,6 +83,7 @@
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\block\block_catalog.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\block\block_registry.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\block\block_types.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_generator.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\chunk.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\chunk_generator_source.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\fractal_world.hpp" />

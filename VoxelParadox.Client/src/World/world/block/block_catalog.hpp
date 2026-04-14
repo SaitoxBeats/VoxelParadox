@@ -52,6 +52,7 @@ inline constexpr NamedBlockIdRef METAL{ "metal" };
 inline constexpr NamedBlockIdRef PORTAL{ "portal" };
 inline constexpr NamedBlockIdRef MEMBRANE_WEAVE{ "membrane_weave" };
 inline constexpr NamedBlockIdRef MEMBRANE_WIRE{ "membrane_wire" };
+inline constexpr NamedBlockIdRef CLOUD_CHUNK{ "cloud_chunk" };
 inline constexpr BlockCountRef COUNT{};
 
 } // namespace BlockIds

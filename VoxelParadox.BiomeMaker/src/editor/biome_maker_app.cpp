@@ -380,6 +380,7 @@ namespace BiomeMaker {
             {"one_block", ModuleType::ONE_BLOCK},
             {"backrooms", ModuleType::BACKROOMS},
             {"minecraft_style", ModuleType::MINECRAFT_STYLE},
+            {"cloud_generator", ModuleType::CLOUD_GENERATOR},
         };
 
         for (const DefaultModuleSeed& seed : defaults) {
@@ -406,6 +407,7 @@ namespace BiomeMaker {
             case ModuleType::ONE_BLOCK:           module = BiomeModule::makeOneBlock(seed.id); break;
             case ModuleType::BACKROOMS:           module = BiomeModule::makeBackrooms(seed.id); break;
             case ModuleType::MINECRAFT_STYLE:     module = BiomeModule::makeMinecraftStyle(seed.id); break;
+            case ModuleType::CLOUD_GENERATOR:     module = BiomeModule::makeCloudGenerator(seed.id); break;
             }
 
             std::string error;
@@ -2320,6 +2322,115 @@ namespace BiomeMaker {
                 drawMinecraftPalette(minecraft.palette);
 
             }
+            else if (module->type == ModuleType::CLOUD_GENERATOR) {
+                ImGui::SeparatorText("Cloud Generator");
+                CloudGeneratorModule& cloud = module->cloudGenerator;
+
+                if (ImGui::BeginCombo("Cloud Type", cloudTypeDisplayName(cloud.cloudType))) {
+                    constexpr CloudType kCloudTypes[] = {
+                        CloudType::CIRRUS,
+                        CloudType::CIRROCUMULUS,
+                        CloudType::CIRROSTRATUS,
+                        CloudType::ALTOCUMULUS,
+                        CloudType::ALTOSTRATUS,
+                        CloudType::NIMBOSTRATUS,
+                        CloudType::STRATUS,
+                        CloudType::STRATOCUMULUS,
+                        CloudType::CUMULUS,
+                        CloudType::RANDOM,
+                    };
+
+                    for (CloudType candidate : kCloudTypes) {
+                        const bool selected = candidate == cloud.cloudType;
+                        if (ImGui::Selectable(cloudTypeDisplayName(candidate), selected)) {
+                            cloud.cloudType = candidate;
+                            markSelectedModuleDirty("Updated cloud type.");
+                        }
+                        if (selected) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+
+                if (ImGui::SliderFloat("Speed", &cloud.speed, 0.0f, 48.0f, "%.2f")) {
+                    cloud.speed = std::clamp(cloud.speed, 0.0f, 128.0f);
+                    markSelectedModuleDirty("Updated cloud speed.");
+                }
+                if (ImGui::SliderFloat("Direction Degrees", &cloud.directionDegrees, -180.0f, 180.0f, "%.1f")) {
+                    markSelectedModuleDirty("Updated cloud direction.");
+                }
+                if (ImGui::SliderFloat("Coverage", &cloud.coverage, 0.0f, 1.0f, "%.2f")) {
+                    cloud.coverage = std::clamp(cloud.coverage, 0.0f, 1.0f);
+                    markSelectedModuleDirty("Updated cloud coverage.");
+                }
+                if (ImGui::SliderFloat("Opacity", &cloud.opacity, 0.05f, 0.85f, "%.2f")) {
+                    cloud.opacity = std::clamp(cloud.opacity, 0.05f, 0.85f);
+                    markSelectedModuleDirty("Updated cloud opacity.");
+                }
+                if (ImGui::SliderFloat("Density Threshold", &cloud.densityThreshold, 0.0f, 1.5f, "%.2f")) {
+                    cloud.densityThreshold = std::clamp(cloud.densityThreshold, 0.0f, 1.5f);
+                    markSelectedModuleDirty("Updated cloud density threshold.");
+                }
+
+                if (ImGui::InputInt("Cell Size", &cloud.cellSize)) {
+                    cloud.cellSize = std::clamp(cloud.cellSize, 1, 64);
+                    markSelectedModuleDirty("Updated cloud cell size.");
+                }
+                if (ImGui::InputInt("Jitter", &cloud.jitter)) {
+                    cloud.jitter = std::clamp(cloud.jitter, 0, 64);
+                    markSelectedModuleDirty("Updated cloud jitter.");
+                }
+                if (ImGui::InputInt("Layer Height", &cloud.layerHeight)) {
+                    cloud.layerHeight = std::clamp(cloud.layerHeight, 1, 128);
+                    cloud.verticalSpacing = std::max(cloud.verticalSpacing, cloud.layerHeight + 1);
+                    markSelectedModuleDirty("Updated cloud layer height.");
+                }
+                if (ImGui::InputInt("Base Y", &cloud.baseY)) {
+                    markSelectedModuleDirty("Updated cloud base height.");
+                }
+
+                if (ImGui::Checkbox("Infinite Y", &cloud.infiniteY)) {
+                    markSelectedModuleDirty(cloud.infiniteY ? "Enabled infinite cloud Y." : "Disabled infinite cloud Y.");
+                }
+
+                int minY = cloud.minY;
+                int maxY = cloud.maxY;
+                ImGui::BeginDisabled(cloud.infiniteY);
+                if (ImGui::InputInt("Min Y", &minY)) {
+                    cloud.minY = minY;
+                    if (cloud.maxY < cloud.minY) {
+                        cloud.maxY = cloud.minY;
+                    }
+                    markSelectedModuleDirty("Updated cloud minimum height.");
+                }
+                if (ImGui::InputInt("Max Y", &maxY)) {
+                    cloud.maxY = std::max(maxY, cloud.minY);
+                    markSelectedModuleDirty("Updated cloud maximum height.");
+                }
+                ImGui::EndDisabled();
+
+                if (ImGui::InputInt("Vertical Spacing", &cloud.verticalSpacing)) {
+                    cloud.verticalSpacing = std::clamp(cloud.verticalSpacing, cloud.layerHeight + 1, 4096);
+                    cloud.verticalJitter = std::min(cloud.verticalJitter, cloud.verticalSpacing / 2);
+                    markSelectedModuleDirty("Updated cloud vertical spacing.");
+                }
+                if (ImGui::InputInt("Vertical Jitter", &cloud.verticalJitter)) {
+                    cloud.verticalJitter = std::clamp(cloud.verticalJitter, 0, cloud.verticalSpacing / 2);
+                    markSelectedModuleDirty("Updated cloud vertical jitter.");
+                }
+                if (ImGui::SliderInt("Render Distance", &cloud.renderDistance, 1, 16)) {
+                    markSelectedModuleDirty("Updated cloud render distance.");
+                }
+                if (ImGui::SliderInt("Mesh Pages Per Frame", &cloud.maxMeshPagesPerFrame, 1, 64)) {
+                    markSelectedModuleDirty("Updated cloud mesh budget.");
+                }
+                if (ImGui::InputInt("Max Visible Pages", &cloud.maxVisiblePages)) {
+                    cloud.maxVisiblePages = std::clamp(cloud.maxVisiblePages, 16, 4096);
+                    markSelectedModuleDirty("Updated cloud visible page budget.");
+                }
+
+            }
             else if (module->type == ModuleType::TREE_GENERATOR) {
                 ImGui::SeparatorText("Tree Generator");
                 TreeGeneratorModule& tree = module->treeGenerator;
@@ -2475,7 +2586,12 @@ namespace BiomeMaker {
     bool BiomeMakerApp::drawBlockIdCombo(const char* label, BlockId& blockId) {
         bool changed = false;
         if (ImGui::BeginCombo(label, getBlockDisplayName(blockId))) {
-            changed = drawGroupedBlockIdOptions(blockId, [](BlockId) { return true; });
+            changed = drawGroupedBlockIdOptions(
+                blockId,
+                [](BlockId candidate) {
+                    return isPlaceableBlockId(candidate) && canTargetBlock(candidate);
+                }
+            );
             ImGui::EndCombo();
         }
         return changed;
@@ -2506,6 +2622,8 @@ namespace BiomeMaker {
                 for (const BlockDefinition& definition : definitions) {
                     const BlockId candidate = definition.idValue;
                     if (candidate == static_cast<BlockId>(BlockIds::AIR) ||
+                        !isPlaceableBlockId(candidate) ||
+                        !canTargetBlock(candidate) ||
                         primaryEditorCategory(candidate) != category) {
                         continue;
                     }
@@ -2548,6 +2666,8 @@ namespace BiomeMaker {
                 const BlockId candidate = definition.idValue;
 
                 if (candidate == static_cast<BlockId>(BlockIds::AIR) ||
+                    !isPlaceableBlockId(candidate) ||
+                    !canTargetBlock(candidate) ||
                     primaryEditorCategory(candidate) != BlockCategory::NONE) {
                     continue;
                 }

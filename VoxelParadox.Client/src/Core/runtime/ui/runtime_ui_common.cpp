@@ -129,6 +129,7 @@ bool sameGameSettings(const GameSettings& a, const GameSettings& b) {
          a.vSyncEnabled == b.vSyncEnabled &&
          a.showFpsCounterOnly == b.showFpsCounterOnly &&
          a.advancedLightingEnabled == b.advancedLightingEnabled &&
+         a.cloudsEnabled == b.cloudsEnabled &&
          sameAudioSettings(a.audioSettings, b.audioSettings) &&
          sameControlOverrides(a.controlOverrides, b.controlOverrides);
 }
@@ -334,6 +335,10 @@ void toggleAdvancedLightingSelection(GameSettings& settings) {
   settings.advancedLightingEnabled = !settings.advancedLightingEnabled;
 }
 
+void toggleCloudsSelection(GameSettings& settings) {
+  settings.cloudsEnabled = !settings.cloudsEnabled;
+}
+
 std::string audioVolumeText(float value) {
   char buffer[32];
   std::snprintf(buffer, sizeof(buffer), "%.0f%%",
@@ -459,6 +464,12 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
     renderer.setAdvancedLightingEnabled(pendingSettings.advancedLightingEnabled);
     std::printf("[Settings] Advanced lighting: %s\n",
                 onOffText(pendingSettings.advancedLightingEnabled));
+  }
+
+  if (appliedSettings.cloudsEnabled != pendingSettings.cloudsEnabled) {
+    renderer.setCloudsEnabled(pendingSettings.cloudsEnabled);
+    std::printf("[Settings] Clouds: %s\n",
+                onOffText(pendingSettings.cloudsEnabled));
   }
 
   if (audioChanged) {

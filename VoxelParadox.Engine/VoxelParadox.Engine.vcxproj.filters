@@ -31,6 +31,9 @@
     <Filter Include="Client Shared\World\Block">
       <UniqueIdentifier>{D3B4F80B-5736-4CE6-A55D-FA8C2FD7779E}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Client Shared\World\Cloud">
+      <UniqueIdentifier>{5C9E392C-E6EE-4D29-9F0A-9C468DB90F1D}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Client Shared\World\Generation">
       <UniqueIdentifier>{08B24CFA-2409-4635-A56E-CB5268B46B13}</UniqueIdentifier>
     </Filter>
@@ -101,6 +104,9 @@
     </ClCompile>
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\block\block_registry.cpp">
       <Filter>Client Shared\World\Block</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_generator.cpp">
+      <Filter>Client Shared\World\Cloud</Filter>
     </ClCompile>
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\generation\chunk_generator_source.cpp">
       <Filter>Client Shared\World\Generation</Filter>
@@ -190,6 +196,9 @@
     </ClInclude>
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\block\block_types.hpp">
       <Filter>Client Shared\World\Block</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_generator.hpp">
+      <Filter>Client Shared\World\Cloud</Filter>
     </ClInclude>
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\chunk.hpp">
       <Filter>Client Shared\World\Generation</Filter>

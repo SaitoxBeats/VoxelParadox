@@ -6,6 +6,7 @@
 
 #include "engine/camera.hpp"
 #include "engine/shader.hpp"
+#include "render/cloud/cloud_renderer.hpp"
 
 #include "preview_world_controller.hpp"
 
@@ -29,6 +30,7 @@ public:
 
 private:
   Shader blockShader_;
+  VoxelGame::CloudRenderer cloudRenderer_{};
   std::vector<GLuint> blockTextures_{};
   GLuint framebuffer_ = 0;
   GLuint colorTexture_ = 0;

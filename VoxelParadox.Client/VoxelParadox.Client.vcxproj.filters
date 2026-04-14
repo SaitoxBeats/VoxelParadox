@@ -58,6 +58,9 @@
     <Filter Include="src\Renderer\render\Cache">
       <UniqueIdentifier>{D4BAF7E1-205D-4282-B66F-2D8B0F4058B6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Renderer\render\Cloud">
+      <UniqueIdentifier>{733DB74B-7607-4612-99EF-C732FF967271}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\Renderer\render\Config">
       <UniqueIdentifier>{6613D1A3-CE62-4AA6-AEB9-B27F89EA3653}</UniqueIdentifier>
     </Filter>
@@ -102,6 +105,9 @@
     </Filter>
     <Filter Include="src\World\Block">
       <UniqueIdentifier>{9CFA5A0E-18E1-4F8C-8F2D-6F1963A06C7E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\World\Cloud">
+      <UniqueIdentifier>{C063139E-21E7-40E2-BDA0-E42574F71018}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\World\Generation">
       <UniqueIdentifier>{E671CB34-F52A-4CD1-B255-4567D02DF7C9}</UniqueIdentifier>
@@ -213,6 +219,9 @@
     <ClCompile Include="src\Renderer\render\models\obj_block_model.cpp">
       <Filter>src\Renderer\render\Models</Filter>
     </ClCompile>
+    <ClCompile Include="src\Renderer\render\cloud\cloud_renderer.cpp">
+      <Filter>src\Renderer\render\Cloud</Filter>
+    </ClCompile>
     <ClCompile Include="src\Renderer\render\core\renderer.cpp">
       <Filter>src\Renderer\render\Core</Filter>
     </ClCompile>
@@ -323,6 +332,9 @@
     </ClCompile>
     <ClCompile Include="src\Core\runtime\app\runtime_app_screenshot.cpp">
       <Filter>src\Core\runtime\App</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Entities\player\player_item_script.cpp">
+      <Filter>src\Entities\player</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -533,6 +545,9 @@
     <ClInclude Include="src\Renderer\render\cache\item_texture_cache.hpp">
       <Filter>src\Renderer\render\Cache</Filter>
     </ClInclude>
+    <ClInclude Include="src\Renderer\render\cloud\cloud_renderer.hpp">
+      <Filter>src\Renderer\render\Cloud</Filter>
+    </ClInclude>
     <ClInclude Include="src\Renderer\render\models\obj_block_model.hpp">
       <Filter>src\Renderer\render\Models</Filter>
     </ClInclude>
@@ -635,8 +650,8 @@
     <ClInclude Include="src\World\world\block\block_types.hpp">
       <Filter>src\World\Block</Filter>
     </ClInclude>
-    <ClInclude Include="item_use_context.hpp">
-      <Filter>src\Entities\items</Filter>
+    <ClInclude Include="src\World\world\cloud\cloud_generator.hpp">
+      <Filter>src\World\Cloud</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

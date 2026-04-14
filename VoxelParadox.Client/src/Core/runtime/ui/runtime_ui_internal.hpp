@@ -81,6 +81,7 @@ void stepWindowModeSelection(GameSettings& settings, int delta);
 void toggleVSyncSelection(GameSettings& settings);
 void toggleFpsCounterOnlySelection(GameSettings& settings);
 void toggleAdvancedLightingSelection(GameSettings& settings);
+void toggleCloudsSelection(GameSettings& settings);
 
 std::string audioVolumeText(float value);
 const char* audioCategoryDisplayName(ENGINE::AUDIO::SoundCategoryId category);

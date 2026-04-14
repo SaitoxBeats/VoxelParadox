@@ -95,6 +95,7 @@
     <ClCompile Include="src\Entities\player\player_targeting.cpp" />
     <ClCompile Include="src\Renderer\render\cache\item_texture_cache.cpp" />
     <ClCompile Include="src\Renderer\render\models\obj_block_model.cpp" />
+    <ClCompile Include="src\Renderer\render\cloud\cloud_renderer.cpp" />
     <ClCompile Include="src\Renderer\render\core\renderer.cpp" />
     <ClCompile Include="src\Renderer\render\passes\renderer_entities.cpp" />
     <ClCompile Include="src\Renderer\render\passes\renderer_items.cpp" />
@@ -203,6 +204,7 @@
     <ClInclude Include="src\Renderer\render\config\inventory_menu_preview_config.hpp" />
     <ClInclude Include="src\Renderer\render\config\item_preview_config.hpp" />
     <ClInclude Include="src\Renderer\render\cache\item_texture_cache.hpp" />
+    <ClInclude Include="src\Renderer\render\cloud\cloud_renderer.hpp" />
     <ClInclude Include="src\Renderer\render\models\obj_block_model.hpp" />
     <ClInclude Include="src\Renderer\render\core\renderer.hpp" />
     <ClInclude Include="src\Renderer\render\core\renderer_internal.hpp" />
@@ -227,6 +229,7 @@
     <ClInclude Include="src\World\world\block\block_catalog.hpp" />
     <ClInclude Include="src\World\world\block\block_registry.hpp" />
     <ClInclude Include="src\World\world\block\block_types.hpp" />
+    <ClInclude Include="src\World\world\cloud\cloud_generator.hpp" />
     <ClInclude Include="src\World\world\generation\chunk.hpp" />
     <ClInclude Include="src\World\world\generation\chunk_generator_source.hpp" />
     <ClInclude Include="src\World\world\generation\fractal_world.hpp" />

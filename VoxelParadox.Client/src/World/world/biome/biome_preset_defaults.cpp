@@ -182,6 +182,8 @@ const char* moduleTypeId(ModuleType type) {
     return "backrooms";
   case ModuleType::MINECRAFT_STYLE:
     return "minecraft_style";
+  case ModuleType::CLOUD_GENERATOR:
+    return "cloud_generator";
   default:
     return "unknown";
   }
@@ -217,6 +219,8 @@ const char* moduleTypeDisplayName(ModuleType type) {
     return "Backrooms";
   case ModuleType::MINECRAFT_STYLE:
     return "Minecraft Style";
+  case ModuleType::CLOUD_GENERATOR:
+    return "Cloud Generator";
   default:
     return "Unknown";
   }
@@ -279,7 +283,108 @@ bool tryParseModuleType(const std::string& value, ModuleType& outType) {
     outType = ModuleType::MINECRAFT_STYLE;
     return true;
   }
+  if (value == "cloud_generator") {
+    outType = ModuleType::CLOUD_GENERATOR;
+    return true;
+  }
   outType = ModuleType::PERLIN_TERRAIN;
+  return false;
+}
+
+const char* cloudTypeId(CloudType type) {
+  switch (type) {
+  case CloudType::CIRRUS:
+    return "cirrus";
+  case CloudType::CIRROCUMULUS:
+    return "cirrocumulus";
+  case CloudType::CIRROSTRATUS:
+    return "cirrostratus";
+  case CloudType::ALTOCUMULUS:
+    return "altocumulus";
+  case CloudType::ALTOSTRATUS:
+    return "altostratus";
+  case CloudType::NIMBOSTRATUS:
+    return "nimbostratus";
+  case CloudType::STRATUS:
+    return "stratus";
+  case CloudType::STRATOCUMULUS:
+    return "stratocumulus";
+  case CloudType::CUMULUS:
+    return "cumulus";
+  case CloudType::RANDOM:
+  default:
+    return "random";
+  }
+}
+
+const char* cloudTypeDisplayName(CloudType type) {
+  switch (type) {
+  case CloudType::CIRRUS:
+    return "Cirrus";
+  case CloudType::CIRROCUMULUS:
+    return "Cirrocumulus";
+  case CloudType::CIRROSTRATUS:
+    return "Cirrostratus";
+  case CloudType::ALTOCUMULUS:
+    return "Altocumulus";
+  case CloudType::ALTOSTRATUS:
+    return "Altostratus";
+  case CloudType::NIMBOSTRATUS:
+    return "Nimbostratus";
+  case CloudType::STRATUS:
+    return "Stratus";
+  case CloudType::STRATOCUMULUS:
+    return "Stratocumulus";
+  case CloudType::CUMULUS:
+    return "Cumulus";
+  case CloudType::RANDOM:
+  default:
+    return "Random";
+  }
+}
+
+bool tryParseCloudType(const std::string& value, CloudType& outType) {
+  if (value == "cirrus") {
+    outType = CloudType::CIRRUS;
+    return true;
+  }
+  if (value == "cirrocumulus") {
+    outType = CloudType::CIRROCUMULUS;
+    return true;
+  }
+  if (value == "cirrostratus") {
+    outType = CloudType::CIRROSTRATUS;
+    return true;
+  }
+  if (value == "altocumulus") {
+    outType = CloudType::ALTOCUMULUS;
+    return true;
+  }
+  if (value == "altostratus") {
+    outType = CloudType::ALTOSTRATUS;
+    return true;
+  }
+  if (value == "nimbostratus") {
+    outType = CloudType::NIMBOSTRATUS;
+    return true;
+  }
+  if (value == "stratus") {
+    outType = CloudType::STRATUS;
+    return true;
+  }
+  if (value == "stratocumulus") {
+    outType = CloudType::STRATOCUMULUS;
+    return true;
+  }
+  if (value == "cumulus") {
+    outType = CloudType::CUMULUS;
+    return true;
+  }
+  if (value == "random") {
+    outType = CloudType::RANDOM;
+    return true;
+  }
+  outType = CloudType::RANDOM;
   return false;
 }
 
@@ -601,6 +706,14 @@ BiomeModule BiomeModule::makeMinecraftStyle(const std::string& id) {
   result.minecraftStyle.palette.core = BlockIds::VOID_MATTER;
   result.minecraftStyle.palette.accent = BlockIds::CRYSTAL;
   result.minecraftStyle.palette.recess = BlockIds::METAL;
+  return result;
+}
+
+BiomeModule BiomeModule::makeCloudGenerator(const std::string& id) {
+  BiomeModule result =
+      makeBaseModule(id, "Cloud Generator", ModuleType::CLOUD_GENERATOR,
+                     LayerBlendMode::PLACE_ON_AIR);
+  result.cloudGenerator = {};
   return result;
 }
 

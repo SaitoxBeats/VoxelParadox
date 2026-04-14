@@ -151,6 +151,7 @@ namespace VoxelParadox {
         }
         renderer.setRenderScale(settingsBundle.applied.renderScale);
         renderer.setAdvancedLightingEnabled(settingsBundle.applied.advancedLightingEnabled);
+        renderer.setCloudsEnabled(settingsBundle.applied.cloudsEnabled);
 
         const bool imguiInitialized = ImGuiLayer::initialize(window);
         Bootstrap::reportImGuiStatus(imguiInitialized);

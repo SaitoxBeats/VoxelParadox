@@ -335,6 +335,23 @@ void Renderer::renderNestedPreviewWorld(WorldStack& worldStack, FractalWorld& ne
                    nestedWorld.renderDistance, time, portal.fade);
     renderDroppedItems(nestedWorld, previewVP, previewCamera.position, previewFog, childDepth,
                        nestedWorld.renderDistance, time, portal.fade);
+
+    if (cloudsEnabled_ && nestedWorld.biomePreset) {
+        bindBlockTextures();
+        VoxelGame::CloudRenderContext cloudContext{};
+        cloudContext.preset = nestedWorld.biomePreset.get();
+        cloudContext.seed = nestedWorld.seed;
+        cloudContext.depth = childDepth;
+        cloudContext.cameraPosition = previewCamera.position;
+        cloudContext.viewProjection = previewVP;
+        cloudContext.fogColor = previewFog;
+        cloudContext.fogDensity =
+            computeFogDensity(childDepth, nestedWorld.renderDistance);
+        cloudContext.timeSeconds = time;
+        cloudContext.fallbackRenderDistance = nestedWorld.renderDistance;
+        cloudContext.alphaMultiplier = portal.fade;
+        cloudRenderer_.render(cloudContext, blockShader);
+    }
 }
 
 void Renderer::renderPortalFrame(const glm::mat4& vp, glm::ivec3 blockPos,

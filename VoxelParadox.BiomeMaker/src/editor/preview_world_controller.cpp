@@ -161,6 +161,14 @@ int PreviewWorldController::depth() const {
   return source_ ? source_->depth() : 0;
 }
 
+std::uint32_t PreviewWorldController::seed() const {
+  return source_ ? source_->seed() : 0u;
+}
+
+const BiomePreset* PreviewWorldController::biomePreset() const {
+  return source_ ? source_->biomePreset() : nullptr;
+}
+
 int PreviewWorldController::previewRenderDistance() const {
   if (mode_ == PreviewMode::STREAMING) {
     return streamRenderDistance_;

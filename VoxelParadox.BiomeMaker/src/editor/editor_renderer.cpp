@@ -48,6 +48,7 @@ void EditorRenderer::destroyFramebuffer() {
 void EditorRenderer::cleanup() {
   destroyFramebuffer();
   cleanupBlockTextures();
+  cloudRenderer_.cleanup();
   blockShader_.release();
 }
 
@@ -103,6 +104,24 @@ void EditorRenderer::renderToViewport(PreviewWorldController& world, const Camer
   bindBlockTextures();
 
   world.render(camera.position, viewProjection);
+
+  if (const BiomePreset* preset = world.biomePreset()) {
+    bindBlockTextures();
+    VoxelGame::CloudRenderContext cloudContext{};
+    cloudContext.preset = preset;
+    cloudContext.seed = world.seed();
+    cloudContext.depth = depth;
+    cloudContext.cameraPosition = camera.position;
+    cloudContext.viewProjection = viewProjection;
+    cloudContext.fogColor = fogColor;
+    cloudContext.fogDensity =
+        options.fogEnabled ? computeFogDensity(depth, world.previewRenderDistance())
+                           : 0.0f;
+    cloudContext.timeSeconds = timeSeconds;
+    cloudContext.fallbackRenderDistance = world.previewRenderDistance();
+    cloudContext.alphaMultiplier = 1.0f;
+    cloudRenderer_.render(cloudContext, blockShader_);
+  }
 
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

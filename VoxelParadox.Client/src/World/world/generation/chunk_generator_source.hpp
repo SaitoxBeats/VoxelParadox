@@ -37,6 +37,7 @@ public:
   // Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
   // Retorno: devolve 'int' com o valor numerico calculado para a proxima decisao do pipeline.
   virtual int depth() const = 0;
+  virtual const BiomePreset* biomePreset() const { return nullptr; }
 };
 #pragma endregion
 
@@ -63,6 +64,7 @@ public:
   // Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
   // Retorno: devolve 'int' com o valor numerico calculado para a proxima decisao do pipeline.
   int depth() const override { return runtimeDepth_; }
+  const BiomePreset* biomePreset() const override { return preset_.get(); }
   // Funcao: executa 'preset' na geracao procedural baseada em presets.
   // Detalhe: centraliza a logica necessaria para encapsular esta etapa especifica do subsistema.
   // Retorno: devolve 'const BiomePreset&' para dar acesso direto ao objeto resolvido por esta rotina.

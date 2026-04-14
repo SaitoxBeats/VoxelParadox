@@ -62,6 +62,7 @@ enum class ModuleType : std::uint8_t {
   ONE_BLOCK = 11,
   BACKROOMS = 12,
   MINECRAFT_STYLE = 13,
+  CLOUD_GENERATOR = 14,
 };
 
 const char* moduleTypeId(ModuleType type);
@@ -101,6 +102,23 @@ bool tryParseVoxRotationMode(const std::string& value, VoxRotationMode& outMode)
 const char* voxColorMappingId(VoxColorMapping mapping);
 const char* voxColorMappingDisplayName(VoxColorMapping mapping);
 bool tryParseVoxColorMapping(const std::string& value, VoxColorMapping& outMapping);
+
+enum class CloudType : std::uint8_t {
+  CIRRUS = 0,
+  CIRROCUMULUS = 1,
+  CIRROSTRATUS = 2,
+  ALTOCUMULUS = 3,
+  ALTOSTRATUS = 4,
+  NIMBOSTRATUS = 5,
+  STRATUS = 6,
+  STRATOCUMULUS = 7,
+  CUMULUS = 8,
+  RANDOM = 9,
+};
+
+const char* cloudTypeId(CloudType type);
+const char* cloudTypeDisplayName(CloudType type);
+bool tryParseCloudType(const std::string& value, CloudType& outType);
 
 // -----------------------------------------------------------------------------
 // Shared preview and palette data.
@@ -353,6 +371,27 @@ struct MinecraftStyleModule {
   MaterialPaletteModule palette{};
 };
 
+struct CloudGeneratorModule {
+  CloudType cloudType = CloudType::RANDOM;
+  float speed = 2.0f;
+  float directionDegrees = 35.0f;
+  float coverage = 0.45f;
+  float opacity = 0.38f;
+  float densityThreshold = 0.56f;
+  int cellSize = 4;
+  int jitter = 2;
+  int layerHeight = 10;
+  int baseY = 96;
+  int minY = 64;
+  int maxY = 160;
+  bool infiniteY = true;
+  int verticalSpacing = 96;
+  int verticalJitter = 12;
+  int renderDistance = 6;
+  int maxMeshPagesPerFrame = 4;
+  int maxVisiblePages = 512;
+};
+
 // -----------------------------------------------------------------------------
 // Public asset types used by runtime and editor.
 // -----------------------------------------------------------------------------
@@ -380,6 +419,7 @@ struct BiomeModule {
   OneBlockModule oneBlock{};
   BackroomsModule backrooms{};
   MinecraftStyleModule minecraftStyle{};
+  CloudGeneratorModule cloudGenerator{};
 
   static BiomeModule makePerlinTerrain(const std::string& id = "perlin",
                                        int depth = 0);
@@ -401,6 +441,8 @@ struct BiomeModule {
   static BiomeModule makeBackrooms(const std::string& id = "backrooms");
   static BiomeModule makeMinecraftStyle(
       const std::string& id = "minecraft_style");
+  static BiomeModule makeCloudGenerator(
+      const std::string& id = "cloud_generator");
 };
 
 struct BiomePreset {

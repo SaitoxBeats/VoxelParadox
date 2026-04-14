@@ -28,6 +28,8 @@ struct GreedyChunkInput {
     int depth = 0;
     bool enableMerging = true;
     std::function<BlockId(const glm::ivec3& localPos)> sampleBlock;
+    std::function<bool(BlockId block)> isRenderableBlock;
+    std::function<bool(BlockId block)> isOccludingBlock;
     std::function<FaceMaterialDesc(BlockId block, int faceDirection)> resolveFaceMaterial;
 };
 

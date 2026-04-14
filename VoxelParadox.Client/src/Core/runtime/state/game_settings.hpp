@@ -33,6 +33,7 @@ struct GameSettings {
   bool vSyncEnabled = false;
   bool showFpsCounterOnly = false;
   bool advancedLightingEnabled = true;
+  bool cloudsEnabled = true;
   ENGINE::AUDIO::AudioSettings audioSettings{};
   InputMapping::ControlBindingOverrides controlOverrides{};
 

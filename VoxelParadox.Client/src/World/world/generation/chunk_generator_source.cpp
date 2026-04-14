@@ -392,7 +392,8 @@ void PresetModuleGeneratorSource::generateBaseChunk(Chunk& chunk) const {
     const std::size_t index = reverseIndex - 1;
     const BiomeModule& module = preset_->modules[index];
     if (!module.enabled || module.type == ModuleType::TREE_GENERATOR ||
-        module.type == ModuleType::ONE_BLOCK) {
+        module.type == ModuleType::ONE_BLOCK ||
+        module.type == ModuleType::CLOUD_GENERATOR) {
       continue;
     }
 
@@ -450,6 +451,8 @@ void PresetModuleGeneratorSource::applyModuleLayer(
   case ModuleType::MINECRAFT_STYLE:
     applyMinecraftStyleLayer(chunk, module);
     break;
+  case ModuleType::CLOUD_GENERATOR:
+    break;
   }
 }
 
@@ -464,6 +467,9 @@ void PresetModuleGeneratorSource::generateChunk(Chunk& chunk) const {
     const std::size_t index = reverseIndex - 1;
     const BiomeModule& module = preset_->modules[index];
     if (!module.enabled) {
+      continue;
+    }
+    if (module.type == ModuleType::CLOUD_GENERATOR) {
       continue;
     }
 

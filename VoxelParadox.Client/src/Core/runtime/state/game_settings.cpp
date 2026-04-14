@@ -265,6 +265,7 @@ bool GameSettings::save(std::string* outError) const {
   json["vSyncEnabled"] = vSyncEnabled;
   json["showFpsCounterOnly"] = showFpsCounterOnly;
   json["advancedLightingEnabled"] = advancedLightingEnabled;
+  json["cloudsEnabled"] = cloudsEnabled;
   nlohmann::json categoryVolumes = nlohmann::json::object();
   nlohmann::json categoryMuted = nlohmann::json::object();
   for (ENGINE::AUDIO::SoundCategoryId category :
@@ -382,6 +383,9 @@ GameSettings GameSettings::load(std::string* outError) {
     if (json.contains("advancedLightingEnabled") &&
         json["advancedLightingEnabled"].is_boolean()) {
       settings.advancedLightingEnabled = json["advancedLightingEnabled"].get<bool>();
+    }
+    if (json.contains("cloudsEnabled") && json["cloudsEnabled"].is_boolean()) {
+      settings.cloudsEnabled = json["cloudsEnabled"].get<bool>();
     }
     if (json.contains("audio") && json["audio"].is_object()) {
       const nlohmann::json& audioJson = json["audio"];

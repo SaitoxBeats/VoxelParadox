@@ -10,6 +10,8 @@
     { "value": 7, "id": "portal", "folder": "portal" },
     { "value": 8, "id": "membrane_weave", "folder": "membrane_weave" },
     { "value": 9, "id": "membrane_wire", "folder": "membrane_wire" },
-    { "value": 10, "id": "atlas_demo", "folder": "atlas_demo" }
+    { "value": 10, "id": "atlas_demo", "folder": "atlas_demo" },
+    { "value": 11, "id": "cloud_chunk", "folder": "cloud_chunk" },
+    { "value": 12, "id": "algo", "folder": "algo" }
   ]
 }

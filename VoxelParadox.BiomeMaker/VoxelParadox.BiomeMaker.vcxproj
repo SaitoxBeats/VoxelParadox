@@ -54,6 +54,7 @@
     <ClCompile Include="src\editor\biome_maker_app.cpp" />
     <ClCompile Include="src\editor\editor_renderer.cpp" />
     <ClCompile Include="src\editor\preview_world_controller.cpp" />
+    <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\cloud\cloud_renderer.cpp" />
     <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\cache\item_texture_cache.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -61,6 +62,7 @@
     <ClInclude Include="src\editor\editor_camera_controller.hpp" />
     <ClInclude Include="src\editor\editor_renderer.hpp" />
     <ClInclude Include="src\editor\preview_world_controller.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\Renderer\render\cloud\cloud_renderer.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VoxelParadox.Engine\VoxelParadox.Engine.vcxproj">

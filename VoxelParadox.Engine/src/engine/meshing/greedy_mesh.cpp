@@ -80,18 +80,29 @@ BlockId sampleBlockOrAir(const GreedyChunkInput& input, const glm::ivec3& localP
     return input.sampleBlock(localPos);
 }
 
+bool isRenderable(const GreedyChunkInput& input, BlockId block) {
+    return input.isRenderableBlock ? input.isRenderableBlock(block) : isSolid(block);
+}
+
+bool isOccluding(const GreedyChunkInput& input, BlockId block) {
+    return input.isOccludingBlock ? input.isOccludingBlock(block) : isSolid(block);
+}
+
 std::uint8_t computeAoLevel(const GreedyChunkInput& input, const glm::ivec3& blockPos,
                             int face, int vertexIndex) {
     const int* sideA = kAoNeighbors[face][vertexIndex][0];
     const int* sideB = kAoNeighbors[face][vertexIndex][1];
     const int* corner = kAoNeighbors[face][vertexIndex][2];
 
-    const bool occA = isSolid(sampleBlockOrAir(
-        input, blockPos + glm::ivec3(sideA[0], sideA[1], sideA[2])));
-    const bool occB = isSolid(sampleBlockOrAir(
-        input, blockPos + glm::ivec3(sideB[0], sideB[1], sideB[2])));
-    const bool occCorner = isSolid(sampleBlockOrAir(
-        input, blockPos + glm::ivec3(corner[0], corner[1], corner[2])));
+    const bool occA = isOccluding(
+        input, sampleBlockOrAir(
+                   input, blockPos + glm::ivec3(sideA[0], sideA[1], sideA[2])));
+    const bool occB = isOccluding(
+        input, sampleBlockOrAir(
+                   input, blockPos + glm::ivec3(sideB[0], sideB[1], sideB[2])));
+    const bool occCorner = isOccluding(
+        input, sampleBlockOrAir(
+                   input, blockPos + glm::ivec3(corner[0], corner[1], corner[2])));
 
     const int aoLevel =
         (occA && occB) ? 0 : 3 - static_cast<int>(occA) - static_cast<int>(occB) -
@@ -280,10 +291,10 @@ GreedyMeshResult buildGreedyChunkMesh(const GreedyChunkInput& input) {
                     FaceKey key{};
                     const glm::ivec3 blockPos = faceBlockPos(face, slice, u, v);
                     const BlockId block = sampleBlockOrAir(input, blockPos);
-                    if (isSolid(block)) {
+                    if (isRenderable(input, block)) {
                         const BlockId neighbor =
                             sampleBlockOrAir(input, faceNeighborPos(face, blockPos));
-                        if (!isSolid(neighbor)) {
+                        if (!isOccluding(input, neighbor)) {
                             key.visible = true;
                             key.material = input.resolveFaceMaterial(block, face);
                             key.ao = buildAoSignature(input, blockPos, face);

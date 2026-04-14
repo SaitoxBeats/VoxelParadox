@@ -49,6 +49,8 @@ public:
   void render(const glm::vec3& cameraPosition, const glm::mat4& viewProjection);
 
   int depth() const;
+  std::uint32_t seed() const;
+  const BiomePreset* biomePreset() const;
   int previewRenderDistance() const;
   const glm::ivec3& anchorChunk() const { return anchorChunk_; }
   std::uint64_t generationRevision() const { return generationRevision_; }
