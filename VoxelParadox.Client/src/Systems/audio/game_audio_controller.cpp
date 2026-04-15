@@ -210,6 +210,14 @@ void GameAudioController::onPlayerJump() {
     audioManager_.playEvent("player.jump");
 }
 
+void GameAudioController::onPlayerLandingImpact() {
+    if (deathScreenActive_) {
+        return;
+    }
+
+    audioManager_.playEvent("player.landing.impact");
+}
+
 void GameAudioController::onPlayerHardLanding(BlockId blockType, const glm::vec3& worldPosition,
     float gain, float pitch) {
     if (deathScreenActive_) {

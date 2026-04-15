@@ -430,6 +430,7 @@ void Player::triggerLandingImpactFeedback(FractalWorld* world, float impactSpeed
         );
         const glm::vec3 worldPosition = getFeetPosition() + glm::vec3(0.0f, 0.15f, 0.0f);
         audioController->onPlayerHardLanding(blockType, worldPosition, gain, pitch);
+        audioController->onPlayerLandingImpact();
     }
 
     if (!landingCameraShakeSettings.enabled) {

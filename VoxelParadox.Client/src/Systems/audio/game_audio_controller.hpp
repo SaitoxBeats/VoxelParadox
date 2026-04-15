@@ -64,6 +64,7 @@ public:
     void onPlayerDamaged();
     void onPlayerJump();
     void onPlayerDoubleJump();
+    void onPlayerLandingImpact();
     void onPlayerHardLanding(BlockId blockType, const glm::vec3& worldPosition,
         float gain, float pitch);
     void onPlayerFootstep(BlockId blockType, const glm::vec3& worldPosition,
