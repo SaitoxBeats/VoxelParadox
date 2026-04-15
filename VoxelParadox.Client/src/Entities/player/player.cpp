@@ -388,12 +388,128 @@ void Player::updateHeadBob(float dt, FractalWorld* world, bool active) {
 }
 
 // =============================================================================
-// --- 10. Camera ---
+// --- 10. Landing Impact Feedback ---
+// =============================================================================
+
+float Player::normalizeLandingImpact(float impactSpeed, float minImpactSpeed) const {
+    const float minThreshold = glm::max(0.0f, minImpactSpeed);
+    const float maxThreshold =
+        glm::max(minThreshold + 0.001f, landingImpactDetectorSettings.maxImpactSpeed);
+
+    return glm::clamp(
+        (impactSpeed - minThreshold) / (maxThreshold - minThreshold),
+        0.0f,
+        1.0f
+    );
+}
+
+void Player::triggerLandingImpactFeedback(FractalWorld* world, float impactSpeed) {
+    if (!world || !landingImpactDetectorSettings.enabled) {
+        return;
+    }
+
+    const float impactAlpha = normalizeLandingImpact(
+        impactSpeed,
+        landingImpactDetectorSettings.minImpactSpeed
+    );
+    if (impactAlpha <= 0.0f) {
+        return;
+    }
+
+    const BlockId blockType = getFootstepBlockType(world);
+    if (audioController && isSolid(blockType)) {
+        const float gain = glm::mix(
+            landingImpactDetectorSettings.soundGainMin,
+            landingImpactDetectorSettings.soundGainMax,
+            impactAlpha
+        );
+        const float pitch = glm::mix(
+            landingImpactDetectorSettings.soundPitchMax,
+            landingImpactDetectorSettings.soundPitchMin,
+            impactAlpha
+        );
+        const glm::vec3 worldPosition = getFeetPosition() + glm::vec3(0.0f, 0.15f, 0.0f);
+        audioController->onPlayerHardLanding(blockType, worldPosition, gain, pitch);
+    }
+
+    if (!landingCameraShakeSettings.enabled) {
+        return;
+    }
+
+    const float shakeAlpha = normalizeLandingImpact(
+        impactSpeed,
+        landingCameraShakeSettings.minImpactSpeed
+    );
+    if (shakeAlpha <= 0.0f) {
+        return;
+    }
+
+    landingShakeElapsedSeconds = 0.0f;
+    landingShakeDurationSeconds = glm::max(0.0f, landingCameraShakeSettings.durationSeconds);
+    landingShakeStrength = glm::max(landingShakeStrength, shakeAlpha);
+}
+
+void Player::updateLandingShake(float dt) {
+    if (!landingCameraShakeSettings.enabled ||
+        landingShakeDurationSeconds <= 0.0f ||
+        landingShakeStrength <= 0.0f) {
+        landingShakeElapsedSeconds = 0.0f;
+        landingShakeDurationSeconds = 0.0f;
+        landingShakeStrength = 0.0f;
+        landingShakeLocalOffset = glm::vec3(0.0f);
+        landingShakeRollRadians = 0.0f;
+        return;
+    }
+
+    landingShakeElapsedSeconds =
+        glm::min(landingShakeElapsedSeconds + dt, landingShakeDurationSeconds);
+
+    const float duration =
+        glm::max(landingShakeDurationSeconds, 0.0001f);
+    const float normalizedTime =
+        landingShakeElapsedSeconds / duration;
+    const float envelope = 1.0f - normalizedTime;
+    const float dampedStrength = landingShakeStrength * envelope * envelope;
+    const float phase =
+        landingShakeElapsedSeconds * landingCameraShakeSettings.frequency *
+        glm::two_pi<float>();
+
+    landingShakeLocalOffset.x =
+        std::sin(phase * 1.13f) *
+        landingCameraShakeSettings.horizontalAmplitude *
+        dampedStrength;
+    landingShakeLocalOffset.y =
+        -std::abs(std::sin(phase * 1.71f)) *
+        landingCameraShakeSettings.verticalAmplitude *
+        dampedStrength;
+    landingShakeLocalOffset.z =
+        -std::abs(std::cos(phase * 1.37f)) *
+        landingCameraShakeSettings.forwardAmplitude *
+        dampedStrength;
+    landingShakeRollRadians =
+        std::sin(phase * 1.29f) *
+        glm::radians(landingCameraShakeSettings.rollAmplitudeDegrees) *
+        dampedStrength;
+
+    if (landingShakeElapsedSeconds >= landingShakeDurationSeconds) {
+        landingShakeElapsedSeconds = 0.0f;
+        landingShakeDurationSeconds = 0.0f;
+        landingShakeStrength = 0.0f;
+        landingShakeLocalOffset = glm::vec3(0.0f);
+        landingShakeRollRadians = 0.0f;
+    }
+}
+
+// =============================================================================
+// --- 11. Camera ---
 // =============================================================================
 
 void Player::applyCameraVisualEffects() {
-    camera.visualLocalOffset = headBobLocalOffset;
-    camera.visualRollRadians = health.damageRollRadiansCurrent() + headBobRollRadians;
+    camera.visualLocalOffset = headBobLocalOffset + landingShakeLocalOffset;
+    camera.visualRollRadians =
+        health.damageRollRadiansCurrent() +
+        headBobRollRadians +
+        landingShakeRollRadians;
 }
 
 Camera Player::buildNestedPreviewCamera(const Camera& source,
@@ -453,6 +569,7 @@ void Player::update(
     // Portal transitions own the full frame while they are active.
     if (transition != PlayerTransition::NONE) {
         updateHeadBob(dt, nullptr, false);
+        updateLandingShake(dt);
         applyCameraVisualEffects();
         closeInventoryForTransition();
         handleTransition(dt, worldStack);
@@ -461,6 +578,7 @@ void Player::update(
 
     if (updateMode == PlayerUpdateMode::Frozen) {
         updateHeadBob(dt, nullptr, false);
+        updateLandingShake(dt);
         applyCameraVisualEffects();
         resetBlockBreaking();
         return;
@@ -484,6 +602,7 @@ void Player::update(
     if (allowGameplayInteractions && isInventoryOpen()) {
         updateEmbeddedHeadDamage(world, dt);
         updateHeadBob(dt, nullptr, false);
+        updateLandingShake(dt);
         applyCameraVisualEffects();
         resetBlockBreaking();
         return;
@@ -502,6 +621,7 @@ void Player::update(
     updateEmbeddedHeadDamage(world, dt);
 
     updateHeadBob(dt, world, allowMovementInput);
+    updateLandingShake(dt);
     applyCameraVisualEffects();
 
     if (allowGameplayInteractions && world) {

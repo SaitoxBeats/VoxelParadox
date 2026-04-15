@@ -159,6 +159,27 @@ public:
         float minSpeed = 0.35f;
     };
 
+    struct LandingImpactDetectorSettings {
+        bool enabled = true;
+        float minImpactSpeed = 7.5f;
+        float maxImpactSpeed = 22.0f;
+        float soundGainMin = 0.72f;
+        float soundGainMax = 1.28f;
+        float soundPitchMin = 0.92f;
+        float soundPitchMax = 1.03f;
+    };
+
+    struct LandingCameraShakeSettings {
+        bool enabled = true;
+        float minImpactSpeed = 7.5f;
+        float durationSeconds = 0.5f;
+        float frequency = 14.0f;
+        float horizontalAmplitude = 0.060f;
+        float verticalAmplitude = 0.035f;
+        float forwardAmplitude = 0.028f;
+        float rollAmplitudeDegrees = 1.85f;
+    };
+
     struct PersistentState {
         glm::vec3 cameraPosition{ 0.0f };
         glm::quat cameraOrientation{ 1.0f, 0.0f, 0.0f, 0.0f };
@@ -246,6 +267,8 @@ public:
     int previewPreloadRenderDistance = 2;
     HeadBobSettings headBobSettings{};
     FootstepSettings footstepSettings{};
+    LandingImpactDetectorSettings landingImpactDetectorSettings{};
+    LandingCameraShakeSettings landingCameraShakeSettings{};
 #pragma endregion
 
 #pragma region 4. Public Core Methods
@@ -545,6 +568,12 @@ private:
     float headBobBlend = 0.0f;
     glm::vec3 headBobLocalOffset{ 0.0f };
     float headBobRollRadians = 0.0f;
+    float airborneMaxDownwardSpeed = 0.0f;
+    float landingShakeElapsedSeconds = 0.0f;
+    float landingShakeDurationSeconds = 0.0f;
+    float landingShakeStrength = 0.0f;
+    glm::vec3 landingShakeLocalOffset{ 0.0f };
+    float landingShakeRollRadians = 0.0f;
     float lastFootstepPhase = 0.0f;
     bool sandboxModeEnabled = false;
     std::unordered_map<ItemId, double> itemUseCooldownExpiryTimesSeconds{};
@@ -632,10 +661,13 @@ private:
     void updateMovementState();
 
     void updateHeadBob(float dt, FractalWorld* world, bool active);
+    void updateLandingShake(float dt);
     void applyCameraVisualEffects();
 
     BlockId getFootstepBlockType(FractalWorld* world) const;
     void emitFootstep(FractalWorld* world, float speedAlpha);
+    void triggerLandingImpactFeedback(FractalWorld* world, float impactSpeed);
+    float normalizeLandingImpact(float impactSpeed, float minImpactSpeed) const;
 
     void handleMovement(float dt, bool allowMovementInput, bool& jumpPressConsumed);
     void handleHotbarSelectionInput();

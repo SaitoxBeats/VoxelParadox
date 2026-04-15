@@ -97,6 +97,12 @@ void PlayerPersistenceSystem::apply(
     player.headBobBlend = glm::clamp(state.headBobBlend, 0.0f, 1.0f);
     player.headBobLocalOffset = state.headBobLocalOffset;
     player.headBobRollRadians = state.headBobRollRadians;
+    player.airborneMaxDownwardSpeed = 0.0f;
+    player.landingShakeElapsedSeconds = 0.0f;
+    player.landingShakeDurationSeconds = 0.0f;
+    player.landingShakeStrength = 0.0f;
+    player.landingShakeLocalOffset = glm::vec3(0.0f);
+    player.landingShakeRollRadians = 0.0f;
     player.lastFootstepPhase = state.lastFootstepPhase;
     player.headEmbeddedDamageTimer = Player::kHeadEmbeddedDamageIntervalSeconds;
     player.hotbar.applyPersistentState(state.hotbarState);

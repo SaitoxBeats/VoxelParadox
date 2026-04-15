@@ -210,6 +210,23 @@ void GameAudioController::onPlayerJump() {
     audioManager_.playEvent("player.jump");
 }
 
+void GameAudioController::onPlayerHardLanding(BlockId blockType, const glm::vec3& worldPosition,
+    float gain, float pitch) {
+    if (deathScreenActive_) {
+        return;
+    }
+
+    ENGINE::AUDIO::SoundPlaybackRequest request = makeWorldRequest(worldPosition);
+    request.gain = gain;
+    request.pitch = pitch;
+
+    audioManager_.playBlockAction(
+        getBlockId(blockType),
+        ENGINE::AUDIO::BlockSoundAction::Step,
+        request
+    );
+}
+
 void GameAudioController::onDeathSequenceStarted() {
     audioManager_.stopAllActiveSounds();
     // Let syncFrame transition music on the next update instead of tearing

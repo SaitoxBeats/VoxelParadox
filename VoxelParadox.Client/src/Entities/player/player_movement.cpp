@@ -377,8 +377,13 @@ void Player::simulateMovement(float dt, FractalWorld* world, bool allowMovementI
             world &&
             hasGroundSupport(world, getFeetPosition()) &&
             velocity.y <= 0.0f;
+        const bool startedGrounded = grounded;
 
         handleMovement(step, allowMovementInput, jumpPressConsumed);
+        const float downwardImpactSpeed = glm::max(-velocity.y, 0.0f);
+        if (!startedGrounded) {
+            airborneMaxDownwardSpeed = glm::max(airborneMaxDownwardSpeed, downwardImpactSpeed);
+        }
 
         if (world) {
             resolveCollisions(world, step);
@@ -386,6 +391,17 @@ void Player::simulateMovement(float dt, FractalWorld* world, bool allowMovementI
         else {
             camera.position += velocity * step;
             grounded = false;
+        }
+
+        if (!startedGrounded && grounded) {
+            triggerLandingImpactFeedback(
+                world,
+                glm::max(airborneMaxDownwardSpeed, downwardImpactSpeed)
+            );
+            airborneMaxDownwardSpeed = 0.0f;
+        }
+        else if (grounded) {
+            airborneMaxDownwardSpeed = 0.0f;
         }
 
         remaining -= step;
