@@ -54,6 +54,8 @@
     <ClCompile Include="src\editor\block_shader_session.cpp" />
     <ClCompile Include="src\editor\shader_editor_app.cpp" />
     <ClCompile Include="src\editor\shader_editor_renderer.cpp" />
+    <ClCompile Include="src\editor\shader_node_editor.cpp" />
+    <ClCompile Include="src\editor\shader_node_graph.cpp" />
     <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\cache\item_texture_cache.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -61,6 +63,8 @@
     <ClInclude Include="src\editor\orbit_camera_controller.hpp" />
     <ClInclude Include="src\editor\shader_editor_app.hpp" />
     <ClInclude Include="src\editor\shader_editor_renderer.hpp" />
+    <ClInclude Include="src\editor\shader_node_editor.hpp" />
+    <ClInclude Include="src\editor\shader_node_graph.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VoxelParadox.Engine\VoxelParadox.Engine.vcxproj">

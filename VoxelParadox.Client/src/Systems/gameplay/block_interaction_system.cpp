@@ -368,7 +368,12 @@ void BlockInteractionSystem::breakTargetBlock(
     // --- 2. Portal Destruction Logic ---
     if (brokenType == BlockIds::PORTAL) {
         if (worldStack.deleteUniverseAtPortal(player.targeting.targetBlock)) {
-            gameplayContext.emitBlockBroken(player.targeting.targetBlock, brokenType);
+            gameplayContext.emitBlockBroken(
+                player.targeting.targetBlock,
+                brokenType,
+                true,
+                player.targeting.targetNormal
+            );
 
             const InventoryItem droppedItem =
                 shouldDropBlockItemForTool(harvestTool, brokenType)
@@ -403,7 +408,12 @@ void BlockInteractionSystem::breakTargetBlock(
 
     // --- 3. Standard Block Destruction Logic ---
     world->setBlock(player.targeting.targetBlock, BlockIds::AIR);
-    gameplayContext.emitBlockBroken(player.targeting.targetBlock, brokenType);
+    gameplayContext.emitBlockBroken(
+        player.targeting.targetBlock,
+        brokenType,
+        true,
+        player.targeting.targetNormal
+    );
 
     const InventoryItem brokenBlockDropItem =
         shouldDropBlockItemForTool(harvestTool, brokenType)

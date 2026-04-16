@@ -1,11 +1,11 @@
 {
-  "id": "organic",
-  "display_name": "Organic",
-  "categories": ["terrain", "organic"],
+  "id": "yellowish_green_wool",
+  "display_name": "Yellowish-Green Wool",
+  "categories": ["decoration"],
   "replaceable": false,
   "placeable": true,
   "targetable": true,
-  "material_id": 5,
+  "material_id": 13,
   "properties": {
     "solid": true,
     "transparent": false,
@@ -13,15 +13,14 @@
     "emits_light": false,
     "has_entity": false,
     "preferred_tool": "axe",
-    "hardness": 0.75
+    "hardness": 3.0
   },
   "data": {
-    "drop_item": "block:organic",
-    "drop_without_tool": true,
-    "break_experience_multiplier": 0.0
+    "drop_item": "block:yellowish_green_wool",
+    "drop_without_tool": true
   },
   "render": {
-    "base_color": [1.07, 0.30, 0.16],
+    "base_color": [1.00, 1.00, 1.00],
     "shader": "shader.glsl",
     "texture": "texture.png"
   },

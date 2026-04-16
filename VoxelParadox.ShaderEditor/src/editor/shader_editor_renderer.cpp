@@ -70,6 +70,14 @@ void ShaderEditorRenderer::cleanup() {
     glDeleteBuffers(1, &cubeVbo_);
     cubeVbo_ = 0;
   }
+  if (worldVao_ != 0) {
+    glDeleteVertexArrays(1, &worldVao_);
+    worldVao_ = 0;
+  }
+  if (worldVbo_ != 0) {
+    glDeleteBuffers(1, &worldVbo_);
+    worldVbo_ = 0;
+  }
 
   destroyFramebuffer();
   cleanupBlockTextures();
@@ -83,15 +91,11 @@ void ShaderEditorRenderer::render(const Shader* activeShader, const Camera& came
   if (viewportSize.x <= 0 || viewportSize.y <= 0) {
     return;
   }
-  if (!ensureFramebuffer(viewportSize) || !ensureCubeGeometry()) {
+  if (!ensureFramebuffer(viewportSize)) {
     return;
   }
   if (!ensureBlockTexturesUpToDate()) {
     return;
-  }
-
-  if (settings.blockType != currentBlockType_) {
-    updateCubeGeometry(settings.blockType);
   }
 
   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
@@ -123,19 +127,46 @@ void ShaderEditorRenderer::render(const Shader* activeShader, const Camera& came
   shader.setFloat("uAlpha", 1.0f);
   shader.setFloat("uAoStrength", 1.0f);
   shader.setVec4("uBiomeTint", settings.biomeTint);
-  shader.setInt("uUseLocalMaterialSpace", 1);
-  shader.setVec3("uBreakBlockCenter", settings.breakBlockCenter);
   shader.setFloat("uBreakProgress", settings.breakState);
-  shader.setVec3("uHighlightBlockCenter", settings.breakBlockCenter);
   shader.setFloat("uHighlightActive", settings.highlightEnabled ? 1.0f : 0.0f);
   bindBlockTextures();
 
   glPolygonMode(GL_FRONT_AND_BACK, settings.wireframe ? GL_LINE : GL_FILL);
-  glBindVertexArray(cubeVao_);
-  glDrawArrays(GL_TRIANGLES, 0, 36);
-  glBindVertexArray(0);
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
+  if (settings.previewMode == PreviewMode::WORLD_CLUSTER) {
+    if (!ensureWorldClusterGeometry()) {
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      return;
+    }
+    if (settings.blockType != currentWorldBlockType_) {
+      updateWorldClusterGeometry(settings.blockType);
+    }
+    // World-space positions: the shader receives actual worldPos coordinates so
+    // seamless UV projections and cross-block effects behave exactly as in-game.
+    shader.setInt("uUseLocalMaterialSpace", 0);
+    // Center the break/highlight anchor on the middle block of the 3x3 cluster.
+    shader.setVec3("uBreakBlockCenter", glm::vec3(1.5f, 0.5f, 1.5f));
+    shader.setVec3("uHighlightBlockCenter", glm::vec3(1.5f, 0.5f, 1.5f));
+    glBindVertexArray(worldVao_);
+    glDrawArrays(GL_TRIANGLES, 0, worldClusterVertexCount_);
+    glBindVertexArray(0);
+  } else {
+    if (!ensureCubeGeometry()) {
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      return;
+    }
+    if (settings.blockType != currentBlockType_) {
+      updateCubeGeometry(settings.blockType);
+    }
+    shader.setInt("uUseLocalMaterialSpace", 1);
+    shader.setVec3("uBreakBlockCenter", settings.breakBlockCenter);
+    shader.setVec3("uHighlightBlockCenter", settings.breakBlockCenter);
+    glBindVertexArray(cubeVao_);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+  }
+
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
@@ -308,6 +339,97 @@ void ShaderEditorRenderer::updateCubeGeometry(BlockId blockType) {
   glBindBuffer(GL_ARRAY_BUFFER, cubeVbo_);
   glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices.data());
   currentBlockType_ = blockType;
+}
+
+bool ShaderEditorRenderer::ensureWorldClusterGeometry() {
+  if (worldVao_ != 0 && worldVbo_ != 0) {
+    return true;
+  }
+
+  glGenVertexArrays(1, &worldVao_);
+  glGenBuffers(1, &worldVbo_);
+  glBindVertexArray(worldVao_);
+  glBindBuffer(GL_ARRAY_BUFFER, worldVbo_);
+  glBufferData(GL_ARRAY_BUFFER,
+               sizeof(PreviewCubeVertex) * kWorldClusterVertexCount,
+               nullptr, GL_DYNAMIC_DRAW);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(PreviewCubeVertex),
+                        reinterpret_cast<void*>(offsetof(PreviewCubeVertex, position)));
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(PreviewCubeVertex),
+                        reinterpret_cast<void*>(offsetof(PreviewCubeVertex, normal)));
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(PreviewCubeVertex),
+                        reinterpret_cast<void*>(offsetof(PreviewCubeVertex, tint)));
+  glEnableVertexAttribArray(2);
+  glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(PreviewCubeVertex),
+                        reinterpret_cast<void*>(offsetof(PreviewCubeVertex, ao)));
+  glEnableVertexAttribArray(3);
+  glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(PreviewCubeVertex),
+                        reinterpret_cast<void*>(offsetof(PreviewCubeVertex, material)));
+  glEnableVertexAttribArray(4);
+  glBindVertexArray(0);
+
+  updateWorldClusterGeometry(BlockIds::STONE);
+  return true;
+}
+
+void ShaderEditorRenderer::updateWorldClusterGeometry(BlockId blockType) {
+  static const glm::vec3 normals[6] = {
+      {-1.f, 0.f, 0.f}, {1.f, 0.f, 0.f},
+      {0.f, -1.f, 0.f}, {0.f, 1.f, 0.f},
+      {0.f, 0.f, -1.f}, {0.f, 0.f, 1.f},
+  };
+  static const glm::vec3 faceVertices[6][6] = {
+      {{0, 0, 1}, {0, 1, 0}, {0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}},
+      {{1, 0, 0}, {1, 1, 1}, {1, 0, 1}, {1, 0, 0}, {1, 1, 0}, {1, 1, 1}},
+      {{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 0}, {1, 0, 1}, {0, 0, 1}},
+      {{0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {0, 1, 1}, {1, 1, 0}, {0, 1, 0}},
+      {{1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0}},
+      {{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 0, 1}, {1, 1, 1}, {0, 1, 1}},
+  };
+
+  const float material = getBlockMaterialId(blockType);
+
+  // Only generate faces that would be rendered in-game. Interior side faces
+  // (shared between adjacent same-type blocks) are culled by the chunk mesher
+  // and must be omitted here so block boundaries don't produce visible walls
+  // that the user would mistake for UV seams.
+  //   face 0 = -X: only at the left  boundary (gx == 0)
+  //   face 1 = +X: only at the right boundary (gx == 2)
+  //   face 2 = -Y: always (bottom)
+  //   face 3 = +Y: always (top)
+  //   face 4 = -Z: only at the front boundary (gz == 0)
+  //   face 5 = +Z: only at the back  boundary (gz == 2)
+  std::array<PreviewCubeVertex, kWorldClusterVertexCount> vertices{};
+  std::size_t vi = 0;
+
+  for (int gz = 0; gz < 3; ++gz) {
+    for (int gx = 0; gx < 3; ++gx) {
+      // Block (gx, gz) sits at world position [gx, gx+1] x [0,1] x [gz, gz+1].
+      const glm::vec3 blockOffset(static_cast<float>(gx), 0.f,
+                                  static_cast<float>(gz));
+      for (int face = 0; face < 6; ++face) {
+        if (face == 0 && gx != 0) continue;  // -X interior
+        if (face == 1 && gx != 2) continue;  // +X interior
+        if (face == 4 && gz != 0) continue;  // -Z interior
+        if (face == 5 && gz != 2) continue;  // +Z interior
+
+        const glm::vec4 tint = getBlockColor(blockType, 0, face);
+        for (int i = 0; i < 6; ++i) {
+          vertices[vi++] = {faceVertices[face][i] + blockOffset,
+                            normals[face], tint, 1.0f, material};
+        }
+      }
+    }
+  }
+
+  worldClusterVertexCount_ = static_cast<int>(vi);
+  glBindBuffer(GL_ARRAY_BUFFER, worldVbo_);
+  glBufferSubData(GL_ARRAY_BUFFER, 0,
+                  static_cast<GLsizeiptr>(sizeof(PreviewCubeVertex) * vi),
+                  vertices.data());
+  currentWorldBlockType_ = blockType;
 }
 
 } // namespace ShaderEditor

@@ -27,6 +27,12 @@
     <ClCompile Include="src\editor\shader_editor_renderer.cpp">
       <Filter>Editor</Filter>
     </ClCompile>
+    <ClCompile Include="src\editor\shader_node_editor.cpp">
+      <Filter>Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="src\editor\shader_node_graph.cpp">
+      <Filter>Editor</Filter>
+    </ClCompile>
     <ClCompile Include="..\VoxelParadox.Client\src\Renderer\render\cache\item_texture_cache.cpp">
       <Filter>Support</Filter>
     </ClCompile>
@@ -42,6 +48,12 @@
       <Filter>Editor</Filter>
     </ClInclude>
     <ClInclude Include="src\editor\shader_editor_renderer.hpp">
+      <Filter>Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="src\editor\shader_node_editor.hpp">
+      <Filter>Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="src\editor\shader_node_graph.hpp">
       <Filter>Editor</Filter>
     </ClInclude>
   </ItemGroup>

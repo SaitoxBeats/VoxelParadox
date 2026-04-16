@@ -20,6 +20,7 @@
 #include "gameplay/gameplay_events.hpp"
 #include "gameplay/gameplay_status.hpp"
 #include "player/player.hpp"
+#include "render/core/renderer.hpp"
 #include "render/hud/hud_portal_info.hpp"
 #include "render/hud/hud_portal_tracker.hpp"
 #include "runtime/state/game_chat.hpp"
@@ -94,7 +95,8 @@ void RuntimeSystem::dispatchEvents(
     EventQueue& eventQueue,
     GameplayStatus::System& gameplayStatus,
     GameChat& gameChat,
-    GameAudioController* audioController
+    GameAudioController* audioController,
+    Renderer* renderer
 ) {
     // --- 1. Drain Frame Events ---
     const std::vector<Event> events = eventQueue.drain();
@@ -110,6 +112,13 @@ void RuntimeSystem::dispatchEvents(
                 audioController->onBlockBroken(
                     event.blockType,
                     event.blockPosition
+                );
+            }
+            if (renderer) {
+                renderer->emitBlockBreakParticles(
+                    event.blockPosition,
+                    event.blockType,
+                    event.blockNormal
                 );
             }
             break;

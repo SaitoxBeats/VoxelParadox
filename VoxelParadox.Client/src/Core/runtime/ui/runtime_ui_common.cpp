@@ -181,14 +181,26 @@ void applyWindowSettings(RuntimeUiState& uiState, const GameSettings& settings) 
       RuntimeUI::appliedViewportSizeForSettings(settings);
   const glm::vec2 viewportSizeVec(static_cast<float>(viewportSize.x),
                                   static_cast<float>(viewportSize.y));
-  ENGINE::SETDEFAULTVIEWPORTSIZE(viewportSizeVec);
-  ENGINE::SETVIEWPORTSIZE(viewportSizeVec);
+  const ENGINE::VIEWPORTMODE currentMode = ENGINE::GETVIEWPORTMODE();
 
-  if (settings.windowMode != ENGINE::VIEWPORTMODE::FULLSCREEN) {
-    uiState.lastNonFullscreenMode = settings.windowMode;
+  ENGINE::SETDEFAULTVIEWPORTSIZE(viewportSizeVec);
+
+  if (settings.windowMode == ENGINE::VIEWPORTMODE::WINDOWMODE) {
+    if (currentMode != ENGINE::VIEWPORTMODE::WINDOWMODE) {
+      ENGINE::SETVIEWPORTMODE(settings.windowMode);
+    }
+    ENGINE::SETVIEWPORTSIZE(viewportSizeVec);
+    return;
   }
 
-  ENGINE::SETVIEWPORTMODE(settings.windowMode);
+  if (currentMode != settings.windowMode) {
+    ENGINE::SETVIEWPORTMODE(settings.windowMode);
+  } else if (settings.windowMode == ENGINE::VIEWPORTMODE::FULLSCREEN) {
+    ENGINE::SETVIEWPORTSIZE(viewportSizeVec);
+  }
+
+  uiState.lastNonFullscreenMode = settings.windowMode;
+  uiState.lastNonFullscreenResolution = viewportSize;
 }
 
 void stepRenderDistanceSelection(GameSettings& settings, int delta) {
@@ -323,6 +335,18 @@ void stepWindowModeSelection(GameSettings& settings, int delta) {
   settings.windowMode = modes[currentIndex];
 }
 
+// --- 1. Window Mode Memory ---
+void rememberLastNonFullscreenSettings(RuntimeUiState& uiState,
+                                       const GameSettings& settings) {
+  if (settings.windowMode == ENGINE::VIEWPORTMODE::WINDOWMODE) {
+    return;
+  }
+
+  uiState.lastNonFullscreenMode = settings.windowMode;
+  uiState.lastNonFullscreenResolution =
+      RuntimeUI::appliedViewportSizeForSettings(settings);
+}
+
 void toggleVSyncSelection(GameSettings& settings) {
   settings.vSyncEnabled = !settings.vSyncEnabled;
 }
@@ -440,6 +464,11 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
   }
 
   if (windowSettingsChanged) {
+    if (pendingSettings.windowMode == ENGINE::VIEWPORTMODE::WINDOWMODE &&
+        appliedSettings.windowMode != ENGINE::VIEWPORTMODE::WINDOWMODE) {
+      rememberLastNonFullscreenSettings(uiState, appliedSettings);
+    }
+
     applyWindowSettings(uiState, pendingSettings);
     std::printf("[Settings] Window mode: %s\n",
                 Bootstrap::viewportModeName(pendingSettings.windowMode));
@@ -541,10 +570,15 @@ void requestCloseSettingsMenu(RuntimeUiState& uiState,
 }
 
 void toggleFullscreen(RuntimeUiState& uiState, GameSettings& settings) {
-  settings.windowMode =
-      settings.windowMode == ENGINE::VIEWPORTMODE::FULLSCREEN
-          ? uiState.lastNonFullscreenMode
-          : ENGINE::VIEWPORTMODE::FULLSCREEN;
+  if (settings.windowMode == ENGINE::VIEWPORTMODE::WINDOWMODE) {
+    settings.windowMode = uiState.lastNonFullscreenMode;
+    settings.resolution = uiState.lastNonFullscreenResolution;
+  } else {
+    rememberLastNonFullscreenSettings(uiState, settings);
+    settings.windowMode = ENGINE::VIEWPORTMODE::WINDOWMODE;
+    settings.resolution = ClientDefaults::kDefaultWindowedResolution;
+  }
+
   applyWindowSettings(uiState, settings);
   RuntimeUI::saveGameSettings(settings);
   std::printf("[Settings] Window mode: %s\n",

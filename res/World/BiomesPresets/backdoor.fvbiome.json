@@ -30,8 +30,8 @@
         },
         "passage_chance": 0.7200000286102295,
         "passage_width": 5,
-        "primary": "membrane",
-        "secondary": "metal",
+        "primary": "yellowish_green_wool",
+        "secondary": "yellowish_green_wool",
         "story_height": 5,
         "wall_thickness": 1
       },

@@ -55,11 +55,13 @@ public:
     void emitBlockBroken(
         const glm::ivec3& blockPosition,
         BlockId blockType,
-        bool countStats = true
+        bool countStats = true,
+        const glm::ivec3& blockNormal = glm::ivec3(0)
     ) {
         Event event{};
         event.type = EventType::BlockBroken;
         event.blockPosition = blockPosition;
+        event.blockNormal = blockNormal;
         event.blockType = blockType;
         event.countStats = countStats;
         events_.push_back(event);

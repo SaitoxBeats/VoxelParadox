@@ -643,6 +643,7 @@ bool Renderer::init() {
     setupScreenQuad();
     setupItemSpriteQuad();
     setupDustParticles();
+    setupBlockBreakParticles();
 
     // --- 3. Render Assets ---
     if (!setupEntityAssets()) {
@@ -683,6 +684,7 @@ void Renderer::cleanup() {
     RendererInternal::deleteVertexArrayAndBuffer(screenQuadVAO, screenQuadVBO);
     RendererInternal::deleteVertexArrayAndBuffer(itemSpriteVAO, itemSpriteVBO);
     RendererInternal::deleteVertexArrayAndBuffer(dustParticleVAO, dustParticleVBO);
+    RendererInternal::deleteVertexArrayAndBuffer(blockBreakParticleVAO, blockBreakParticleVBO);
     cleanupBlockTextures();
     cleanupEntityAssets();
     cleanupBlockModelAssets();
@@ -698,7 +700,10 @@ void Renderer::cleanup() {
 
     itemTextureCache.clear();
     dustParticleScratch.clear();
+    blockBreakParticles_.clear();
+    blockBreakParticleVertices_.clear();
     dustParticleCapacity = 0;
+    blockBreakParticleVertexCapacity = 0;
     releaseSceneRenderTarget();
 
     // --- 3. Shader Programs ---
@@ -712,6 +717,7 @@ void Renderer::cleanup() {
 
     dustTransition = {};
     heldItemTransition = {};
+    blockBreakParticleTracking = {};
 }
 
 bool Renderer::setupBlockTextures() {
@@ -911,6 +917,7 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
     const float dt = glm::max(ENGINE::GETDELTATIME(), 0.0f);
     updateDustTransition(world, player, depth, dt);
     updateHeldItemTransition(world, player, depth, dt);
+    updateBlockBreakParticles(player, world, depth, dt);
 
     // --- 2. Camera & Target State ---
     Camera sceneCamera = player.camera;
@@ -1006,6 +1013,11 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
     if (world) {
         renderDroppedItems(*world, vp, sceneCamera.position, fog, depth, world->renderDistance,
             time, 1.0f);
+    }
+
+    if (world) {
+        renderBlockBreakParticles(*world, sceneCamera, vp, fog, depth, world->renderDistance,
+            time);
     }
 
     if (cloudsEnabled_ && world && world->biomePreset) {

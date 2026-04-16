@@ -51,6 +51,19 @@ public:
     apply(camera);
   }
 
+  // Positions the camera to frame the 3x3 world cluster preview (blocks at
+  // [0,3]x[0,1]x[0,3], center at (1.5, 0.5, 1.5)).
+  void resetForWorldCluster(Camera& camera) {
+    target_ = glm::vec3(1.5f, 0.5f, 1.5f);
+    yawRadians_ = glm::radians(35.0f);
+    pitchRadians_ = glm::radians(38.0f);
+    distance_ = 8.5f;
+    camera.baseFov = 60.0f;
+    camera.nearPlane = 0.05f;
+    camera.farPlane = 64.0f;
+    apply(camera);
+  }
+
   bool autoRotateEnabled() const { return autoRotateEnabled_; }
   void setAutoRotateEnabled(bool enabled) { autoRotateEnabled_ = enabled; }
 
@@ -79,7 +92,7 @@ private:
   float orbitSensitivity_ = 0.010f;
   bool autoRotateEnabled_ = true;
   bool manualControlEnabled_ = true;
-  float autoRotateSpeed_ = 0.70f;
+  float autoRotateSpeed_ = 0.20f;
 
   void apply(Camera& camera) const {
     const float cosPitch = std::cos(pitchRadians_);

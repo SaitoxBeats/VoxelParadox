@@ -128,7 +128,7 @@
         "min_y": 64,
         "opacity": 0.3799999952316284,
         "render_distance": 6,
-        "speed": 2.0,
+        "speed": 0.25,
         "vertical_jitter": 12,
         "vertical_spacing": 96
       },

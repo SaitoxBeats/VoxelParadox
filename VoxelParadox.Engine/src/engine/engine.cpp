@@ -255,7 +255,7 @@ glm::ivec2 resolveCenteredWindowPos(GLFWmonitor* monitor,
 }
 
 void syncWindowState() {
-  // O estado em cache precisa refletir a janela real para menus de settings e HUD usarem dados corretos.
+  // The cached state must reflect the real window so settings and HUD read the right data.
   refreshMonitorSize();
   if (!attachedWindow) return;
 
@@ -268,7 +268,7 @@ void syncWindowState() {
   int posX = 0, posY = 0;
   glfwGetWindowPos(attachedWindow, &posX, &posY);
   windowPos = glm::vec2(static_cast<float>(posX), static_cast<float>(posY));
-  if (viewportMode != VIEWPORTMODE::FULLSCREEN) {
+  if (viewportMode == VIEWPORTMODE::WINDOWMODE) {
     lastWindowedPos = windowPos;
 
     int winW = 0, winH = 0;
@@ -288,7 +288,7 @@ void framebufferSizeCallback(GLFWwindow*, int width, int height) {
 
 void windowPosCallback(GLFWwindow*, int x, int y) {
   windowPos = glm::vec2(static_cast<float>(x), static_cast<float>(y));
-  if (viewportMode != VIEWPORTMODE::FULLSCREEN) {
+  if (viewportMode == VIEWPORTMODE::WINDOWMODE) {
     lastWindowedPos = windowPos;
   }
 }
@@ -507,7 +507,7 @@ void SETVIEWPORTSIZE(const glm::vec2& size) {
   if (size.x <= 0.0f || size.y <= 0.0f) return;
 
   viewportSize = size;
-  if (viewportMode != VIEWPORTMODE::FULLSCREEN) {
+  if (viewportMode == VIEWPORTMODE::WINDOWMODE) {
     lastWindowedSize = size;
   }
 
@@ -516,7 +516,21 @@ void SETVIEWPORTSIZE(const glm::vec2& size) {
   if (viewportMode == VIEWPORTMODE::FULLSCREEN) {
     applyWindowMode();
   } else {
-    glfwSetWindowSize(attachedWindow, toInt(size.x, 1280), toInt(size.y, 720));
+    const int windowWidth = toInt(size.x, 1280);
+    const int windowHeight = toInt(size.y, 720);
+    glfwSetWindowSize(attachedWindow, windowWidth, windowHeight);
+
+    if (viewportMode == VIEWPORTMODE::WINDOWMODE) {
+      GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+      const GLFWvidmode* videoMode =
+          primaryMonitor ? glfwGetVideoMode(primaryMonitor) : nullptr;
+      if (primaryMonitor && videoMode) {
+        const glm::ivec2 centeredPos = resolveCenteredWindowPos(
+            primaryMonitor, videoMode, glm::ivec2(windowWidth, windowHeight));
+        glfwSetWindowPos(attachedWindow, centeredPos.x, centeredPos.y);
+      }
+    }
+
     syncWindowState();
   }
 }

@@ -37,10 +37,16 @@ struct Context {
     void emitBlockBroken(
         const glm::ivec3& blockPosition,
         BlockId blockType,
-        bool countStats = true
+        bool countStats = true,
+        const glm::ivec3& blockNormal = glm::ivec3(0)
     ) const {
         if (eventQueue) {
-            eventQueue->emitBlockBroken(blockPosition, blockType, countStats);
+            eventQueue->emitBlockBroken(
+                blockPosition,
+                blockType,
+                countStats,
+                blockNormal
+            );
         }
     }
 

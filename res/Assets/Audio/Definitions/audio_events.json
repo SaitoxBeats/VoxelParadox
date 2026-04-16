@@ -73,6 +73,21 @@
       "max_concurrency": 3
     },
     {
+      "id": "player.landing.impact",
+      "category": "player",
+      "clips": [
+        "Sounds/Player/player_landing_impact.mp3"
+      ],
+      "base_gain": 0.8,
+      "pitch_range": [ 0.69, 1.0 ],
+      "volume_range": [ 0.96, 1.00 ],
+      "positional": true,
+      "reference_distance": 2.0,
+      "max_distance": 20.0,
+      "rolloff_factor": 0.8,
+      "max_concurrency": 3
+    },
+    {
       "id": "enemy.trigger.activate",
       "category": "hostile",
       "clips": [
@@ -81,7 +96,7 @@
       "base_gain": 2.5,
       "pitch_range": [ 1.8, 1.8 ],
       "volume_range": [ 1.0, 1.0 ],
-      "positional": false,
+      "positional": true,
       "reference_distance": 3.0,
       "max_distance": 42.0,
       "rolloff_factor": 1.0,
@@ -455,6 +470,52 @@
         "Sounds/Blocks/crystal/place2.ogg",
         "Sounds/Blocks/crystal/place3.ogg",
         "Sounds/Blocks/crystal/place4.ogg"
+      ],
+      "base_gain": 0.8,
+      "pitch_range": [ 0.99, 1.05 ],
+      "volume_range": [ 0.95, 1.04 ],
+      "positional": true,
+      "max_concurrency": 8
+    },
+    {
+      "id": "block.yellowish_green_wool.place",
+      "category": "block",
+      "clips": [
+        "Sounds/Blocks/wool/Cloth_dig1.ogg",
+        "Sounds/Blocks/wool/Cloth_dig2.ogg",
+        "Sounds/Blocks/wool/Cloth_dig3.ogg",
+        "Sounds/Blocks/wool/Cloth_dig4.ogg"
+      ],
+      "base_gain": 0.8,
+      "pitch_range": [ 0.99, 1.05 ],
+      "volume_range": [ 0.95, 1.04 ],
+      "positional": true,
+      "max_concurrency": 8
+    },
+    {
+      "id": "block.yellowish_green_wool.break",
+      "category": "block",
+      "clips": [
+        "Sounds/Blocks/wool/Cloth_dig1.ogg",
+        "Sounds/Blocks/wool/Cloth_dig2.ogg",
+        "Sounds/Blocks/wool/Cloth_dig3.ogg",
+        "Sounds/Blocks/wool/Cloth_dig4.ogg"
+      ],
+      "base_gain": 0.8,
+      "pitch_range": [ 0.99, 1.05 ],
+      "volume_range": [ 0.95, 1.04 ],
+      "positional": true,
+      "max_concurrency": 8
+    }
+    ,
+    {
+      "id": "footstep.yellowish_green_wool",
+      "category": "footsteps",
+      "clips": [
+        "Sounds/Blocks/wool/Cloth_dig1.ogg",
+        "Sounds/Blocks/wool/Cloth_dig2.ogg",
+        "Sounds/Blocks/wool/Cloth_dig3.ogg",
+        "Sounds/Blocks/wool/Cloth_dig4.ogg"
       ],
       "base_gain": 0.8,
       "pitch_range": [ 0.99, 1.05 ],

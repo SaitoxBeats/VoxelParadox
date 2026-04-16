@@ -2,24 +2,28 @@
 // Unity mental model: this is the "items and overlays" slice of the renderer.
 // It draws HUD previews, the equipped item, volumetric dust, and dropped blocks.
 
-#include "render/core/renderer.hpp"
-
+// 1. Standard Library
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <string>
+#include <vector>
 
+// 2. Third-party Libraries
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "render/config/dust_particle_config.hpp"
-#include "render/config/hand_animation_config.hpp"
+// 3. Local Project Modules
 #include "engine/camera.hpp"
 #include "engine/engine.hpp"
-#include "render/config/hotbar_preview_config.hpp"
-#include "render/hud/hud.hpp"
 #include "render/cache/item_texture_cache.hpp"
+#include "render/config/dust_particle_config.hpp"
+#include "render/config/hand_animation_config.hpp"
+#include "render/config/hotbar_preview_config.hpp"
+#include "render/core/renderer.hpp"
 #include "render/core/renderer_internal.hpp"
+#include "render/hud/hud.hpp"
 #include "world/generation/chunk.hpp"
 #include "world/generation/fractal_world.hpp"
 
@@ -64,6 +68,106 @@ glm::vec3 buildDroppedModelCenter(const glm::vec3& itemPosition, float time, flo
 float smooth01(float value) {
     const float clamped = glm::clamp(value, 0.0f, 1.0f);
     return clamped * clamped * (3.0f - 2.0f * clamped);
+}
+
+constexpr int kBreakingParticleStartCount = 6;
+constexpr int kBreakingParticleProgressCount = 3;
+constexpr int kBreakingParticleFinishCount = 34;
+constexpr int kBreakingParticleMaxCount = 192;
+constexpr std::size_t kBreakingParticleInitialVertexCapacity = 1024;
+constexpr float kBreakingParticleEmissionInterval = 0.055f;
+constexpr float kBreakingParticleProgressInterval = 0.12f;
+constexpr float kBreakingParticleGravity = 5.8f;
+constexpr float kBreakingParticleDrag = 0.985f;
+constexpr float kBreakingParticleFaceOffset = 0.515f;
+constexpr float kBreakingParticleFaceSpread = 0.82f;
+constexpr float kBreakingParticleBaseLifetime = 0.46f;
+constexpr float kBreakingParticleFinishLifetime = 0.74f;
+constexpr float kBreakingParticleBaseSpeed = 1.65f;
+constexpr float kBreakingParticleFinishSpeed = 3.15f;
+constexpr float kBreakingParticleMinSize = 0.055f;
+constexpr float kBreakingParticleMaxSize = 0.105f;
+constexpr float kBreakingParticleFinishMinSize = 0.065f;
+constexpr float kBreakingParticleFinishMaxSize = 0.145f;
+constexpr float kTwoPi = 6.28318530718f;
+
+glm::vec3 safeNormalize(const glm::vec3& value, const glm::vec3& fallback) {
+    const float lengthSq = glm::dot(value, value);
+    if (lengthSq <= 1e-6f) {
+        return fallback;
+    }
+
+    return value * (1.0f / std::sqrt(lengthSq));
+}
+
+glm::vec3 randomUnitDirection(float rx, float ry) {
+    const float z = rx * 2.0f - 1.0f;
+    const float radius = std::sqrt(glm::max(0.0f, 1.0f - z * z));
+    const float angle = ry * kTwoPi;
+    return glm::vec3(std::cos(angle) * radius, z, std::sin(angle) * radius);
+}
+
+glm::vec3 chooseFallbackFaceNormal(std::uint32_t hash) {
+    switch (hash % 6u) {
+    case 0u:
+        return glm::vec3(-1.0f, 0.0f, 0.0f);
+    case 1u:
+        return glm::vec3(1.0f, 0.0f, 0.0f);
+    case 2u:
+        return glm::vec3(0.0f, -1.0f, 0.0f);
+    case 3u:
+        return glm::vec3(0.0f, 1.0f, 0.0f);
+    case 4u:
+        return glm::vec3(0.0f, 0.0f, -1.0f);
+    default:
+        return glm::vec3(0.0f, 0.0f, 1.0f);
+    }
+}
+
+void buildParticleBasis(const glm::vec3& normal, glm::vec3& tangent, glm::vec3& bitangent) {
+    const glm::vec3 helper =
+        std::fabs(normal.y) < 0.92f ? glm::vec3(0.0f, 1.0f, 0.0f)
+                                    : glm::vec3(1.0f, 0.0f, 0.0f);
+    tangent = safeNormalize(glm::cross(helper, normal), glm::vec3(1.0f, 0.0f, 0.0f));
+    bitangent = safeNormalize(glm::cross(normal, tangent), glm::vec3(0.0f, 0.0f, 1.0f));
+}
+
+void appendBlockBreakParticleQuad(
+    std::vector<Renderer::BlockBreakParticleVertex>& vertices,
+    const Renderer::BlockBreakParticle& particle,
+    int depth
+) {
+    const float lifetimeT =
+        glm::clamp(particle.age / glm::max(particle.lifetime, 0.001f), 0.0f, 1.0f);
+    const float scaleFade = 1.0f - smooth01(glm::clamp((lifetimeT - 0.62f) / 0.38f, 0.0f, 1.0f));
+    const float halfSize = particle.size * glm::max(0.08f, scaleFade) * 0.5f;
+
+    const float sinRotation = std::sin(particle.rotation);
+    const float cosRotation = std::cos(particle.rotation);
+    const glm::vec3 right =
+        (particle.tangent * cosRotation + particle.bitangent * sinRotation) * halfSize;
+    const glm::vec3 up =
+        (-particle.tangent * sinRotation + particle.bitangent * cosRotation) * halfSize;
+    const glm::vec4 color = getBlockColor(particle.blockType, depth, 0);
+    const float material = getBlockMaterialId(particle.blockType);
+
+    const glm::vec3 corners[4] = {
+        particle.position - right - up,
+        particle.position + right - up,
+        particle.position + right + up,
+        particle.position - right + up,
+    };
+
+    const int indices[6] = {0, 1, 2, 0, 2, 3};
+    for (const int index : indices) {
+        vertices.push_back({
+            corners[index],
+            particle.normal,
+            color,
+            1.0f,
+            material,
+        });
+    }
 }
 
 }  // namespace
@@ -683,6 +787,73 @@ void Renderer::setupDustParticles() {
     glBindVertexArray(0);
 }
 
+void Renderer::setupBlockBreakParticles() {
+    glGenVertexArrays(1, &blockBreakParticleVAO);
+    glGenBuffers(1, &blockBreakParticleVBO);
+    glBindVertexArray(blockBreakParticleVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, blockBreakParticleVBO);
+
+    blockBreakParticleVertexCapacity = kBreakingParticleInitialVertexCapacity;
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        sizeof(BlockBreakParticleVertex) * blockBreakParticleVertexCapacity,
+        nullptr,
+        GL_DYNAMIC_DRAW
+    );
+
+    glVertexAttribPointer(
+        0,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(BlockBreakParticleVertex),
+        reinterpret_cast<void*>(offsetof(BlockBreakParticleVertex, position))
+    );
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(
+        1,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(BlockBreakParticleVertex),
+        reinterpret_cast<void*>(offsetof(BlockBreakParticleVertex, normal))
+    );
+    glEnableVertexAttribArray(1);
+
+    glVertexAttribPointer(
+        2,
+        4,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(BlockBreakParticleVertex),
+        reinterpret_cast<void*>(offsetof(BlockBreakParticleVertex, color))
+    );
+    glEnableVertexAttribArray(2);
+
+    glVertexAttribPointer(
+        3,
+        1,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(BlockBreakParticleVertex),
+        reinterpret_cast<void*>(offsetof(BlockBreakParticleVertex, ao))
+    );
+    glEnableVertexAttribArray(3);
+
+    glVertexAttribPointer(
+        4,
+        1,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(BlockBreakParticleVertex),
+        reinterpret_cast<void*>(offsetof(BlockBreakParticleVertex, material))
+    );
+    glEnableVertexAttribArray(4);
+
+    glBindVertexArray(0);
+}
+
 std::uint32_t Renderer::hash4i(int x, int y, int z, int w) const {
     std::uint32_t hash = 0x9E3779B9u;
     hash ^= static_cast<std::uint32_t>(x) * 0x85EBCA6Bu;
@@ -699,6 +870,283 @@ std::uint32_t Renderer::hash4i(int x, int y, int z, int w) const {
 
 float Renderer::hash01(std::uint32_t value) const {
     return static_cast<float>(value & 0x00FFFFFFu) / static_cast<float>(0x01000000u);
+}
+
+void Renderer::emitBlockBreakParticles(
+    const glm::ivec3& blockPosition,
+    BlockId blockType,
+    const glm::ivec3& blockNormal
+) {
+    if (blockType == BlockIds::AIR) {
+        return;
+    }
+
+    spawnBlockBreakParticles(
+        blockPosition,
+        blockType,
+        blockNormal,
+        kBreakingParticleFinishCount,
+        true
+    );
+}
+
+void Renderer::spawnBlockBreakParticles(
+    const glm::ivec3& blockPosition,
+    BlockId blockType,
+    const glm::ivec3& blockNormal,
+    int particleCount,
+    bool finishBurst
+) {
+    if (blockType == BlockIds::AIR || particleCount <= 0) {
+        return;
+    }
+
+    const glm::vec3 blockCenter = glm::vec3(blockPosition) + glm::vec3(0.5f);
+    const std::uint32_t baseSerial = blockBreakParticleTracking.emissionSerial++;
+
+    for (int index = 0; index < particleCount; ++index) {
+        const std::uint32_t hash =
+            hash4i(blockPosition.x, blockPosition.y, blockPosition.z,
+                   static_cast<int>(baseSerial * 131u + static_cast<std::uint32_t>(index)));
+
+        glm::vec3 normal = glm::vec3(blockNormal);
+        if (glm::dot(normal, normal) <= 1e-6f) {
+            normal = chooseFallbackFaceNormal(hash);
+        } else {
+            normal = safeNormalize(normal, glm::vec3(0.0f, 1.0f, 0.0f));
+        }
+
+        if (finishBurst && (hash & 1u) != 0u) {
+            normal = randomUnitDirection(
+                hash01(hash ^ 0x52F4A713u),
+                hash01(hash ^ 0x8C2C5C5Du)
+            );
+        }
+
+        glm::vec3 tangent(1.0f, 0.0f, 0.0f);
+        glm::vec3 bitangent(0.0f, 0.0f, 1.0f);
+        buildParticleBasis(normal, tangent, bitangent);
+
+        const float offsetU = (hash01(hash ^ 0x11C9F3A5u) - 0.5f) *
+            kBreakingParticleFaceSpread;
+        const float offsetV = (hash01(hash ^ 0x3D7E5B21u) - 0.5f) *
+            kBreakingParticleFaceSpread;
+        const float faceJitter = finishBurst
+            ? (hash01(hash ^ 0x5F7B9D31u) - 0.5f) * 0.32f
+            : 0.0f;
+
+        BlockBreakParticle particle{};
+        particle.position =
+            blockCenter +
+            normal * (kBreakingParticleFaceOffset + faceJitter) +
+            tangent * offsetU +
+            bitangent * offsetV;
+        particle.normal = normal;
+        particle.tangent = tangent;
+        particle.bitangent = bitangent;
+        particle.blockType = blockType;
+        particle.lifetime =
+            (finishBurst ? kBreakingParticleFinishLifetime : kBreakingParticleBaseLifetime) *
+            (0.82f + hash01(hash ^ 0xA1F62B99u) * 0.42f);
+        particle.size = glm::mix(
+            finishBurst ? kBreakingParticleFinishMinSize : kBreakingParticleMinSize,
+            finishBurst ? kBreakingParticleFinishMaxSize : kBreakingParticleMaxSize,
+            hash01(hash ^ 0xC4B1E72Du)
+        );
+        particle.rotation = hash01(hash ^ 0x9C9277B5u) * kTwoPi;
+        particle.angularVelocity =
+            (hash01(hash ^ 0x735A2D13u) - 0.5f) * (finishBurst ? 16.0f : 9.0f);
+
+        const float speed =
+            (finishBurst ? kBreakingParticleFinishSpeed : kBreakingParticleBaseSpeed) *
+            (0.65f + hash01(hash ^ 0xE4137AA7u) * 0.75f);
+        particle.velocity =
+            normal * speed +
+            tangent * ((hash01(hash ^ 0x8DBB792Fu) - 0.5f) * speed * 0.55f) +
+            bitangent * ((hash01(hash ^ 0x2B2766C5u) - 0.5f) * speed * 0.55f) +
+            glm::vec3(0.0f, finishBurst ? 0.75f : 0.22f, 0.0f);
+
+        blockBreakParticles_.push_back(particle);
+    }
+
+    if (blockBreakParticles_.size() > kBreakingParticleMaxCount) {
+        const std::size_t overflow =
+            blockBreakParticles_.size() - kBreakingParticleMaxCount;
+        blockBreakParticles_.erase(
+            blockBreakParticles_.begin(),
+            blockBreakParticles_.begin() + static_cast<std::ptrdiff_t>(overflow)
+        );
+    }
+}
+
+void Renderer::updateBlockBreakParticles(
+    const Player& player,
+    FractalWorld* world,
+    int depth,
+    float dt
+) {
+    const std::uint64_t currentWorldKey = makeDustWorldKey(world, depth);
+    if (!blockBreakParticleTracking.initialized) {
+        blockBreakParticleTracking.initialized = true;
+        blockBreakParticleTracking.worldKey = currentWorldKey;
+    }
+
+    if (currentWorldKey != blockBreakParticleTracking.worldKey) {
+        blockBreakParticleTracking = {};
+        blockBreakParticleTracking.initialized = true;
+        blockBreakParticleTracking.worldKey = currentWorldKey;
+        blockBreakParticles_.clear();
+        blockBreakParticleVertices_.clear();
+    }
+
+    for (BlockBreakParticle& particle : blockBreakParticles_) {
+        particle.age += dt;
+        particle.velocity.y -= kBreakingParticleGravity * dt;
+        particle.velocity *= std::pow(kBreakingParticleDrag, glm::max(dt * 60.0f, 0.0f));
+        particle.position += particle.velocity * dt;
+        particle.rotation += particle.angularVelocity * dt;
+    }
+
+    blockBreakParticles_.erase(
+        std::remove_if(
+            blockBreakParticles_.begin(),
+            blockBreakParticles_.end(),
+            [](const BlockBreakParticle& particle) {
+                return particle.age >= particle.lifetime;
+            }
+        ),
+        blockBreakParticles_.end()
+    );
+
+    const bool breakingTarget =
+        world &&
+        player.hasTargetBlock() &&
+        player.isBreakingTargetBlock() &&
+        player.getBreakingBlock() == player.getTargetBlock();
+
+    if (!breakingTarget) {
+        blockBreakParticleTracking.tracking = false;
+        return;
+    }
+
+    const glm::ivec3 blockPosition = player.getBreakingBlock();
+    const BlockId blockType = player.getBreakingBlockType();
+    const glm::ivec3 blockNormal = player.getTargetNormal();
+    const float progress = player.getBreakingProgress();
+
+    const bool changedTarget =
+        !blockBreakParticleTracking.tracking ||
+        blockBreakParticleTracking.blockPosition != blockPosition ||
+        blockBreakParticleTracking.blockType != blockType;
+
+    if (changedTarget) {
+        blockBreakParticleTracking.tracking = true;
+        blockBreakParticleTracking.blockPosition = blockPosition;
+        blockBreakParticleTracking.blockNormal = blockNormal;
+        blockBreakParticleTracking.blockType = blockType;
+        blockBreakParticleTracking.lastProgress = progress;
+        blockBreakParticleTracking.nextProgressEmission = kBreakingParticleProgressInterval;
+        blockBreakParticleTracking.emissionTimer = 0.0f;
+
+        spawnBlockBreakParticles(
+            blockPosition,
+            blockType,
+            blockNormal,
+            kBreakingParticleStartCount,
+            false
+        );
+        return;
+    }
+
+    blockBreakParticleTracking.blockNormal = blockNormal;
+    blockBreakParticleTracking.emissionTimer += dt;
+
+    if (progress >= blockBreakParticleTracking.nextProgressEmission ||
+        blockBreakParticleTracking.emissionTimer >= kBreakingParticleEmissionInterval) {
+        spawnBlockBreakParticles(
+            blockPosition,
+            blockType,
+            blockNormal,
+            kBreakingParticleProgressCount,
+            false
+        );
+
+        blockBreakParticleTracking.nextProgressEmission =
+            glm::min(progress + kBreakingParticleProgressInterval, 1.0f);
+        blockBreakParticleTracking.emissionTimer = 0.0f;
+    }
+
+    blockBreakParticleTracking.lastProgress = progress;
+}
+
+void Renderer::renderBlockBreakParticles(
+    const FractalWorld& world,
+    const Camera& cam,
+    const glm::mat4& vp,
+    const glm::vec4& fog,
+    int depth,
+    int renderDistance,
+    float time
+) {
+    if (blockBreakParticles_.empty()) {
+        return;
+    }
+
+    blockBreakParticleVertices_.clear();
+    blockBreakParticleVertices_.reserve(blockBreakParticles_.size() * 6);
+
+    for (const BlockBreakParticle& particle : blockBreakParticles_) {
+        appendBlockBreakParticleQuad(blockBreakParticleVertices_, particle, depth);
+    }
+
+    if (blockBreakParticleVertices_.empty()) {
+        return;
+    }
+
+    if (blockBreakParticleVertices_.size() > blockBreakParticleVertexCapacity) {
+        blockBreakParticleVertexCapacity = blockBreakParticleVertices_.size() + 384;
+        glBindBuffer(GL_ARRAY_BUFFER, blockBreakParticleVBO);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            sizeof(BlockBreakParticleVertex) * blockBreakParticleVertexCapacity,
+            nullptr,
+            GL_DYNAMIC_DRAW
+        );
+    }
+
+    blockShader.use();
+    blockShader.setMat4("uVP", vp);
+    blockShader.setMat4("uModel", glm::mat4(1.0f));
+    blockShader.setVec3("uCameraPos", cam.position);
+    blockShader.setVec4("uFogColor", fog);
+    blockShader.setFloat("uFogDensity", computeFogDensity(depth, renderDistance));
+    blockShader.setFloat("uTime", time);
+    blockShader.setFloat("uAlpha", 1.0f);
+    blockShader.setFloat("uAoStrength", 1.0f);
+    blockShader.setVec4("uBiomeTint", getBiomeMaterialTint(&world, depth));
+    blockShader.setInt("uUseLocalMaterialSpace", 0);
+    blockShader.setInt("uPointLightCount", 0);
+    bindBlockTextures();
+    setBreakEffectUniforms(glm::vec3(0.0f), 0.0f);
+    setHighlightEffectUniforms(glm::vec3(0.0f), 0.0f);
+
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_CULL_FACE);
+
+    glBindVertexArray(blockBreakParticleVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, blockBreakParticleVBO);
+    glBufferSubData(
+        GL_ARRAY_BUFFER,
+        0,
+        blockBreakParticleVertices_.size() * sizeof(BlockBreakParticleVertex),
+        blockBreakParticleVertices_.data()
+    );
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(blockBreakParticleVertices_.size()));
+    glBindVertexArray(0);
+
+    glEnable(GL_CULL_FACE);
 }
 
 void Renderer::renderDustParticles(FractalWorld& world, const Camera& cam,

@@ -438,7 +438,8 @@ namespace RuntimeAppInternal {
                 gameplayEventQueue,
                 gameplayStatus,
                 gameChat,
-                &audioController
+                &audioController,
+                &renderer
             );
             gameChat.syncHudState();
 
@@ -450,7 +451,8 @@ namespace RuntimeAppInternal {
                     gameplayEventQueue,
                     gameplayStatus,
                     gameChat,
-                    &audioController
+                    &audioController,
+                    &renderer
                 );
             }
 
@@ -532,7 +534,8 @@ namespace RuntimeAppInternal {
                     gameplayEventQueue,
                     gameplayStatus,
                     gameChat,
-                    &audioController
+                    &audioController,
+                    &renderer
                 );
                 lastAutosavePlaytimeSeconds = gameplayStatus.playtimeSeconds();
             }

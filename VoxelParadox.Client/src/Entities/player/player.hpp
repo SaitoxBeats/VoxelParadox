@@ -161,8 +161,8 @@ public:
 
     struct LandingImpactDetectorSettings {
         bool enabled = true;
-        float minImpactSpeed = 7.5f;
-        float maxImpactSpeed = 22.0f;
+        float minImpactSpeed = 15.5f;
+        float maxImpactSpeed = 60.0f;
         float soundGainMin = 0.72f;
         float soundGainMax = 1.28f;
         float soundPitchMin = 0.92f;

@@ -12,6 +12,7 @@
     { "value": 9, "id": "membrane_wire", "folder": "membrane_wire" },
     { "value": 10, "id": "atlas_demo", "folder": "atlas_demo" },
     { "value": 11, "id": "cloud_chunk", "folder": "cloud_chunk" },
-    { "value": 12, "id": "algo", "folder": "algo" }
+    { "value": 12, "id": "algo", "folder": "algo" },
+    { "value": 13, "id": "yellowish_green_wool", "folder": "yellowish_green_wool" }
   ]
 }

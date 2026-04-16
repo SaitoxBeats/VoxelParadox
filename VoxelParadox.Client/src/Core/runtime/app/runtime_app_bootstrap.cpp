@@ -146,9 +146,10 @@ RuntimeSettingsBundle loadRuntimeSettings(std::string* outLoadError) {
   bundle.pending = bundle.applied;
   RuntimeUI::saveGameSettings(bundle.applied);
   bundle.uiState.lastNonFullscreenMode =
-      bundle.applied.windowMode == ENGINE::VIEWPORTMODE::FULLSCREEN
+      bundle.applied.windowMode == ENGINE::VIEWPORTMODE::WINDOWMODE
           ? ENGINE::VIEWPORTMODE::BORDERLESS
           : bundle.applied.windowMode;
+  bundle.uiState.lastNonFullscreenResolution = bundle.applied.resolution;
   return bundle;
 }
 

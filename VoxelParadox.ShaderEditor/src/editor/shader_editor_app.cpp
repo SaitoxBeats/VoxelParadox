@@ -7,6 +7,7 @@
 // 1. Standard Library
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 
 // 2. Third-party Libraries
 #include <glad/glad.h>
@@ -16,6 +17,7 @@
 #include "engine/engine.hpp"
 #include "engine/input.hpp"
 #include "path/app_paths.hpp"
+#include "world/block/block_registry.hpp"
 
 // 4. Local Project Modules
 #include "shader_editor_app.hpp"
@@ -150,6 +152,7 @@ namespace ShaderEditor {
         Input::setCursorVisible(true);
         orbitCamera_.reset(camera_);
         shaderSession_.initialize(0.0);
+        nodeEditor_.init();
 
         return true;
     }
@@ -179,6 +182,7 @@ namespace ShaderEditor {
         drawPreviewWindow(dtSeconds, timeSeconds);
         drawControlsWindow();
         drawDiagnosticsWindow();
+        drawNodeEditorWindow();
     }
 
     void ShaderEditorApp::drawDockspace() {
@@ -297,6 +301,22 @@ namespace ShaderEditor {
             return;
         }
 
+        // Preview mode selector.
+        {
+            const bool isSingle = previewSettings_.previewMode == PreviewMode::SINGLE_BLOCK;
+            const bool isWorld  = previewSettings_.previewMode == PreviewMode::WORLD_CLUSTER;
+            if (ImGui::RadioButton("Single Block", isSingle) && !isSingle) {
+                previewSettings_.previewMode = PreviewMode::SINGLE_BLOCK;
+                orbitCamera_.reset(camera_);
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("At World Preview", isWorld) && !isWorld) {
+                previewSettings_.previewMode = PreviewMode::WORLD_CLUSTER;
+                orbitCamera_.resetForWorldCluster(camera_);
+            }
+        }
+        ImGui::Separator();
+
         if (drawBlockIdCombo("Preview Block", previewSettings_.blockType)) {
             shaderSession_.setPreviewBlock(previewSettings_.blockType, currentTimeSeconds_);
         }
@@ -384,6 +404,52 @@ namespace ShaderEditor {
         }
 
         ImGui::End();
+    }
+
+    void ShaderEditorApp::drawNodeEditorWindow() {
+        ShaderNodeEditorCallbacks callbacks{};
+        callbacks.currentBlockShaderPath = [this]() -> std::filesystem::path {
+            const std::filesystem::path& rel = shaderSession_.blockShaderPath();
+            if (rel.empty()) {
+                return {};
+            }
+            return AppPaths::resolve(rel);
+        };
+        callbacks.currentBlockDisplayName = [this]() -> std::string {
+            return std::string(getBlockDisplayName(shaderSession_.previewBlockId()));
+        };
+        callbacks.onApplyToBlock = [this](const std::filesystem::path& targetPath,
+                                          const std::string& glslBody,
+                                          std::string& outError) -> bool {
+            if (!writeBlockShaderFile(targetPath, glslBody, outError)) {
+                return false;
+            }
+            shaderSession_.requestReload(currentTimeSeconds_, "Node editor apply");
+            return true;
+        };
+
+        nodeEditor_.draw(callbacks);
+    }
+
+    bool ShaderEditorApp::writeBlockShaderFile(const std::filesystem::path& targetPath,
+                                               const std::string& glslBody,
+                                               std::string& outError) {
+        std::error_code ec;
+        std::filesystem::create_directories(targetPath.parent_path(), ec);
+
+        std::ofstream out(targetPath,
+                          std::ios::out | std::ios::binary | std::ios::trunc);
+        if (!out.is_open()) {
+            outError = "Failed to open " + targetPath.string() + " for writing.";
+            return false;
+        }
+        out.write(glslBody.data(), static_cast<std::streamsize>(glslBody.size()));
+        out.flush();
+        if (!out.good()) {
+            outError = "Write failed for " + targetPath.string();
+            return false;
+        }
+        return true;
     }
 
 #pragma endregion

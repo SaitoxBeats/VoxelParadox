@@ -10,6 +10,7 @@
 #include "block_shader_session.hpp"
 #include "orbit_camera_controller.hpp"
 #include "shader_editor_renderer.hpp"
+#include "shader_node_editor.hpp"
 
 namespace ShaderEditor {
 
@@ -27,6 +28,8 @@ private:
   PreviewRenderSettings previewSettings_{};
   double currentTimeSeconds_ = 0.0;
 
+  ShaderNodeEditor nodeEditor_{};
+
   bool initialize();
   void shutdown();
   std::filesystem::path editorIniPath() const;
@@ -37,8 +40,13 @@ private:
   void drawPreviewWindow(float dtSeconds, float timeSeconds);
   void drawControlsWindow();
   void drawDiagnosticsWindow();
+  void drawNodeEditorWindow();
 
   bool drawBlockIdCombo(const char* label, BlockId& blockId);
+
+  bool writeBlockShaderFile(const std::filesystem::path& targetPath,
+                            const std::string& glslBody,
+                            std::string& outError);
 };
 
 } // namespace ShaderEditor

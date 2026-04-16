@@ -407,6 +407,7 @@ void Player::triggerLandingImpactFeedback(FractalWorld* world, float impactSpeed
     if (!world || !landingImpactDetectorSettings.enabled) {
         return;
     }
+    //std::printf("[LandingImpact] impactSpeed=%.3f | velocity.y=%.3f\n", impactSpeed, velocity.y);
 
     const float impactAlpha = normalizeLandingImpact(
         impactSpeed,

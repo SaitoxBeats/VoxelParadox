@@ -49,6 +49,41 @@ public:
         float size = 2.0f;
     };
 
+    struct BlockBreakParticleVertex {
+        glm::vec3 position{ 0.0f };
+        glm::vec3 normal{ 0.0f, 1.0f, 0.0f };
+        glm::vec4 color{ 1.0f };
+        float ao = 1.0f;
+        float material = 0.0f;
+    };
+
+    struct BlockBreakParticle {
+        glm::vec3 position{ 0.0f };
+        glm::vec3 velocity{ 0.0f };
+        glm::vec3 normal{ 0.0f, 1.0f, 0.0f };
+        glm::vec3 tangent{ 1.0f, 0.0f, 0.0f };
+        glm::vec3 bitangent{ 0.0f, 0.0f, 1.0f };
+        BlockId blockType = BlockIds::AIR;
+        float age = 0.0f;
+        float lifetime = 0.5f;
+        float size = 0.08f;
+        float rotation = 0.0f;
+        float angularVelocity = 0.0f;
+    };
+
+    struct BlockBreakParticleTrackingState {
+        bool initialized = false;
+        std::uint64_t worldKey = 0;
+        bool tracking = false;
+        glm::ivec3 blockPosition{ 0 };
+        glm::ivec3 blockNormal{ 0 };
+        BlockId blockType = BlockIds::AIR;
+        float lastProgress = 0.0f;
+        float nextProgressEmission = 0.0f;
+        float emissionTimer = 0.0f;
+        std::uint32_t emissionSerial = 0;
+    };
+
     struct DustTransitionState {
         bool initialized = false;
         std::uint64_t worldKey = 0;
@@ -152,6 +187,12 @@ public:
     void render(WorldStack& worldStack, Player& player, float aspect, float time,
         bool wireframeMode = false, bool debugThirdPersonView = false);
 
+    void emitBlockBreakParticles(
+        const glm::ivec3& blockPosition,
+        BlockId blockType,
+        const glm::ivec3& blockNormal = glm::ivec3(0)
+    );
+
     void renderHUD3DOverlays(const Player& player, const FractalWorld* world, int depth, float time);
     void renderDeathScreenBackground(const glm::ivec2& screenSize, float timeSeconds,
         float vignetteExtra);
@@ -188,11 +229,15 @@ private:
     GLuint itemSpriteVBO = 0;
     GLuint dustParticleVAO = 0;
     GLuint dustParticleVBO = 0;
+    GLuint blockBreakParticleVAO = 0;
+    GLuint blockBreakParticleVBO = 0;
     std::vector<GLuint> blockTextures_{};
 
     std::size_t dustParticleCapacity = 0;
+    std::size_t blockBreakParticleVertexCapacity = 0;
     DustTransitionState dustTransition{};
     HeldItemTransitionState heldItemTransition{};
+    BlockBreakParticleTrackingState blockBreakParticleTracking{};
 
     LoadedEntityModel guyModel_{};
     std::unordered_map<int, LoadedObjBlockModel> customBlockModels_{};
@@ -200,6 +245,8 @@ private:
 
     std::unordered_map<ItemId, GLuint> itemTextureCache{};
     std::vector<DustParticleVertex> dustParticleScratch{};
+    std::vector<BlockBreakParticle> blockBreakParticles_{};
+    std::vector<BlockBreakParticleVertex> blockBreakParticleVertices_{};
     SceneRenderTarget sceneRenderTarget_{};
     float renderScale_ = 1.0f;
     bool advancedLightingEnabled_ = true;
@@ -269,8 +316,16 @@ private:
     // --- 6. Particles & Entities ---
 
     void setupDustParticles();
+    void setupBlockBreakParticles();
     std::uint32_t hash4i(int x, int y, int z, int w) const;
     float hash01(std::uint32_t value) const;
+    void updateBlockBreakParticles(const Player& player, FractalWorld* world, int depth,
+        float dt);
+    void spawnBlockBreakParticles(const glm::ivec3& blockPosition, BlockId blockType,
+        const glm::ivec3& blockNormal, int particleCount, bool finishBurst);
+    void renderBlockBreakParticles(const FractalWorld& world, const Camera& cam,
+        const glm::mat4& vp, const glm::vec4& fog, int depth,
+        int renderDistance, float time);
     void renderDustParticles(FractalWorld& world, const Camera& cam, const glm::mat4& vp,
         const glm::vec4& fog, int depth, float time, float visibilityAlpha);
 

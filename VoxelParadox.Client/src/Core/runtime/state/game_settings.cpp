@@ -215,6 +215,11 @@ void GameSettings::sanitize(
     resolution = defaultResolutionFallback(availableResolutions);
   }
 
+  if (windowMode == ENGINE::VIEWPORTMODE::BORDERLESS) {
+    // Borderless should always track the active monitor resolution.
+    resolution = defaultResolutionFallback(availableResolutions);
+  }
+
   if (!availableFonts.empty()) {
     auto matchesFont = [&](const std::string& candidate) {
       return toLower(candidate) == toLower(fontFile);

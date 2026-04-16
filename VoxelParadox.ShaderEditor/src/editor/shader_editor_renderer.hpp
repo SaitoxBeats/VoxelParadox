@@ -16,6 +16,11 @@
 
 namespace ShaderEditor {
 
+enum class PreviewMode {
+  SINGLE_BLOCK,   // One block orbited by the camera.
+  WORLD_CLUSTER,  // 3x3 flat ground layer; shows cross-block seamless behaviour.
+};
+
 struct PreviewRenderSettings {
   glm::vec4 backgroundColor{0.08f, 0.09f, 0.12f, 1.0f};
   glm::vec4 biomeTint{1.0f, 1.0f, 1.0f, 1.0f};
@@ -24,6 +29,7 @@ struct PreviewRenderSettings {
   float breakState = 0.0f;
   bool highlightEnabled = false;
   bool wireframe = false;
+  PreviewMode previewMode = PreviewMode::SINGLE_BLOCK;
 };
 
 class ShaderEditorRenderer {
@@ -54,8 +60,14 @@ private:
   GLuint depthStencilRenderbuffer_ = 0;
   GLuint cubeVao_ = 0;
   GLuint cubeVbo_ = 0;
+  GLuint worldVao_ = 0;
+  GLuint worldVbo_ = 0;
+  // Buffer sized for worst case (all faces). Actual draw count is tracked separately.
+  static constexpr int kWorldClusterVertexCount = 9 * 36;  // 3x3 blocks x 36 verts max
+  int worldClusterVertexCount_ = 0;
   glm::ivec2 viewportSize_{0};
   BlockId currentBlockType_ = BlockIds::AIR;
+  BlockId currentWorldBlockType_ = BlockIds::AIR;
   std::vector<std::filesystem::path> loadedBlockTexturePaths_{};
   std::vector<std::filesystem::file_time_type> loadedBlockTextureWriteTimes_{};
 
@@ -67,6 +79,8 @@ private:
   bool ensureFramebuffer(const glm::ivec2& size);
   bool ensureCubeGeometry();
   void updateCubeGeometry(BlockId blockType);
+  bool ensureWorldClusterGeometry();
+  void updateWorldClusterGeometry(BlockId blockType);
 };
 
 } // namespace ShaderEditor

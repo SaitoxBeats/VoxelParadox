@@ -7,6 +7,7 @@
 class GameChat;
 class GameAudioController;
 class hudPortalInfo;
+class Renderer;
 
 namespace GameplayStatus {
 class System;
@@ -30,7 +31,8 @@ public:
         EventQueue& eventQueue,
         GameplayStatus::System& gameplayStatus,
         GameChat& gameChat,
-        GameAudioController* audioController = nullptr
+        GameAudioController* audioController = nullptr,
+        Renderer* renderer = nullptr
     );
 };
 

@@ -6,6 +6,7 @@
 
 #include <glm/glm.hpp>
 
+#include "client_defaults.hpp"
 #include "engine/engine.hpp"
 
 struct GLFWwindow;
@@ -39,7 +40,9 @@ struct RuntimeUiState {
   float saveToastFadeInDuration = 0.18f;
   float saveToastFadeOutDuration = 0.32f;
   SettingsMenuTab activeSettingsTab = SettingsMenuTab::General;
+  // Cached mode and resolution restored when leaving windowed mode.
   ENGINE::VIEWPORTMODE lastNonFullscreenMode = ENGINE::VIEWPORTMODE::BORDERLESS;
+  glm::ivec2 lastNonFullscreenResolution{ClientDefaults::kDefaultWindowedResolution};
   std::size_t controlsCategoryIndex = 0;
   bool controlsCaptureOpen = false;
   bool controlsCaptureIgnoreMouseLeft = false;
