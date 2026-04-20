@@ -136,6 +136,31 @@ bool hasResolution(const std::vector<glm::ivec2>& resolutions,
                       }) != resolutions.end();
 }
 
+int sanitizeAntiAliasingSamples(int samples) {
+  for (const int option : ClientDefaults::kAntiAliasingSampleOptions) {
+    if (option == samples) {
+      return option;
+    }
+  }
+  return ClientDefaults::kDefaultAntiAliasingSamples;
+}
+
+int parseAntiAliasingSamplesToken(const std::string& token) {
+  const std::string lower = toLower(token);
+  if (lower == "off") {
+    return ClientDefaults::kDefaultAntiAliasingSamples;
+  }
+
+  if (!lower.empty() && lower.back() == 'x') {
+    const std::string numeric = lower.substr(0, lower.size() - 1);
+    if (!numeric.empty()) {
+      return sanitizeAntiAliasingSamples(std::atoi(numeric.c_str()));
+    }
+  }
+
+  return ClientDefaults::kDefaultAntiAliasingSamples;
+}
+
 #ifdef _WIN32
 std::optional<glm::ivec2> currentDisplayResolution() {
   DEVMODEW mode{};
@@ -207,6 +232,7 @@ void GameSettings::sanitize(
                            ClientDefaults::kMaxFieldOfView);
   renderScale = std::clamp(renderScale, ClientDefaults::kMinRenderScale,
                            ClientDefaults::kMaxRenderScale);
+  antiAliasingSamples = sanitizeAntiAliasingSamples(antiAliasingSamples);
   audioSettings.sanitize();
   fontFile = sanitizeFontFileName(fontFile);
   if (!isValidResolution(resolution) ||
@@ -266,11 +292,13 @@ bool GameSettings::save(std::string* outError) const {
       std::round(static_cast<double>(fieldOfView) * 10.0) / 10.0;
   json["renderScale"] =
       std::round(static_cast<double>(renderScale) * 1000.0) / 1000.0;
+  json["antiAliasingSamples"] = sanitizeAntiAliasingSamples(antiAliasingSamples);
   json["windowMode"] = windowModeToken(windowMode);
   json["vSyncEnabled"] = vSyncEnabled;
   json["showFpsCounterOnly"] = showFpsCounterOnly;
   json["advancedLightingEnabled"] = advancedLightingEnabled;
   json["cloudsEnabled"] = cloudsEnabled;
+  json["cloudQuality"] = VoxelGame::Clouds::cloudQualityId(cloudQuality);
   nlohmann::json categoryVolumes = nlohmann::json::object();
   nlohmann::json categoryMuted = nlohmann::json::object();
   for (ENGINE::AUDIO::SoundCategoryId category :
@@ -374,6 +402,15 @@ GameSettings GameSettings::load(std::string* outError) {
     if (json.contains("renderScale") && json["renderScale"].is_number()) {
       settings.renderScale = json["renderScale"].get<float>();
     }
+    if (json.contains("antiAliasingSamples") &&
+        json["antiAliasingSamples"].is_number_integer()) {
+      settings.antiAliasingSamples =
+          sanitizeAntiAliasingSamples(json["antiAliasingSamples"].get<int>());
+    } else if (json.contains("antiAliasingSamples") &&
+               json["antiAliasingSamples"].is_string()) {
+      settings.antiAliasingSamples = parseAntiAliasingSamplesToken(
+          json["antiAliasingSamples"].get<std::string>());
+    }
     if (json.contains("windowMode") && json["windowMode"].is_string()) {
       settings.windowMode =
           parseWindowModeToken(json["windowMode"].get<std::string>());
@@ -391,6 +428,13 @@ GameSettings GameSettings::load(std::string* outError) {
     }
     if (json.contains("cloudsEnabled") && json["cloudsEnabled"].is_boolean()) {
       settings.cloudsEnabled = json["cloudsEnabled"].get<bool>();
+    }
+    if (json.contains("cloudQuality") && json["cloudQuality"].is_string()) {
+      VoxelGame::Clouds::CloudQuality parsedQuality = settings.cloudQuality;
+      if (VoxelGame::Clouds::tryParseCloudQuality(
+              json["cloudQuality"].get<std::string>(), parsedQuality)) {
+        settings.cloudQuality = parsedQuality;
+      }
     }
     if (json.contains("audio") && json["audio"].is_object()) {
       const nlohmann::json& audioJson = json["audio"];

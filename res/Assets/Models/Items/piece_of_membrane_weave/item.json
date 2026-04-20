@@ -1,9 +1,16 @@
 {
   "id": "piece_of_membrane_weave",
   "display_name": "Piece of Membrane Weave",
-  "categories": [ "utility" ],
+  "categories": [ "utility", "food" ],
   "stack_limit": 64,
   "icon_asset": "Assets/Textures/Items/piece_of_membrane_weave.png",
+  "on_use": {
+    "cooldown": 0.2
+  },
+  "script": {
+    "enabled": true,
+    "path": "script.lua"
+  },
   "world_preview": {
     "use_texture_sprite": true
   }

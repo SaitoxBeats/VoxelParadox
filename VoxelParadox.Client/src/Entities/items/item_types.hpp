@@ -19,6 +19,7 @@ enum class ItemCategory : std::uint32_t {
     UTILITY = 1u << 1,
     MATERIAL = 1u << 2,
     QUEST = 1u << 3,
+    FOOD = 1u << 4
 };
 
 inline constexpr std::uint32_t ITEM_CATEGORY_NONE =
@@ -31,6 +32,8 @@ inline constexpr std::uint32_t ITEM_CATEGORY_MATERIAL =
     static_cast<std::uint32_t>(ItemCategory::MATERIAL);
 inline constexpr std::uint32_t ITEM_CATEGORY_QUEST =
     static_cast<std::uint32_t>(ItemCategory::QUEST);
+inline constexpr std::uint32_t ITEM_CATEGORY_FOOD =
+static_cast<std::uint32_t>(ItemCategory::FOOD);
 
 enum class InventoryItemKind : std::uint8_t {
     NONE = 0,

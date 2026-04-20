@@ -29,6 +29,11 @@ struct CloudRenderContext {
   float timeSeconds = 0.0f;
   int fallbackRenderDistance = 5;
   float alphaMultiplier = 1.0f;
+  Clouds::CloudQuality quality = Clouds::CloudQuality::MEDIUM;
+  GLuint sceneDepthTexture = 0;
+  int sceneDepthTextureUnit = -1;
+  glm::ivec2 viewportSize{0};
+  glm::mat4 inverseProjection{1.0f};
 };
 
 class CloudRenderer {
@@ -61,8 +66,11 @@ private:
   void uploadPage(CachedPage& page, const std::vector<Vertex>& vertices);
   void buildPageMesh(const Clouds::CloudPageDescriptor& descriptor,
                      CachedPage& page);
+  bool isPageVisible(const Clouds::CloudPageDescriptor& descriptor,
+                     const glm::mat4& viewProjection) const;
   int computeBuildBudget(
-      const std::vector<Clouds::CloudPageDescriptor>& pages) const;
+      const std::vector<Clouds::CloudPageDescriptor>& pages,
+      Clouds::CloudQuality quality) const;
   void pruneCache(std::size_t visiblePageCount);
 };
 

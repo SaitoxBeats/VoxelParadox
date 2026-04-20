@@ -199,6 +199,13 @@ void BlockInteractionSystem::handleBlockInteraction(
         if (selectedItem.isItem()) {
             const ItemDefinition& selectedItemDefinition = getItemDefinition(selectedItem.itemId);
 
+            const bool isUsableCategory =
+                (selectedItemDefinition.categoryMask &
+                 (ITEM_CATEGORY_UTILITY | ITEM_CATEGORY_FOOD)) != 0u;
+            if (isUsableCategory) {
+                HandAnimation::state.triggerUse(HandAnimation::config.useSpeed);
+            }
+
             if (selectedItemDefinition.behavior) {
                 ItemUseContext useContext{};
                 useContext.inheritFrom(gameplayContext, world);

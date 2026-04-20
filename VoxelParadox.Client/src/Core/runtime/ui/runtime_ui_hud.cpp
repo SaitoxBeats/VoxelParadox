@@ -709,6 +709,14 @@ namespace RuntimeUI::Detail {
             [&pendingSettings]() { toggleCloudsSelection(pendingSettings); }
         );
 
+        addSettingRow(
+            generalGroup, "Cloud Quality", generalRowStart + generalRowStep * 4.0f,
+            [&pendingSettings](std::string& out) { out = cloudQualitySelectionText(pendingSettings.cloudQuality); },
+            [&pendingSettings]() { stepCloudQualitySelection(pendingSettings, -1); },
+            [&pendingSettings]() { stepCloudQualitySelection(pendingSettings, 1); },
+            [&pendingSettings]() { return pendingSettings.cloudsEnabled; }
+        );
+
         // --- Video Tab Settings ---
         addSettingRow(
             videoGroup, "Font", generalRowStart + generalRowStep * 0.0f,
@@ -732,7 +740,14 @@ namespace RuntimeUI::Detail {
         );
 
         addSettingRow(
-            videoGroup, "Resolution", generalRowStart + generalRowStep * 3.0f,
+            videoGroup, "Anti-Aliasing", generalRowStart + generalRowStep * 3.0f,
+            [&pendingSettings](std::string& out) { out = antiAliasingSelectionText(pendingSettings.antiAliasingSamples); },
+            [&pendingSettings]() { stepAntiAliasingSelection(pendingSettings, -1); },
+            [&pendingSettings]() { stepAntiAliasingSelection(pendingSettings, 1); }
+        );
+
+        addSettingRow(
+            videoGroup, "Resolution", generalRowStart + generalRowStep * 4.0f,
             [&pendingSettings, &availableResolutions](std::string& out) {
                 out = resolutionSelectionText(pendingSettings, availableResolutions,
                     pendingSettings.windowMode == ENGINE::VIEWPORTMODE::BORDERLESS);
@@ -743,21 +758,21 @@ namespace RuntimeUI::Detail {
         );
 
         addSettingRow(
-            videoGroup, "Window Mode", generalRowStart + generalRowStep * 4.0f,
+            videoGroup, "Window Mode", generalRowStart + generalRowStep * 5.0f,
             [&pendingSettings](std::string& out) { out = Bootstrap::viewportModeName(pendingSettings.windowMode); },
             [&pendingSettings]() { stepWindowModeSelection(pendingSettings, -1); },
             [&pendingSettings]() { stepWindowModeSelection(pendingSettings, 1); }
         );
 
         addSettingRow(
-            videoGroup, "VSync", generalRowStart + generalRowStep * 5.0f,
+            videoGroup, "VSync", generalRowStart + generalRowStep * 6.0f,
             [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.vSyncEnabled); },
             [&pendingSettings]() { toggleVSyncSelection(pendingSettings); },
             [&pendingSettings]() { toggleVSyncSelection(pendingSettings); }
         );
 
         addSettingRow(
-            videoGroup, "Show FPS", generalRowStart + generalRowStep * 6.0f,
+            videoGroup, "Show FPS", generalRowStart + generalRowStep * 7.0f,
             [&pendingSettings](std::string& out) { out = onOffText(pendingSettings.showFpsCounterOnly); },
             [&pendingSettings]() { toggleFpsCounterOnlySelection(pendingSettings); },
             [&pendingSettings]() { toggleFpsCounterOnlySelection(pendingSettings); }

@@ -22,6 +22,7 @@ function on_use(context)
         end
         context.log("[Versal Item][Lua] Portal created on the targeted block.")
         context.remove_item("versal", 1)
+        context.play_audio_event("portal.enter")
         return true
     end
 

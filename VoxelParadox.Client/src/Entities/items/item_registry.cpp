@@ -74,6 +74,9 @@ std::uint32_t parseItemCategoryName(const std::string& rawValue) {
     if (value == "quest") {
         return ITEM_CATEGORY_QUEST;
     }
+    if (value == "food") {
+        return ITEM_CATEGORY_FOOD;
+    }
     return ITEM_CATEGORY_NONE;
 }
 

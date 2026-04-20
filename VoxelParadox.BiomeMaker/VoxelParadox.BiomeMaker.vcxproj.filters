@@ -50,5 +50,8 @@
     <ClInclude Include="..\VoxelParadox.Client\src\Renderer\render\cloud\cloud_renderer.hpp">
       <Filter>Support</Filter>
     </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_quality.hpp">
+      <Filter>Support</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

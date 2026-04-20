@@ -17,6 +17,7 @@
 #include "audio/audio_types.hpp"
 #include "engine/engine.hpp"
 #include "input/input_binding.hpp"
+#include "world/cloud/cloud_quality.hpp"
 #include "world/persistence/world_stack.hpp"
 #pragma endregion
 
@@ -29,11 +30,14 @@ struct GameSettings {
   float mouseSensitivity = 0.002f;
   float fieldOfView = ClientDefaults::kDefaultFieldOfView;
   float renderScale = ClientDefaults::kDefaultRenderScale;
+  int antiAliasingSamples = ClientDefaults::kDefaultAntiAliasingSamples;
   ENGINE::VIEWPORTMODE windowMode = ENGINE::VIEWPORTMODE::WINDOWMODE;
   bool vSyncEnabled = false;
   bool showFpsCounterOnly = false;
   bool advancedLightingEnabled = true;
   bool cloudsEnabled = true;
+  VoxelGame::Clouds::CloudQuality cloudQuality =
+      VoxelGame::Clouds::CloudQuality::MEDIUM;
   ENGINE::AUDIO::AudioSettings audioSettings{};
   InputMapping::ControlBindingOverrides controlOverrides{};
 

@@ -35,6 +35,8 @@ private:
   GLuint framebuffer_ = 0;
   GLuint colorTexture_ = 0;
   GLuint depthStencilRenderbuffer_ = 0;
+  GLuint cloudSceneDepthTexture_ = 0;
+  glm::ivec2 cloudSceneDepthTextureSize_{0};
   glm::ivec2 viewportSize_{0};
 
   bool setupBlockTextures();
@@ -42,6 +44,9 @@ private:
   void bindBlockTextures();
   void destroyFramebuffer();
   bool ensureFramebuffer(const glm::ivec2& size);
+  bool captureCloudDepthTexture();
+  void releaseCloudDepthTexture();
+  int cloudDepthTextureUnit() const;
   glm::vec4 getFogColor(int depth) const;
   float computeFogDensity(int depth, int renderDistance) const;
 };

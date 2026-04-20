@@ -3,6 +3,7 @@
 // Central place for client-side defaults that were previously spread across
 // runtime, settings, and world bootstrap code.
 
+#include <array>
 #include <cstdint>
 
 #include <glm/glm.hpp>
@@ -31,6 +32,8 @@ inline constexpr float kDefaultRenderScale = 0.30f;
 inline constexpr float kMinRenderScale = 0.25f;
 inline constexpr float kMaxRenderScale = 1.0f;
 inline constexpr float kRenderScaleStep = 0.05f;
+inline constexpr int kDefaultAntiAliasingSamples = 0;
+inline constexpr std::array<int, 4> kAntiAliasingSampleOptions{0, 2, 4, 8};
 
 inline constexpr float kDebugHudLineHeight = 22.0f;
 inline constexpr float kDebugHudMargin = 10.0f;

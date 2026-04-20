@@ -129,6 +129,7 @@
     <ClCompile Include="src\UI\ui\biome_teleport_window.cpp" />
     <ClCompile Include="src\World\world\biome\biome_preset.cpp" />
     <ClCompile Include="src\World\world\biome\biome_preset_defaults.cpp" />
+    <ClCompile Include="src\World\world\cloud\cloud_quality.cpp" />
     <ClCompile Include="src\World\world\generation\world_spawn_locator.cpp" />
     <ClCompile Include="src\World\world\persistence\world_stack.cpp" />
     <ClCompile Include="src\World\world\persistence\world_stack_persistence.cpp" />
@@ -175,6 +176,7 @@
     <ClInclude Include="src\Entities\player\player_persistence_system.hpp" />
     <ClInclude Include="src\Entities\player\player_targeting.hpp" />
     <ClInclude Include="src\Renderer\render\config\dust_particle_config.hpp" />
+    <ClInclude Include="src\Renderer\render\config\hand_animation_config.hpp" />
     <ClInclude Include="src\Renderer\render\config\held_block_preview_config.hpp" />
     <ClInclude Include="src\Renderer\render\config\hotbar_layout.hpp" />
     <ClInclude Include="src\Renderer\render\config\hotbar_preview_config.hpp" />
@@ -230,6 +232,7 @@
     <ClInclude Include="src\World\world\block\block_registry.hpp" />
     <ClInclude Include="src\World\world\block\block_types.hpp" />
     <ClInclude Include="src\World\world\cloud\cloud_generator.hpp" />
+    <ClInclude Include="src\World\world\cloud\cloud_quality.hpp" />
     <ClInclude Include="src\World\world\generation\chunk.hpp" />
     <ClInclude Include="src\World\world\generation\chunk_generator_source.hpp" />
     <ClInclude Include="src\World\world\generation\fractal_world.hpp" />

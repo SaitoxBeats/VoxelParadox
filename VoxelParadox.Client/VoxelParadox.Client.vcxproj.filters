@@ -222,6 +222,9 @@
     <ClCompile Include="src\Renderer\render\cloud\cloud_renderer.cpp">
       <Filter>src\Renderer\render\Cloud</Filter>
     </ClCompile>
+    <ClCompile Include="src\World\world\cloud\cloud_quality.cpp">
+      <Filter>src\World\Cloud</Filter>
+    </ClCompile>
     <ClCompile Include="src\Renderer\render\core\renderer.cpp">
       <Filter>src\Renderer\render\Core</Filter>
     </ClCompile>
@@ -458,6 +461,9 @@
     <ClInclude Include="src\Renderer\render\config\dust_particle_config.hpp">
       <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
+    <ClInclude Include="src\Renderer\render\config\hand_animation_config.hpp">
+      <Filter>src\Renderer\render\Config</Filter>
+    </ClInclude>
     <ClInclude Include="src\Renderer\render\config\held_block_preview_config.hpp">
       <Filter>src\Renderer\render\Config</Filter>
     </ClInclude>
@@ -651,6 +657,9 @@
       <Filter>src\World\Block</Filter>
     </ClInclude>
     <ClInclude Include="src\World\world\cloud\cloud_generator.hpp">
+      <Filter>src\World\Cloud</Filter>
+    </ClInclude>
+    <ClInclude Include="src\World\world\cloud\cloud_quality.hpp">
       <Filter>src\World\Cloud</Filter>
     </ClInclude>
   </ItemGroup>

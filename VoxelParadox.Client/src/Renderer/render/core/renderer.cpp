@@ -37,6 +37,30 @@
 
 namespace {
 
+int sanitizeAntiAliasingSamples(int samples) {
+    for (const int option : ClientDefaults::kAntiAliasingSampleOptions) {
+        if (option == samples) {
+            return option;
+        }
+    }
+
+    return ClientDefaults::kDefaultAntiAliasingSamples;
+}
+
+int resolveSupportedAntiAliasingSamples(int requestedSamples,
+                                        int maxSupportedSamples) {
+    const int sanitizedSamples = sanitizeAntiAliasingSamples(requestedSamples);
+    int resolvedSamples = ClientDefaults::kDefaultAntiAliasingSamples;
+
+    for (const int option : ClientDefaults::kAntiAliasingSampleOptions) {
+        if (option <= sanitizedSamples && option <= maxSupportedSamples) {
+            resolvedSamples = option;
+        }
+    }
+
+    return resolvedSamples;
+}
+
 #pragma region 1. Embedded Shaders
     // --- 1. Embedded Shaders ---
     // Renderer owns the 3D frame. Most of the file is shader code plus the glue
@@ -581,6 +605,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
 // Detail: centralizes the logic needed to prepare resources and the initial state before use.
 // Return: returns 'bool' to indicate success, presence, validation, or any other relevant condition produced by the call.
 bool Renderer::init() {
+    glGetIntegerv(GL_MAX_SAMPLES, &maxSupportedAntiAliasingSamples_);
+    maxSupportedAntiAliasingSamples_ =
+        glm::max(maxSupportedAntiAliasingSamples_, 0);
+
     // --- 1. Shader Programs ---
     // The block shader is assembled from per-block material snippets and only
     // falls back to the embedded emergency shader when the data-driven path fails.
@@ -668,9 +696,18 @@ void Renderer::setRenderScale(float scale) {
         ClientDefaults::kMaxRenderScale
     );
 
-    if (renderScale_ >= ClientDefaults::kMaxRenderScale) {
+    if (renderScale_ >= ClientDefaults::kMaxRenderScale &&
+        effectiveAntiAliasingSamples() <= 0) {
         releaseSceneRenderTarget();
     }
+
+    releaseCloudDepthTexture();
+}
+
+void Renderer::setAntiAliasingSamples(int samples) {
+    antiAliasingSamples_ = sanitizeAntiAliasingSamples(samples);
+    releaseSceneRenderTarget();
+    releaseCloudDepthTexture();
 }
 
 // Function: executes 'cleanup' in the main renderer.
@@ -705,6 +742,7 @@ void Renderer::cleanup() {
     dustParticleCapacity = 0;
     blockBreakParticleVertexCapacity = 0;
     releaseSceneRenderTarget();
+    releaseCloudDepthTexture();
 
     // --- 3. Shader Programs ---
     blockShader.release();
@@ -844,17 +882,17 @@ void Renderer::render(WorldStack& worldStack, Player& player, float aspect, floa
         return;
     }
 
-    if (shouldUseScaledSceneTarget(outputSize)) {
+    if (shouldUseSceneRenderTarget(outputSize)) {
         ensureSceneRenderTarget(outputSize);
     }
 
-    const bool usingScaledSceneTarget =
-        shouldUseScaledSceneTarget(outputSize) &&
+    const bool usingSceneRenderTarget =
+        shouldUseSceneRenderTarget(outputSize) &&
         sceneRenderTarget_.framebuffer != 0;
 
-    const glm::ivec2 sceneSize = usingScaledSceneTarget ? sceneRenderTarget_.size : outputSize;
+    const glm::ivec2 sceneSize = usingSceneRenderTarget ? sceneRenderTarget_.size : outputSize;
 
-    if (usingScaledSceneTarget) {
+    if (usingSceneRenderTarget) {
         glBindFramebuffer(GL_FRAMEBUFFER, sceneRenderTarget_.framebuffer);
     }
     else {
@@ -868,11 +906,20 @@ void Renderer::render(WorldStack& worldStack, Player& player, float aspect, floa
 
     renderScene(worldStack, player, sceneAspect, time, wireframeMode, debugThirdPersonView);
 
-    if (!usingScaledSceneTarget) {
+    if (!usingSceneRenderTarget) {
         return;
     }
 
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, sceneRenderTarget_.framebuffer);
+    GLuint presentFramebuffer = sceneRenderTarget_.framebuffer;
+    if (sceneRenderTarget_.resolveFramebuffer != 0) {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, sceneRenderTarget_.framebuffer);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sceneRenderTarget_.resolveFramebuffer);
+        glBlitFramebuffer(0, 0, sceneSize.x, sceneSize.y, 0, 0, sceneSize.x,
+            sceneSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        presentFramebuffer = sceneRenderTarget_.resolveFramebuffer;
+    }
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, presentFramebuffer);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glBlitFramebuffer(0, 0, sceneSize.x, sceneSize.y, 0, 0, outputSize.x,
         outputSize.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
@@ -1021,6 +1068,10 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
     }
 
     if (cloudsEnabled_ && world && world->biomePreset) {
+        const int depthTextureUnit = cloudDepthTextureUnit();
+        const bool hasDepthTexture =
+            depthTextureUnit >= 0 && captureCloudDepthTexture();
+
         bindBlockTextures();
         VoxelGame::CloudRenderContext cloudContext{};
         cloudContext.preset = world->biomePreset.get();
@@ -1033,6 +1084,11 @@ void Renderer::renderScene(WorldStack& worldStack, Player& player, float aspect,
         cloudContext.timeSeconds = time;
         cloudContext.fallbackRenderDistance = world->renderDistance;
         cloudContext.alphaMultiplier = 1.0f;
+        cloudContext.quality = cloudQuality_;
+        cloudContext.sceneDepthTexture = hasDepthTexture ? cloudSceneDepthTexture_ : 0;
+        cloudContext.sceneDepthTextureUnit = depthTextureUnit;
+        cloudContext.viewportSize = cloudSceneDepthTextureSize_;
+        cloudContext.inverseProjection = glm::inverse(proj);
         cloudRenderer_.render(cloudContext, blockShader);
     }
 
@@ -1112,16 +1168,25 @@ glm::ivec2 Renderer::sceneRenderSizeFor(const glm::ivec2& outputSize) const {
     );
 }
 
-bool Renderer::shouldUseScaledSceneTarget(const glm::ivec2& outputSize) const {
+int Renderer::effectiveAntiAliasingSamples() const {
+    return resolveSupportedAntiAliasingSamples(
+        antiAliasingSamples_, maxSupportedAntiAliasingSamples_);
+}
+
+bool Renderer::shouldUseSceneRenderTarget(const glm::ivec2& outputSize) const {
     return outputSize.x > 0 &&
         outputSize.y > 0 &&
-        renderScale_ < (ClientDefaults::kMaxRenderScale - 0.001f);
+        (renderScale_ < (ClientDefaults::kMaxRenderScale - 0.001f) ||
+         effectiveAntiAliasingSamples() > 0);
 }
 
 void Renderer::ensureSceneRenderTarget(const glm::ivec2& outputSize) {
     const glm::ivec2 targetSize = sceneRenderSizeFor(outputSize);
+    const int sampleCount = effectiveAntiAliasingSamples();
 
-    if (sceneRenderTarget_.framebuffer != 0 && sceneRenderTarget_.size == targetSize) {
+    if (sceneRenderTarget_.framebuffer != 0 &&
+        sceneRenderTarget_.size == targetSize &&
+        sceneRenderTarget_.sampleCount == sampleCount) {
         return;
     }
 
@@ -1130,20 +1195,36 @@ void Renderer::ensureSceneRenderTarget(const glm::ivec2& outputSize) {
     glGenFramebuffers(1, &sceneRenderTarget_.framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, sceneRenderTarget_.framebuffer);
 
-    glGenTextures(1, &sceneRenderTarget_.colorTexture);
-    glBindTexture(GL_TEXTURE_2D, sceneRenderTarget_.colorTexture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, targetSize.x, targetSize.y, 0, GL_RGBA,
-        GL_UNSIGNED_BYTE, nullptr);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-        sceneRenderTarget_.colorTexture, 0);
+    if (sampleCount > 0) {
+        glGenRenderbuffers(1, &sceneRenderTarget_.colorRenderbuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, sceneRenderTarget_.colorRenderbuffer);
+        glRenderbufferStorageMultisample(
+            GL_RENDERBUFFER, sampleCount, GL_RGBA8, targetSize.x, targetSize.y);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+            GL_RENDERBUFFER, sceneRenderTarget_.colorRenderbuffer);
+    }
+    else {
+        glGenTextures(1, &sceneRenderTarget_.colorTexture);
+        glBindTexture(GL_TEXTURE_2D, sceneRenderTarget_.colorTexture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, targetSize.x, targetSize.y, 0, GL_RGBA,
+            GL_UNSIGNED_BYTE, nullptr);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+            sceneRenderTarget_.colorTexture, 0);
+    }
 
     glGenRenderbuffers(1, &sceneRenderTarget_.depthStencilRenderbuffer);
     glBindRenderbuffer(GL_RENDERBUFFER, sceneRenderTarget_.depthStencilRenderbuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, targetSize.x, targetSize.y);
+    if (sampleCount > 0) {
+        glRenderbufferStorageMultisample(
+            GL_RENDERBUFFER, sampleCount, GL_DEPTH24_STENCIL8, targetSize.x, targetSize.y);
+    }
+    else {
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, targetSize.x, targetSize.y);
+    }
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
         GL_RENDERBUFFER,
         sceneRenderTarget_.depthStencilRenderbuffer);
@@ -1154,7 +1235,30 @@ void Renderer::ensureSceneRenderTarget(const glm::ivec2& outputSize) {
         return;
     }
 
+    if (sampleCount > 0) {
+        glGenFramebuffers(1, &sceneRenderTarget_.resolveFramebuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, sceneRenderTarget_.resolveFramebuffer);
+
+        glGenTextures(1, &sceneRenderTarget_.colorTexture);
+        glBindTexture(GL_TEXTURE_2D, sceneRenderTarget_.colorTexture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, targetSize.x, targetSize.y, 0, GL_RGBA,
+            GL_UNSIGNED_BYTE, nullptr);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+            sceneRenderTarget_.colorTexture, 0);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            releaseSceneRenderTarget();
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            return;
+        }
+    }
+
     sceneRenderTarget_.size = targetSize;
+    sceneRenderTarget_.sampleCount = sampleCount;
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1164,6 +1268,11 @@ void Renderer::releaseSceneRenderTarget() {
     if (sceneRenderTarget_.depthStencilRenderbuffer != 0) {
         glDeleteRenderbuffers(1, &sceneRenderTarget_.depthStencilRenderbuffer);
         sceneRenderTarget_.depthStencilRenderbuffer = 0;
+    }
+
+    if (sceneRenderTarget_.colorRenderbuffer != 0) {
+        glDeleteRenderbuffers(1, &sceneRenderTarget_.colorRenderbuffer);
+        sceneRenderTarget_.colorRenderbuffer = 0;
     }
 
     if (sceneRenderTarget_.colorTexture != 0) {
@@ -1176,7 +1285,127 @@ void Renderer::releaseSceneRenderTarget() {
         sceneRenderTarget_.framebuffer = 0;
     }
 
+    if (sceneRenderTarget_.resolveFramebuffer != 0) {
+        glDeleteFramebuffers(1, &sceneRenderTarget_.resolveFramebuffer);
+        sceneRenderTarget_.resolveFramebuffer = 0;
+    }
+
     sceneRenderTarget_.size = glm::ivec2(0);
+    sceneRenderTarget_.sampleCount = 0;
+}
+
+bool Renderer::captureCloudDepthTexture() {
+    GLint viewport[4] = {};
+    GLint previousReadFramebuffer = 0;
+    GLint previousDrawFramebuffer = 0;
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFramebuffer);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previousDrawFramebuffer);
+
+    const glm::ivec2 depthSize(
+        glm::max(viewport[2], 0),
+        glm::max(viewport[3], 0)
+    );
+
+    if (depthSize.x <= 0 || depthSize.y <= 0) {
+        return false;
+    }
+
+    GLint previousActiveTexture = GL_TEXTURE0;
+    GLint previousTexture = 0;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &previousActiveTexture);
+
+    const int textureUnit = cloudDepthTextureUnit();
+    if (textureUnit < 0) {
+        return false;
+    }
+
+    glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(textureUnit));
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+
+    if (cloudSceneDepthTexture_ == 0 ||
+        cloudSceneDepthFramebuffer_ == 0 ||
+        cloudSceneDepthTextureSize_ != depthSize) {
+        if (previousTexture == static_cast<GLint>(cloudSceneDepthTexture_)) {
+            previousTexture = 0;
+        }
+
+        releaseCloudDepthTexture();
+
+        glGenTextures(1, &cloudSceneDepthTexture_);
+        glBindTexture(GL_TEXTURE_2D, cloudSceneDepthTexture_);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, depthSize.x,
+            depthSize.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+        glGenFramebuffers(1, &cloudSceneDepthFramebuffer_);
+        glBindFramebuffer(GL_FRAMEBUFFER, cloudSceneDepthFramebuffer_);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+            cloudSceneDepthTexture_, 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            releaseCloudDepthTexture();
+            glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
+            glActiveTexture(static_cast<GLenum>(previousActiveTexture));
+            glBindFramebuffer(GL_READ_FRAMEBUFFER,
+                static_cast<GLuint>(previousReadFramebuffer));
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER,
+                static_cast<GLuint>(previousDrawFramebuffer));
+            return false;
+        }
+
+        cloudSceneDepthTextureSize_ = depthSize;
+    }
+    else {
+        glBindTexture(GL_TEXTURE_2D, cloudSceneDepthTexture_);
+    }
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER,
+        static_cast<GLuint>(previousReadFramebuffer));
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cloudSceneDepthFramebuffer_);
+    glBlitFramebuffer(viewport[0], viewport[1], viewport[0] + depthSize.x,
+        viewport[1] + depthSize.y, 0, 0, depthSize.x, depthSize.y,
+        GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
+    glActiveTexture(static_cast<GLenum>(previousActiveTexture));
+    glBindFramebuffer(GL_READ_FRAMEBUFFER,
+        static_cast<GLuint>(previousReadFramebuffer));
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER,
+        static_cast<GLuint>(previousDrawFramebuffer));
+    return true;
+}
+
+void Renderer::releaseCloudDepthTexture() {
+    if (cloudSceneDepthFramebuffer_ != 0) {
+        glDeleteFramebuffers(1, &cloudSceneDepthFramebuffer_);
+        cloudSceneDepthFramebuffer_ = 0;
+    }
+
+    if (cloudSceneDepthTexture_ != 0) {
+        glDeleteTextures(1, &cloudSceneDepthTexture_);
+        cloudSceneDepthTexture_ = 0;
+    }
+
+    cloudSceneDepthTextureSize_ = glm::ivec2(0);
+}
+
+int Renderer::cloudDepthTextureUnit() const {
+    GLint maxTextureUnits = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
+
+    const int textureUnit = static_cast<int>(blockTextures_.size());
+    if (maxTextureUnits <= 0 || textureUnit >= maxTextureUnits) {
+        return -1;
+    }
+
+    return textureUnit;
 }
 #pragma endregion
 

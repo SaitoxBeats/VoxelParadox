@@ -230,7 +230,7 @@ void Renderer::renderCameraFrustumDebug(const Camera& source,
 
 void Renderer::renderStencilMask(const glm::mat4& vp, glm::ivec3 blockPos,
                                  glm::ivec3 faceNormal) {
-    updatePortalFaceQuad(blockPos, faceNormal, 0.31f, 0.5035f);
+    updatePortalFaceQuad(blockPos, faceNormal, 0.45f, 0.5035f);
 
     glEnable(GL_STENCIL_TEST);
     glStencilMask(0xFF);
@@ -337,6 +337,10 @@ void Renderer::renderNestedPreviewWorld(WorldStack& worldStack, FractalWorld& ne
                        nestedWorld.renderDistance, time, portal.fade);
 
     if (cloudsEnabled_ && nestedWorld.biomePreset) {
+        const int depthTextureUnit = cloudDepthTextureUnit();
+        const bool hasDepthTexture =
+            depthTextureUnit >= 0 && captureCloudDepthTexture();
+
         bindBlockTextures();
         VoxelGame::CloudRenderContext cloudContext{};
         cloudContext.preset = nestedWorld.biomePreset.get();
@@ -350,6 +354,11 @@ void Renderer::renderNestedPreviewWorld(WorldStack& worldStack, FractalWorld& ne
         cloudContext.timeSeconds = time;
         cloudContext.fallbackRenderDistance = nestedWorld.renderDistance;
         cloudContext.alphaMultiplier = portal.fade;
+        cloudContext.quality = cloudQuality_;
+        cloudContext.sceneDepthTexture = hasDepthTexture ? cloudSceneDepthTexture_ : 0;
+        cloudContext.sceneDepthTextureUnit = depthTextureUnit;
+        cloudContext.viewportSize = cloudSceneDepthTextureSize_;
+        cloudContext.inverseProjection = glm::inverse(previewProj);
         cloudRenderer_.render(cloudContext, blockShader);
     }
 }
@@ -367,13 +376,14 @@ void Renderer::renderPortalFrame(const glm::mat4& vp, glm::ivec3 blockPos,
     lineShader.setMat4("uMVP", vp);
     glBindVertexArray(portalFrameVAO);
 
-    const int rimVertices = updatePortalFrameGeometry(blockPos, faceNormal, false);
+    // NÃO DESCOMENTE ESSAS LINHAS, essas linhas desenham a moldura em volta do portal, e fica feio
+    //const int rimVertices = updatePortalFrameGeometry(blockPos, faceNormal, false);
     lineShader.setVec4("uColor", glm::vec4(0.08f, 0.10f, 0.14f, fade));
-    glDrawArrays(GL_TRIANGLES, 0, rimVertices);
+    //glDrawArrays(GL_TRIANGLES, 0, rimVertices);
 
-    const int wallVertices = updatePortalFrameGeometry(blockPos, faceNormal, true);
+    //const int wallVertices = updatePortalFrameGeometry(blockPos, faceNormal, true);
     lineShader.setVec4("uColor", glm::vec4(0.03f, 0.04f, 0.06f, fade));
-    glDrawArrays(GL_TRIANGLES, 0, wallVertices);
+    //glDrawArrays(GL_TRIANGLES, 0, wallVertices);
 
     glBindVertexArray(0);
 

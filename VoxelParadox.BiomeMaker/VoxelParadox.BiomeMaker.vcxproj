@@ -63,6 +63,7 @@
     <ClInclude Include="src\editor\editor_renderer.hpp" />
     <ClInclude Include="src\editor\preview_world_controller.hpp" />
     <ClInclude Include="..\VoxelParadox.Client\src\Renderer\render\cloud\cloud_renderer.hpp" />
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_quality.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VoxelParadox.Engine\VoxelParadox.Engine.vcxproj">

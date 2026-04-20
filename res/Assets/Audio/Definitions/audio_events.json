@@ -478,7 +478,7 @@
       "max_concurrency": 8
     },
     {
-      "id": "block.yellowish_green_wool.place",
+      "id": "block.wool.place",
       "category": "block",
       "clips": [
         "Sounds/Blocks/wool/Cloth_dig1.ogg",
@@ -493,7 +493,7 @@
       "max_concurrency": 8
     },
     {
-      "id": "block.yellowish_green_wool.break",
+      "id": "block.wool.break",
       "category": "block",
       "clips": [
         "Sounds/Blocks/wool/Cloth_dig1.ogg",
@@ -506,10 +506,24 @@
       "volume_range": [ 0.95, 1.04 ],
       "positional": true,
       "max_concurrency": 8
-    }
-    ,
+    },
     {
-      "id": "footstep.yellowish_green_wool",
+      "id": "block.wool.hit",
+      "category": "block",
+      "clips": [
+        "Sounds/Blocks/wool/Cloth_dig1.ogg",
+        "Sounds/Blocks/wool/Cloth_dig2.ogg",
+        "Sounds/Blocks/wool/Cloth_dig3.ogg",
+        "Sounds/Blocks/wool/Cloth_dig4.ogg"
+      ],
+      "base_gain": 0.8,
+      "pitch_range": [ 0.99, 1.05 ],
+      "volume_range": [ 0.95, 1.04 ],
+      "positional": true,
+      "max_concurrency": 8
+    },
+    {
+      "id": "footstep.wool",
       "category": "footsteps",
       "clips": [
         "Sounds/Blocks/wool/Cloth_dig1.ogg",

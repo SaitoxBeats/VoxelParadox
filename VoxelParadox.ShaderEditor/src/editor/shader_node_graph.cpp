@@ -7,6 +7,7 @@
 // 1. Standard Library
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
@@ -70,6 +71,276 @@ std::string formatFloat(float value) {
         text += ".0";
     }
     return text;
+}
+
+std::string vec4Literal(const glm::vec4& value) {
+    return "vec4(" + formatFloat(value.x) + ", " +
+           formatFloat(value.y) + ", " +
+           formatFloat(value.z) + ", " +
+           formatFloat(value.w) + ")";
+}
+
+std::vector<GradientStop> defaultGradientStops() {
+    return {
+        { 0.0f, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f) },
+        { 1.0f, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f) },
+    };
+}
+
+std::vector<GradientStop> sortedGradientStops(const std::vector<GradientStop>& stops) {
+    std::vector<GradientStop> result = stops;
+    for (GradientStop& stop : result) {
+        stop.position = std::clamp(stop.position, 0.0f, 1.0f);
+    }
+    std::stable_sort(result.begin(), result.end(),
+        [](const GradientStop& a, const GradientStop& b) {
+            return a.position < b.position;
+        });
+    return result;
+}
+
+constexpr int kAppendModeVector2 = 0;
+constexpr int kAppendModeVector3 = 1;
+constexpr int kAppendModeVector4 = 2;
+constexpr int kAppendModeColor = 3;
+
+int clampAppendMode(int mode) {
+    return std::clamp(mode, kAppendModeVector2, kAppendModeColor);
+}
+
+PinDataType appendOutputTypeForMode(int mode) {
+    switch (clampAppendMode(mode)) {
+    case kAppendModeVector2: return PinDataType::VEC2;
+    case kAppendModeVector3: return PinDataType::VEC3;
+    case kAppendModeVector4: return PinDataType::VEC4;
+    case kAppendModeColor:   return PinDataType::VEC3;
+    }
+    return PinDataType::VEC2;
+}
+
+const char* appendOutputTypeNameForMode(int mode) {
+    switch (clampAppendMode(mode)) {
+    case kAppendModeVector2: return "Vector2";
+    case kAppendModeVector3: return "Vector3";
+    case kAppendModeVector4: return "Vector4";
+    case kAppendModeColor:   return "Color";
+    }
+    return "Vector2";
+}
+
+void syncAppendNodeOutput(Node& node) {
+    node.enumOption = clampAppendMode(node.enumOption);
+    if (!node.outputs.empty()) {
+        node.outputs.front().type = appendOutputTypeForMode(node.enumOption);
+    }
+}
+
+constexpr int kBlendModeNormal = 0;
+constexpr int kBlendModeMultiply = 1;
+constexpr int kBlendModeScreen = 2;
+constexpr int kBlendModeOverlay = 3;
+constexpr int kBlendModeDarken = 4;
+constexpr int kBlendModeLighten = 5;
+constexpr int kBlendModeColorBurn = 6;
+constexpr int kBlendModeColorDodge = 7;
+constexpr int kBlendModeLinearBurn = 8;
+constexpr int kBlendModeLinearDodge = 9;
+constexpr int kBlendModeDifference = 10;
+constexpr int kBlendModeExclusion = 11;
+constexpr int kBlendModeHardLight = 12;
+constexpr int kBlendModeSoftLight = 13;
+constexpr int kBlendModeSubtract = 14;
+constexpr int kBlendModeDivide = 15;
+
+constexpr std::array<const char*, 16> kBlendOperationNames = {
+    "Normal",
+    "Multiply",
+    "Screen",
+    "Overlay",
+    "Darken",
+    "Lighten",
+    "Color Burn",
+    "Color Dodge",
+    "Linear Burn",
+    "Linear Dodge (Add)",
+    "Difference",
+    "Exclusion",
+    "Hard Light",
+    "Soft Light",
+    "Subtract",
+    "Divide",
+};
+
+int clampBlendMode(int mode) {
+    return std::clamp(mode, kBlendModeNormal, kBlendModeDivide);
+}
+
+const std::array<const char*, 16>& blendOperationNamesForMode() {
+    return kBlendOperationNames;
+}
+
+const char* blendOperationNameForMode(int mode) {
+    return blendOperationNamesForMode()[clampBlendMode(mode)];
+}
+
+constexpr int kVoronoiMethodCells = 0;
+constexpr int kVoronoiMethodDistance = 1;
+constexpr int kVoronoiMethodBorders = 2;
+constexpr int kVoronoiMethodSmooth = 3;
+
+constexpr int kVoronoiDistanceEuclidian2 = 0;
+constexpr int kVoronoiDistanceEuclidian = 1;
+constexpr int kVoronoiDistanceManhattan = 2;
+constexpr int kVoronoiDistanceChebyshev = 3;
+
+constexpr int kVoronoiMethodMask = 0x3;
+constexpr int kVoronoiTileableMask = 0x10;
+constexpr int kVoronoiSmoothMask = 0x20;
+
+constexpr std::array<const char*, 4> kVoronoiMethodNames = {
+    "Cells",
+    "Distance",
+    "Borders",
+    "Smooth",
+};
+
+constexpr std::array<const char*, 4> kVoronoiDistanceNames = {
+    "Euclidian2",
+    "Euclidian",
+    "Manhattan",
+    "Chebyshev",
+};
+
+constexpr std::array<const char*, 4> kVoronoiSearchQualityNames = {
+    "1 Cell",
+    "4 Cells",
+    "9 Cells",
+    "16 Cells",
+};
+
+int clampVoronoiMethod(int mode) {
+    return std::clamp(mode, kVoronoiMethodCells, kVoronoiMethodSmooth);
+}
+
+int clampVoronoiDistance(int mode) {
+    return std::clamp(mode, kVoronoiDistanceEuclidian2, kVoronoiDistanceChebyshev);
+}
+
+int clampVoronoiSearchQuality(int mode) {
+    return std::clamp(mode, 0, static_cast<int>(kVoronoiSearchQualityNames.size()) - 1);
+}
+
+int clampVoronoiOctaves(int mode) {
+    return std::clamp(mode, 1, 8);
+}
+
+int voronoiMethodFromOption(int option) {
+    return option & kVoronoiMethodMask;
+}
+
+int voronoiDistanceFromOption(int option) {
+    return (option >> 2) & 0x3;
+}
+
+bool voronoiTileableFromOption(int option) {
+    return (option & kVoronoiTileableMask) != 0;
+}
+
+bool voronoiSmoothFromOption(int option) {
+    return (option & kVoronoiSmoothMask) != 0;
+}
+
+int voronoiOptionFor(int method, int distance, bool tileable, bool smooth) {
+    int option = (clampVoronoiMethod(method) & kVoronoiMethodMask) |
+                 ((clampVoronoiDistance(distance) & 0x3) << 2);
+    if (tileable) {
+        option |= kVoronoiTileableMask;
+    }
+    if (smooth) {
+        option |= kVoronoiSmoothMask;
+    }
+    return option;
+}
+
+std::string voronoiDistanceExpressionForMode(int mode, const std::string& deltaExpr) {
+    const std::string delta = "(" + deltaExpr + ")";
+    switch (clampVoronoiDistance(mode)) {
+    case kVoronoiDistanceEuclidian2:
+        return "dot(" + delta + ", " + delta + ")";
+    case kVoronoiDistanceEuclidian:
+        return "length(" + delta + ")";
+    case kVoronoiDistanceManhattan:
+        return "abs(" + delta + ").x + abs(" + delta + ").y";
+    case kVoronoiDistanceChebyshev:
+        return "max(abs(" + delta + ").x, abs(" + delta + ").y)";
+    }
+    return "length(" + delta + ")";
+}
+
+std::string voronoiDistanceNormalizationForMode(int mode, int radius) {
+    const float span = static_cast<float>(std::max(radius + 1, 1));
+    switch (clampVoronoiDistance(mode)) {
+    case kVoronoiDistanceEuclidian2:
+        return formatFloat(2.0f * span * span);
+    case kVoronoiDistanceEuclidian:
+        return formatFloat(1.41421356f * span);
+    case kVoronoiDistanceManhattan:
+        return formatFloat(2.0f * span);
+    case kVoronoiDistanceChebyshev:
+        return formatFloat(span);
+    }
+    return formatFloat(span);
+}
+
+std::string blendOperationExpressionForMode(int mode,
+                                            const std::string& sourceExpr,
+                                            const std::string& blendExpr) {
+    const std::string source = "(" + sourceExpr + ")";
+    const std::string blend = "(" + blendExpr + ")";
+
+    switch (clampBlendMode(mode)) {
+    case kBlendModeNormal:
+        return blend;
+    case kBlendModeMultiply:
+        return source + " * " + blend;
+    case kBlendModeScreen:
+        return "vec3(1.0) - (vec3(1.0) - " + source + ") * (vec3(1.0) - " + blend + ")";
+    case kBlendModeOverlay:
+        return "mix(2.0 * " + source + " * " + blend + ", vec3(1.0) - 2.0 * "
+               "(vec3(1.0) - " + source + ") * (vec3(1.0) - " + blend + "), "
+               "step(vec3(0.5), " + source + "))";
+    case kBlendModeDarken:
+        return "min(" + source + ", " + blend + ")";
+    case kBlendModeLighten:
+        return "max(" + source + ", " + blend + ")";
+    case kBlendModeColorBurn:
+        return "vec3(1.0) - (vec3(1.0) - " + source + ") / max(" + blend + ", vec3(0.00001))";
+    case kBlendModeColorDodge:
+        return source + " / max(vec3(1.0) - " + blend + ", vec3(0.00001))";
+    case kBlendModeLinearBurn:
+        return source + " + " + blend + " - vec3(1.0)";
+    case kBlendModeLinearDodge:
+        return source + " + " + blend;
+    case kBlendModeDifference:
+        return "abs(" + source + " - " + blend + ")";
+    case kBlendModeExclusion:
+        return source + " + " + blend + " - 2.0 * " + source + " * " + blend;
+    case kBlendModeHardLight:
+        return "mix(2.0 * " + source + " * " + blend + ", vec3(1.0) - 2.0 * "
+               "(vec3(1.0) - " + source + ") * (vec3(1.0) - " + blend + "), "
+               "step(vec3(0.5), " + blend + "))";
+    case kBlendModeSoftLight:
+        return "mix(" + source + " - (vec3(1.0) - 2.0 * " + blend + ") * " + source +
+               " * (vec3(1.0) - " + source + "), " + source +
+               " + (2.0 * " + blend + " - vec3(1.0)) * "
+               "(sqrt(max(" + source + ", vec3(0.0))) - " + source + "), "
+               "step(vec3(0.5), " + blend + "))";
+    case kBlendModeSubtract:
+        return source + " - " + blend;
+    case kBlendModeDivide:
+        return source + " / max(" + blend + ", vec3(0.00001))";
+    }
+    return blend;
 }
 
 // Emit a GLSL literal for the value stored in an unconnected input pin.
@@ -181,7 +452,10 @@ void ShaderNodeGraph::configureNode(Node& node) {
         break;
     case NodeKind::IN_CELL:            node.outputs.push_back(makeOut("cell", PinDataType::VEC3)); break;
     case NodeKind::IN_CELL_HASH:       node.outputs.push_back(makeOut("cellHash", PinDataType::FLOAT)); break;
-    case NodeKind::IN_TIME:            node.outputs.push_back(makeOut("uTime", PinDataType::FLOAT)); break;
+    case NodeKind::IN_TIME:
+        node.inputs.push_back(makeIn("Scale", PinDataType::FLOAT, glm::vec4(1.0f)));
+        node.outputs.push_back(makeOut("uTime", PinDataType::FLOAT));
+        break;
     case NodeKind::IN_BIOME_TINT:      node.outputs.push_back(makeOut("biomeTint", PinDataType::VEC3)); break;
 
     case NodeKind::CONST_FLOAT:
@@ -199,6 +473,14 @@ void ShaderNodeGraph::configureNode(Node& node) {
     case NodeKind::CONST_COLOR:
         node.outputs.push_back(makeOut("color", PinDataType::VEC3));
         node.constValue = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+        break;
+
+    case NodeKind::TEXTURE_COORDINATES:
+        node.inputs.push_back(makeIn("Tiling", PinDataType::VEC2, glm::vec4(1.0f)));
+        node.inputs.push_back(makeIn("Offset", PinDataType::VEC2));
+        node.outputs.push_back(makeOut("UV", PinDataType::VEC2));
+        node.outputs.push_back(makeOut("U", PinDataType::FLOAT));
+        node.outputs.push_back(makeOut("V", PinDataType::FLOAT));
         break;
 
     case NodeKind::OP_ADD:
@@ -266,7 +548,22 @@ void ShaderNodeGraph::configureNode(Node& node) {
         node.inputs.push_back(makeIn("normal", PinDataType::VEC3));
         node.inputs.push_back(makeIn("viewDir", PinDataType::VEC3));
         node.inputs.push_back(makeIn("power", PinDataType::FLOAT, glm::vec4(4.0f)));
+        // Keep the original input order stable so saved graphs keep their links.
+        node.inputs.push_back(makeIn("bias", PinDataType::FLOAT, glm::vec4(0.0f)));
+        node.inputs.push_back(makeIn("scale", PinDataType::FLOAT, glm::vec4(1.0f)));
         node.outputs.push_back(makeOut("result", PinDataType::FLOAT));
+        break;
+    case NodeKind::OP_GRADIENT:
+        // Project a 2D position onto a segment, then sample the editable ramp.
+        node.inputs.push_back(makeIn("position", PinDataType::VEC2));
+        node.inputs.push_back(makeIn("start", PinDataType::VEC2));
+        node.inputs.push_back(makeIn("end", PinDataType::VEC2,
+                                     glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)));
+        node.inputs.push_back(makeIn("ramp", PinDataType::FLOAT, glm::vec4(1.0f)));
+        node.outputs.push_back(makeOut("color", PinDataType::VEC4));
+        if (node.gradientStops.empty()) {
+            node.gradientStops = defaultGradientStops();
+        }
         break;
 
     case NodeKind::FN_HASH21:
@@ -313,6 +610,22 @@ void ShaderNodeGraph::configureNode(Node& node) {
         node.outputs.push_back(makeOut("rgb", PinDataType::VEC3));
         break;
 
+    case NodeKind::APPEND:
+        node.inputs.push_back(makeIn("X", PinDataType::FLOAT));
+        node.inputs.push_back(makeIn("Y", PinDataType::FLOAT));
+        node.outputs.push_back(makeOut("V", appendOutputTypeForMode(node.enumOption)));
+        syncAppendNodeOutput(node);
+        break;
+
+    case NodeKind::BLEND_OPERATIONS:
+        node.inputs.push_back(makeIn("Source", PinDataType::VEC3));
+        node.inputs.push_back(makeIn("Blend", PinDataType::VEC3));
+        node.inputs.push_back(makeIn("Opacity Mask", PinDataType::FLOAT, glm::vec4(1.0f)));
+        node.outputs.push_back(makeOut("result", PinDataType::VEC3));
+        node.enumOption = kBlendModeColorBurn;
+        node.constValue = glm::vec4(1.0f, 1.0f, 0.0f, 0.0f);
+        break;
+
     case NodeKind::OUTPUT_MATERIAL:
         node.inputs.push_back(makeIn("albedo", PinDataType::VEC3, glm::vec4(1.0f)));
         node.inputs.push_back(makeIn("roughness", PinDataType::FLOAT, glm::vec4(0.8f)));
@@ -344,6 +657,17 @@ void ShaderNodeGraph::configureNode(Node& node) {
         node.inputs.push_back(makeIn("01Range", PinDataType::FLOAT, glm::vec4(1.0f)));
         node.outputs.push_back(makeOut("result", PinDataType::FLOAT));
         break;
+    case NodeKind::FN_VORONOI:
+        node.inputs.push_back(makeIn("uv", PinDataType::VEC2));
+        node.inputs.push_back(makeIn("angle", PinDataType::FLOAT, glm::vec4(0.0f)));
+        node.inputs.push_back(makeIn("scale", PinDataType::FLOAT, glm::vec4(10.0f)));
+        node.outputs.push_back(makeOut("result", PinDataType::FLOAT));
+        node.enumOption = voronoiOptionFor(kVoronoiMethodCells, kVoronoiDistanceEuclidian2,
+                                           false, false);
+        // constValue.z = search quality (radius), constValue.w = fbm octaves.
+        node.constValue = glm::vec4(0.0f, 0.0f, 2.0f, 1.0f);
+        node.previewEnabled = true;
+        break;
 
     case NodeKind::FN_TRUCHET_MAZE:
     case NodeKind::FN_TRUCHET_CIRCLES:
@@ -369,6 +693,33 @@ void ShaderNodeGraph::configureNode(Node& node) {
         node.inputs.push_back(makeIn("uv", PinDataType::VEC2));
         node.inputs.push_back(makeIn("frequency", PinDataType::FLOAT, glm::vec4(18.0f)));
         node.inputs.push_back(makeIn("amplitude", PinDataType::FLOAT, glm::vec4(0.02f)));
+        node.inputs.push_back(makeIn("time", PinDataType::FLOAT, glm::vec4(0.0f)));
+        node.outputs.push_back(makeOut("uv", PinDataType::VEC2));
+        break;
+    case NodeKind::FX_RADIAL_SHEAR:
+        // Shear UVs more strongly as they move farther from the chosen center.
+        node.inputs.push_back(makeIn("uv", PinDataType::VEC2));
+        node.inputs.push_back(makeIn("center", PinDataType::VEC2, glm::vec4(0.5f)));
+        node.inputs.push_back(makeIn("strength", PinDataType::FLOAT, glm::vec4(0.25f)));
+        node.inputs.push_back(makeIn("offset", PinDataType::FLOAT, glm::vec4(0.0f)));
+        node.outputs.push_back(makeOut("uv", PinDataType::VEC2));
+        break;
+    case NodeKind::FX_PANNER:
+        node.inputs.push_back(makeIn("uv", PinDataType::VEC2));
+        node.inputs.push_back(makeIn("speed", PinDataType::VEC2,
+                                     glm::vec4(0.1f, 0.1f, 0.0f, 0.0f)));
+        node.inputs.push_back(makeIn("time", PinDataType::FLOAT, glm::vec4(0.0f)));
+        node.outputs.push_back(makeOut("uv", PinDataType::VEC2));
+        break;
+    case NodeKind::FX_PIXELATE_UV:
+        node.inputs.push_back(makeIn("UV", PinDataType::VEC2));
+        node.inputs.push_back(makeIn("Pixels X", PinDataType::FLOAT, glm::vec4(16.0f)));
+        node.inputs.push_back(makeIn("Pixels Y", PinDataType::FLOAT, glm::vec4(16.0f)));
+        node.outputs.push_back(makeOut("uv", PinDataType::VEC2));
+        break;
+    case NodeKind::FX_ROTATOR:
+        node.inputs.push_back(makeIn("uv", PinDataType::VEC2));
+        node.inputs.push_back(makeIn("anchor", PinDataType::VEC2, glm::vec4(0.5f)));
         node.inputs.push_back(makeIn("time", PinDataType::FLOAT, glm::vec4(0.0f)));
         node.outputs.push_back(makeOut("uv", PinDataType::VEC2));
         break;
@@ -444,6 +795,7 @@ const char* ShaderNodeGraph::nodeDisplayName(NodeKind kind) {
     case NodeKind::OP_NORMALIZE: return "Normalize";
     case NodeKind::OP_LENGTH: return "Length";
     case NodeKind::OP_FRESNEL: return "Fresnel";
+    case NodeKind::OP_GRADIENT: return "Gradient";
     case NodeKind::FN_HASH21: return "Hash21";
     case NodeKind::FN_HASH31: return "Hash31";
     case NodeKind::FN_NOISE21: return "Noise21";
@@ -458,12 +810,20 @@ const char* ShaderNodeGraph::nodeDisplayName(NodeKind kind) {
     case NodeKind::FN_NOISE_SIMPLEX_3D: return "Simplex Noise 3D";
     case NodeKind::FN_NOISE_GRADIENT: return "Gradient Noise";
     case NodeKind::FN_NOISE_SIMPLE: return "Simple Noise";
+    case NodeKind::FN_VORONOI: return "Voronoi";
     case NodeKind::FN_TRUCHET_MAZE: return "Truchet Maze";
     case NodeKind::FN_TRUCHET_CIRCLES: return "Truchet Circles";
     case NodeKind::FN_TRUCHET_TRIANGLES: return "Truchet Triangles";
     case NodeKind::FX_DISTORT_UV: return "Distort UV (fbm)";
     case NodeKind::FX_SWIRL: return "Swirl UV";
     case NodeKind::FX_RIPPLE: return "Ripple UV";
+    case NodeKind::FX_RADIAL_SHEAR: return "Radial Shear";
+    case NodeKind::FX_PANNER: return "Panner";
+    case NodeKind::FX_PIXELATE_UV: return "Pixelate UV";
+    case NodeKind::FX_ROTATOR: return "Rotator";
+    case NodeKind::TEXTURE_COORDINATES: return "Texture Coordinates";
+    case NodeKind::APPEND: return "Append";
+    case NodeKind::BLEND_OPERATIONS: return "Blend Operations";
     case NodeKind::PRESET_STONE_ROUGH: return "Stone Rough (preset)";
     case NodeKind::PRESET_STONE_CRACKED: return "Stone Cracked (preset)";
     case NodeKind::SEAMLESS_UV: return "Seamless UV";
@@ -489,6 +849,7 @@ const char* ShaderNodeGraph::nodeCategory(NodeKind kind) {
     case NodeKind::IN_CELL_HASH:
     case NodeKind::IN_TIME:
     case NodeKind::IN_BIOME_TINT:
+    case NodeKind::TEXTURE_COORDINATES:
         return "Inputs";
     case NodeKind::CONST_FLOAT:
     case NodeKind::CONST_VEC2:
@@ -514,6 +875,7 @@ const char* ShaderNodeGraph::nodeCategory(NodeKind kind) {
     case NodeKind::OP_NORMALIZE:
     case NodeKind::OP_LENGTH:
     case NodeKind::OP_FRESNEL:
+    case NodeKind::OP_GRADIENT:
         return "Math";
     case NodeKind::FN_HASH21:
     case NodeKind::FN_HASH31:
@@ -523,6 +885,7 @@ const char* ShaderNodeGraph::nodeCategory(NodeKind kind) {
     case NodeKind::FN_NOISE_SIMPLEX_3D:
     case NodeKind::FN_NOISE_GRADIENT:
     case NodeKind::FN_NOISE_SIMPLE:
+    case NodeKind::FN_VORONOI:
         return "Noise";
     case NodeKind::FN_TRUCHET_MAZE:
     case NodeKind::FN_TRUCHET_CIRCLES:
@@ -531,12 +894,18 @@ const char* ShaderNodeGraph::nodeCategory(NodeKind kind) {
     case NodeKind::FX_DISTORT_UV:
     case NodeKind::FX_SWIRL:
     case NodeKind::FX_RIPPLE:
+    case NodeKind::FX_RADIAL_SHEAR:
+    case NodeKind::FX_PANNER:
+    case NodeKind::FX_PIXELATE_UV:
+    case NodeKind::FX_ROTATOR:
+    case NodeKind::BLEND_OPERATIONS:
         return "Effects";
     case NodeKind::COMBINE_V2:
     case NodeKind::COMBINE_V3:
     case NodeKind::SPLIT_V2:
     case NodeKind::SPLIT_V3:
     case NodeKind::SWIZZLE_TO_VEC3_RGB:
+    case NodeKind::APPEND:
         return "Channels";
     case NodeKind::PRESET_STONE_ROUGH:
     case NodeKind::PRESET_STONE_CRACKED:
@@ -559,6 +928,46 @@ const char* ShaderNodeGraph::pinTypeName(PinDataType type) {
     case PinDataType::VEC4: return "vec4";
     }
     return "?";
+}
+
+PinDataType ShaderNodeGraph::appendOutputType(int mode) {
+    return appendOutputTypeForMode(mode);
+}
+
+const char* ShaderNodeGraph::appendOutputTypeName(int mode) {
+    return appendOutputTypeNameForMode(mode);
+}
+
+const std::array<const char*, 16>& ShaderNodeGraph::blendOperationNames() {
+    return blendOperationNamesForMode();
+}
+
+const char* ShaderNodeGraph::blendOperationName(int mode) {
+    return blendOperationNameForMode(mode);
+}
+
+const std::array<const char*, 4>& ShaderNodeGraph::voronoiMethodNames() {
+    return kVoronoiMethodNames;
+}
+
+const char* ShaderNodeGraph::voronoiMethodName(int mode) {
+    return voronoiMethodNames()[clampVoronoiMethod(mode)];
+}
+
+const std::array<const char*, 4>& ShaderNodeGraph::voronoiDistanceNames() {
+    return kVoronoiDistanceNames;
+}
+
+const char* ShaderNodeGraph::voronoiDistanceName(int mode) {
+    return voronoiDistanceNames()[clampVoronoiDistance(mode)];
+}
+
+const std::array<const char*, 4>& ShaderNodeGraph::voronoiSearchQualityNames() {
+    return kVoronoiSearchQualityNames;
+}
+
+const char* ShaderNodeGraph::voronoiSearchQualityName(int mode) {
+    return voronoiSearchQualityNames()[clampVoronoiSearchQuality(mode)];
 }
 
 #pragma endregion
@@ -806,7 +1215,11 @@ struct Codegen {
         }
         case NodeKind::IN_CELL:           resultExpr = "cell"; break;
         case NodeKind::IN_CELL_HASH:      resultExpr = "cellHash"; break;
-        case NodeKind::IN_TIME:           resultExpr = "uTime"; break;
+        case NodeKind::IN_TIME: {
+            const std::string scale = resolveInput(node, 0);
+            resultExpr = "uTime * (" + scale + ")";
+            break;
+        }
         case NodeKind::IN_BIOME_TINT:     resultExpr = "uBiomeTint.rgb"; break;
 
         case NodeKind::CONST_FLOAT: {
@@ -915,8 +1328,67 @@ struct Codegen {
             const std::string n = resolveInput(node, 0);
             const std::string v = resolveInput(node, 1);
             const std::string p = resolveInput(node, 2);
-            resultExpr = "pow(1.0 - max(dot(" + n + ", " + v + "), 0.0), " + p + ")";
+            const std::string bias = resolveInput(node, 3);
+            const std::string scale = resolveInput(node, 4);
+            resultExpr = "(" + bias + " + (" + scale + " * pow(1.0 - max(dot(" +
+                         n + ", " + v + "), 0.0), " + p + ")))";
             break;
+        }
+        case NodeKind::OP_GRADIENT: {
+            const std::string position = resolveInput(node, 0);
+            const std::string start = resolveInput(node, 1);
+            const std::string end = resolveInput(node, 2);
+            const std::string ramp = resolveInput(node, 3);
+            const std::string tmp = newTemp("grad");
+            const std::vector<GradientStop> stops = sortedGradientStops(node.gradientStops);
+
+            body << "    vec2 " << tmp << "_delta = (" << end << ") - (" << start << ");\n";
+            body << "    float " << tmp << "_length = max(length(" << tmp
+                 << "_delta), 0.0001);\n";
+            body << "    vec2 " << tmp << "_direction = " << tmp << "_delta / "
+                 << tmp << "_length;\n";
+            body << "    float " << tmp << "_t = clamp(dot((" << position << ") - ("
+                 << start << "), " << tmp << "_direction) / " << tmp
+                 << "_length, 0.0, 1.0);\n";
+            body << "    float " << tmp << "_shape = pow(" << tmp << "_t, max(("
+                 << ramp << "), 0.0001));\n";
+
+            if (stops.empty()) {
+                body << "    vec4 " << tmp << " = vec4(1.0);\n";
+            } else if (stops.size() == 1) {
+                body << "    vec4 " << tmp << " = " << vec4Literal(stops.front().color) << ";\n";
+            } else {
+                body << "    vec4 " << tmp << ";\n";
+                body << "    if (" << tmp << "_shape <= "
+                     << formatFloat(stops.front().position) << ") {\n";
+                body << "        " << tmp << " = "
+                     << vec4Literal(stops.front().color) << ";\n";
+                body << "    }\n";
+
+                for (std::size_t i = 0; i + 1 < stops.size(); ++i) {
+                    const GradientStop& a = stops[i];
+                    const GradientStop& b = stops[i + 1];
+                    body << "    else if (" << tmp << "_shape < "
+                         << formatFloat(b.position) << ") {\n";
+                    body << "        float " << tmp << "_mix = clamp(("
+                         << tmp << "_shape - " << formatFloat(a.position) << ") / max("
+                         << formatFloat(b.position - a.position) << ", 0.0001), 0.0, 1.0);\n";
+                    body << "        " << tmp << " = mix("
+                         << vec4Literal(a.color) << ", "
+                         << vec4Literal(b.color) << ", "
+                         << tmp << "_mix);\n";
+                    body << "    }\n";
+                }
+
+                body << "    else {\n";
+                body << "        " << tmp << " = "
+                     << vec4Literal(stops.back().color) << ";\n";
+                body << "    }\n";
+            }
+
+            cache[key(node.id, 0)] = tmp;
+            visiting.erase(nodeId);
+            return tmp;
         }
 
         case NodeKind::FN_HASH21: {
@@ -972,6 +1444,56 @@ struct Codegen {
         case NodeKind::SWIZZLE_TO_VEC3_RGB: {
             const std::string v = resolveInput(node, 0);
             resultExpr = "(" + v + ").rgb";
+            break;
+        }
+
+        case NodeKind::TEXTURE_COORDINATES: {
+            const std::string tiling = resolveInput(node, 0);
+            const std::string offset = resolveInput(node, 1);
+            const std::string tmp = newTemp("tex");
+            body << "    vec2 " << tmp << " = uv * (" << tiling << ") + (" << offset << ");\n";
+            cache[key(node.id, 0)] = tmp;
+            cache[key(node.id, 1)] = tmp + ".x";
+            cache[key(node.id, 2)] = tmp + ".y";
+            visiting.erase(nodeId);
+            return cache[key(node.id, outputIndex)];
+        }
+
+        case NodeKind::APPEND: {
+            const std::string x = resolveInput(node, 0);
+            const std::string y = resolveInput(node, 1);
+            const int mode = clampAppendMode(node.enumOption);
+
+            switch (mode) {
+            case kAppendModeVector2:
+                resultExpr = "vec2(" + x + ", " + y + ")";
+                break;
+            case kAppendModeVector3:
+                resultExpr = "vec3(" + x + ", " + y + ", 0.0)";
+                break;
+            case kAppendModeVector4:
+                resultExpr = "vec4(" + x + ", " + y + ", 0.0, 1.0)";
+                break;
+            case kAppendModeColor:
+                resultExpr = "vec3(" + x + ", " + y + ", 0.0)";
+                break;
+            }
+            break;
+        }
+
+        case NodeKind::BLEND_OPERATIONS: {
+            const std::string source = resolveInput(node, 0);
+            const std::string blend = resolveInput(node, 1);
+            const std::string opacityMask = resolveInput(node, 2);
+            const std::string blended = blendOperationExpressionForMode(
+                node.enumOption, source, blend);
+            const float opacity = std::clamp(node.constValue.x, 0.0f, 1.0f);
+            const bool saturate = node.constValue.y >= 0.5f;
+            const std::string finalBlend = saturate
+                ? "clamp(" + blended + ", vec3(0.0), vec3(1.0))"
+                : blended;
+            resultExpr = "mix(" + source + ", " + finalBlend + ", clamp((" +
+                formatFloat(opacity) + " * " + opacityMask + "), 0.0, 1.0))";
             break;
         }
 
@@ -1037,6 +1559,98 @@ struct Codegen {
             visiting.erase(nodeId);
             return tmp;
         }
+        case NodeKind::FN_VORONOI: {
+            const int method = voronoiMethodFromOption(node.enumOption);
+            const int distanceMode = voronoiDistanceFromOption(node.enumOption);
+            const bool tileable = voronoiTileableFromOption(node.enumOption);
+            const bool smooth = voronoiSmoothFromOption(node.enumOption);
+            const int searchQuality = clampVoronoiSearchQuality(
+                static_cast<int>(std::round(node.constValue.z)));
+            const int octaves = clampVoronoiOctaves(
+                static_cast<int>(std::round(node.constValue.w)));
+            const int radius = searchQuality;
+            const std::string tmp = newTemp("vor");
+
+            const std::string uvIn = resolveInput(node, 0);
+            const std::string angleIn = resolveInput(node, 1);
+            const std::string scaleIn = resolveInput(node, 2);
+
+            // Angle input is in radians; scale multiplies uv before sampling.
+            body << "    float " << tmp << "_ang = (" << angleIn << ");\n";
+            body << "    float " << tmp << "_scl = max((" << scaleIn << "), 1.0e-4);\n";
+            body << "    vec2 " << tmp << "_p = (" << uvIn << ") * " << tmp << "_scl;\n";
+            body << "    mat2 " << tmp << "_rot = mat2(cos(" << tmp << "_ang), -sin("
+                 << tmp << "_ang), sin(" << tmp << "_ang), cos(" << tmp << "_ang));\n";
+            body << "    " << tmp << "_p = " << tmp << "_rot * " << tmp << "_p;\n";
+            body << "    float " << tmp << "_result = 0.0;\n";
+            body << "    float " << tmp << "_amp = 1.0;\n";
+            body << "    float " << tmp << "_norm = 0.0;\n";
+            body << "    for (int octave = 0; octave < " << octaves << "; octave++) {\n";
+            body << "        vec2 " << tmp << "_q = " << tmp << "_p * pow(2.0, float(octave));\n";
+            if (tileable) {
+                body << "        " << tmp << "_q = fract(" << tmp << "_q);\n";
+            }
+            body << "        vec2 " << tmp << "_cell = floor(" << tmp << "_q);\n";
+            body << "        vec2 " << tmp << "_f = fract(" << tmp << "_q);\n";
+            body << "        float " << tmp << "_best = 1.0e9;\n";
+            body << "        float " << tmp << "_second = 1.0e9;\n";
+            body << "        vec2 " << tmp << "_bestCell = vec2(0.0);\n";
+            body << "        for (int j = -" << radius << "; j <= " << radius << "; j++) {\n";
+            body << "            for (int i = -" << radius << "; i <= " << radius << "; i++) {\n";
+            body << "                vec2 " << tmp << "_g = vec2(float(i), float(j));\n";
+            body << "                vec2 " << tmp << "_candidateCell = " << tmp << "_cell + " << tmp << "_g;\n";
+            body << "                vec2 " << tmp << "_seed = fract(sin(vec2("
+                 << "dot(" << tmp << "_candidateCell, vec2(127.1, 311.7)), "
+                 << "dot(" << tmp << "_candidateCell, vec2(269.5, 183.3)))) * 43758.5453);\n";
+            body << "                vec2 " << tmp << "_feature = " << tmp << "_candidateCell + " << tmp << "_seed;\n";
+            body << "                vec2 " << tmp << "_delta = " << tmp << "_feature - " << tmp << "_q;\n";
+            body << "                float " << tmp << "_dist = " << voronoiDistanceExpressionForMode(distanceMode, tmp + std::string("_delta")) << ";\n";
+            body << "                if (" << tmp << "_dist < " << tmp << "_best) {\n";
+            body << "                    " << tmp << "_second = " << tmp << "_best;\n";
+            body << "                    " << tmp << "_best = " << tmp << "_dist;\n";
+            body << "                    " << tmp << "_bestCell = " << tmp << "_candidateCell;\n";
+            body << "                } else if (" << tmp << "_dist < " << tmp << "_second) {\n";
+            body << "                    " << tmp << "_second = " << tmp << "_dist;\n";
+            body << "                }\n";
+            body << "            }\n";
+            body << "        }\n";
+
+            const std::string bestValue = [&]() {
+                switch (clampVoronoiMethod(method)) {
+                case kVoronoiMethodCells:
+                    return std::string("fract(sin(dot(") + tmp + "_bestCell, vec2(12.9898, 78.233))) * 43758.5453)";
+                case kVoronoiMethodDistance:
+                    return std::string("1.0 - clamp(") + tmp + "_best / " +
+                        voronoiDistanceNormalizationForMode(distanceMode, radius) +
+                        ", 0.0, 1.0)";
+                case kVoronoiMethodBorders:
+                    return std::string("clamp((") + tmp + "_second - " + tmp + "_best) / " +
+                        voronoiDistanceNormalizationForMode(distanceMode, radius) +
+                        ", 0.0, 1.0)";
+                case kVoronoiMethodSmooth:
+                    return std::string("smoothstep(0.0, 1.0, clamp(1.0 - ") + tmp +
+                        "_best / " + voronoiDistanceNormalizationForMode(distanceMode, radius) +
+                        ", 0.0, 1.0))";
+                }
+                return std::string("0.0");
+            }();
+
+            body << "        float " << tmp << "_layer = " << bestValue << ";\n";
+            if (smooth) {
+                body << "        " << tmp << "_layer = smoothstep(0.0, 1.0, " << tmp
+                     << "_layer);\n";
+            }
+            body << "        " << tmp << "_result += " << tmp << "_layer * " << tmp
+                 << "_amp;\n";
+            body << "        " << tmp << "_norm += " << tmp << "_amp;\n";
+            body << "        " << tmp << "_amp *= 0.5;\n";
+            body << "    }\n";
+            body << "    float " << tmp << " = " << tmp << "_norm > 0.0 ? "
+                 << tmp << "_result / " << tmp << "_norm : 0.0;\n";
+            cache[key(node.id, 0)] = tmp;
+            visiting.erase(nodeId);
+            return tmp;
+        }
 
         case NodeKind::FN_TRUCHET_MAZE: {
             const std::string p = resolveInput(node, 0);
@@ -1081,7 +1695,64 @@ struct Codegen {
             resultExpr = "rippleUv(" + uv + ", " + freq + ", " + amp + ", " + t + ")";
             break;
         }
+        case NodeKind::FX_RADIAL_SHEAR: {
+            const std::string uv = resolveInput(node, 0);
+            const std::string center = resolveInput(node, 1);
+            const std::string strength = resolveInput(node, 2);
+            const std::string offset = resolveInput(node, 3);
+            const std::string tmp = newTemp("rsh");
+            body << "    vec2 " << tmp << "_delta = (" << uv << ") - (" << center << ");\n";
+            body << "    float " << tmp << "_radius = max(length(" << tmp
+                 << "_delta) + (" << offset << "), 0.0001);\n";
+            body << "    vec2 " << tmp << "_shear = vec2(" << tmp << "_delta.y, "
+                 << tmp << "_delta.x) * (" << strength << ") * " << tmp
+                 << "_radius;\n";
+            body << "    vec2 " << tmp << " = (" << center << ") + " << tmp
+                 << "_delta + " << tmp << "_shear;\n";
+            cache[key(node.id, 0)] = tmp;
+            visiting.erase(nodeId);
+            return tmp;
+        }
 
+        case NodeKind::FX_PANNER: {
+            const std::string uv = resolveInput(node, 0);
+            const std::string speed = resolveInput(node, 1);
+            const std::string time = resolveInput(node, 2);
+            resultExpr = "(" + uv + ") + (" + speed + ") * (" + time + ")";
+            break;
+        }
+        case NodeKind::FX_PIXELATE_UV: {
+            const std::string uv = resolveInput(node, 0);
+            const std::string px = resolveInput(node, 1);
+            const std::string py = resolveInput(node, 2);
+            const std::string tmp = newTemp("pix");
+            body << "    vec2 " << tmp << "_cells = max(vec2((" << px << "), ("
+                 << py << ")), vec2(1.0));\n";
+            body << "    vec2 " << tmp << " = floor((" << uv << ") * " << tmp
+                 << "_cells) / " << tmp << "_cells;\n";
+            cache[key(node.id, 0)] = tmp;
+            visiting.erase(nodeId);
+            return tmp;
+        }
+        case NodeKind::FX_ROTATOR: {
+            const std::string uv = resolveInput(node, 0);
+            const std::string anchor = resolveInput(node, 1);
+            const std::string time = resolveInput(node, 2);
+            const std::string tmp = newTemp("rot");
+            body << "    vec2 " << tmp << "_anchor = (" << anchor << ");\n";
+            body << "    vec2 " << tmp << "_delta = (" << uv << ") - " << tmp
+                 << "_anchor;\n";
+            body << "    float " << tmp << "_a = (" << time << ");\n";
+            body << "    float " << tmp << "_s = sin(" << tmp << "_a);\n";
+            body << "    float " << tmp << "_c = cos(" << tmp << "_a);\n";
+            body << "    vec2 " << tmp << " = vec2("
+                 << tmp << "_delta.x * " << tmp << "_c - " << tmp << "_delta.y * " << tmp << "_s, "
+                 << tmp << "_delta.x * " << tmp << "_s + " << tmp << "_delta.y * " << tmp << "_c"
+                 << ") + " << tmp << "_anchor;\n";
+            cache[key(node.id, 0)] = tmp;
+            visiting.erase(nodeId);
+            return tmp;
+        }
         case NodeKind::SEAMLESS_UV: {
             // faceUv(worldPos, faceNormal) projects world-space position onto the
             // dominant face plane, giving a UV that is continuous across block
@@ -1241,7 +1912,7 @@ ShaderNodeGraph::CodegenResult ShaderNodeGraph::buildGlsl() const {
 
 std::string ShaderNodeGraph::serialize() const {
     nlohmann::json doc;
-    doc["version"] = 1;
+    doc["version"] = 2;
     doc["nextNodeId"] = nextNodeId_;
     doc["nextLinkId"] = nextLinkId_;
 
@@ -1254,6 +1925,19 @@ std::string ShaderNodeGraph::serialize() const {
         n["constValue"] = { node.constValue.x, node.constValue.y,
                             node.constValue.z, node.constValue.w };
         n["enumOption"] = node.enumOption;
+        n["preview"] = node.previewEnabled;
+
+        if (node.kind == NodeKind::OP_GRADIENT) {
+            nlohmann::json gradientStops = nlohmann::json::array();
+            for (const GradientStop& stop : node.gradientStops) {
+                nlohmann::json s;
+                s["position"] = stop.position;
+                s["color"] = { stop.color.x, stop.color.y,
+                               stop.color.z, stop.color.w };
+                gradientStops.push_back(s);
+            }
+            n["gradientStops"] = gradientStops;
+        }
 
         nlohmann::json inputs = nlohmann::json::array();
         for (const InputPin& pin : node.inputs) {
@@ -1296,13 +1980,37 @@ bool ShaderNodeGraph::deserialize(const std::string& json, std::string& outError
                 node.position.x = n["pos"][0].get<float>();
                 node.position.y = n["pos"][1].get<float>();
             }
+
+            // Build the node shape first, then restore the saved editable state.
+            configureNode(node);
+
             if (n.contains("constValue") && n["constValue"].is_array()) {
                 for (std::size_t i = 0; i < n["constValue"].size() && i < 4; ++i) {
                     (&node.constValue.x)[i] = n["constValue"][i].get<float>();
                 }
             }
             node.enumOption = n.value("enumOption", 0);
-            configureNode(node);
+            node.previewEnabled = n.value("preview", false);
+            if (node.kind == NodeKind::APPEND) {
+                syncAppendNodeOutput(node);
+            }
+            if (node.kind == NodeKind::OP_GRADIENT && n.contains("gradientStops") &&
+                n["gradientStops"].is_array()) {
+                node.gradientStops.clear();
+                for (const auto& savedStop : n["gradientStops"]) {
+                    GradientStop stop;
+                    stop.position = savedStop.value("position", 0.0f);
+                    if (savedStop.contains("color") && savedStop["color"].is_array()) {
+                        for (std::size_t i = 0; i < savedStop["color"].size() && i < 4; ++i) {
+                            (&stop.color.x)[i] = savedStop["color"][i].get<float>();
+                        }
+                    }
+                    node.gradientStops.push_back(stop);
+                }
+                if (node.gradientStops.empty()) {
+                    node.gradientStops = defaultGradientStops();
+                }
+            }
             if (n.contains("inputs") && n["inputs"].is_array()) {
                 for (std::size_t i = 0; i < n["inputs"].size() && i < node.inputs.size(); ++i) {
                     const auto& saved = n["inputs"][i];

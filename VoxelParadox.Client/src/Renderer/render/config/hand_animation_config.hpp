@@ -237,15 +237,23 @@ struct HandAnimationConfig {
     // --- Place hold delay ---
     float placeHoldDelay = 0.16f;
 
+    // --- Use (utility/food) animation ---
+    float useSpeed = 4.0f;
+    glm::vec3 useRotationDegrees{ 00.0f, 0.0f, 0.0f };
+    glm::vec3 useTranslation{ 0.0f, 0.0f, -0.30f };
+    float useIntensity = 1.0f;
+    EasingType useEaseIn = EasingType::EaseInOutSine;
+    EasingType useEaseOut = EasingType::EaseInOutSine;
+
     // --- Idle sway ---
-    float idleSwaySpeed = 2.2f;
+    float idleSwaySpeed = 3.2f;
     float idleSwayAmount = 0.012f;
 };
 
 // --- Animation State ---
 
 struct HandAnimationState {
-    enum class AnimationType { NONE, SWING, PUNCH };
+    enum class AnimationType { NONE, SWING, PUNCH, USE };
 
     AnimationType activeAnimation = AnimationType::NONE;
     float timer = 0.0f;
@@ -273,6 +281,13 @@ struct HandAnimationState {
         progress = 0.0f;
         placeHoldActive = holdDelay > 0.0f;
         placeHoldTimer = holdDelay;
+    }
+
+    void triggerUse(float speed) {
+        activeAnimation = AnimationType::USE;
+        timer = 0.0f;
+        duration = (speed > 0.0f) ? (1.0f / speed) : 0.08f;
+        progress = 0.0f;
     }
 
     void update(float dt, const HandAnimationConfig& config) {
@@ -310,6 +325,10 @@ struct HandAnimationState {
             easeIn = config.punchEaseIn;
             easeOut = config.punchEaseOut;
             intensity = config.punchIntensity;
+        } else if (activeAnimation == AnimationType::USE) {
+            easeIn = config.useEaseIn;
+            easeOut = config.useEaseOut;
+            intensity = config.useIntensity;
         }
 
         // First half: incoming (0->1), second half: outgoing (1->0)
@@ -332,6 +351,9 @@ struct HandAnimationState {
         if (activeAnimation == AnimationType::PUNCH) {
             return config.punchRotationDegrees * progress;
         }
+        if (activeAnimation == AnimationType::USE) {
+            return config.useRotationDegrees * progress;
+        }
         return glm::vec3(0.0f);
     }
 
@@ -341,6 +363,9 @@ struct HandAnimationState {
         }
         if (activeAnimation == AnimationType::PUNCH) {
             return config.punchTranslation * progress;
+        }
+        if (activeAnimation == AnimationType::USE) {
+            return config.useTranslation * progress;
         }
         return glm::vec3(0.0f);
     }

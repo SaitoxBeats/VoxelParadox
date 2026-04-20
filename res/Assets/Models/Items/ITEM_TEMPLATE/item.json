@@ -1,0 +1,17 @@
+{
+  "id": "placeholder_item",
+  "display_name": "Placeholder Item",
+  "categories": [ "utility" ],
+  "stack_limit": 64,
+  "icon_asset": "Assets/Textures/Items/placeholder_item.png",
+  "on_use": {
+    "cooldown": 0.2
+  },
+  "script": {
+    "enabled": true,
+    "path": "script.lua"
+  },
+  "world_preview": {
+    "use_texture_sprite": true
+  }
+}

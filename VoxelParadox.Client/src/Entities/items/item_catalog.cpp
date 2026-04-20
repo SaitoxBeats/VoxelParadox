@@ -246,6 +246,8 @@ const char* getItemCategoryDisplayName(ItemCategory category) {
         return "Material";
     case ItemCategory::QUEST:
         return "Quest";
+    case ItemCategory::FOOD:
+        return "Food";
     case ItemCategory::NONE:
     default:
         return "None";
@@ -272,6 +274,7 @@ std::string getItemCategoryDisplayName(std::uint32_t categoryMask) {
     appendCategory(ItemCategory::UTILITY);
     appendCategory(ItemCategory::MATERIAL);
     appendCategory(ItemCategory::QUEST);
+    appendCategory(ItemCategory::FOOD);
 
     if (result.empty()) {
         result = getItemCategoryDisplayName(ItemCategory::NONE);

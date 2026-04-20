@@ -374,9 +374,9 @@ void hudPortalTracker::updateWaypoint(int screenWidth, int screenHeight) {
     if (world->seed != trackedWorldSeed || world->biomeSelection != trackedWorldBiome) {
         waypointDeactivateWhenHidden = true;
     } else {
+        // Use the persisted portal registry so tracking survives chunk unloads.
         const auto portalIt = world->portalBlocks.find(trackedBlock);
-        if (portalIt == world->portalBlocks.end() || portalIt->second != trackedChildSeed ||
-            world->getBlock(trackedBlock) != BlockIds::PORTAL) {
+        if (portalIt == world->portalBlocks.end() || portalIt->second != trackedChildSeed) {
             waypointDeactivateWhenHidden = true;
         } else {
             trackedChildBiome =

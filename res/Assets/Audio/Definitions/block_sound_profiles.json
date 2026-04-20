@@ -39,6 +39,14 @@
       "place": "block.crystal.place",
       "hit": "block.crystal.hit",
       "blocks": ["crystal"]
+    },
+    {
+      "id": "wool",
+      "break": "block.wool.break",
+      "step": "footstep.wool",
+      "place": "block.wool.place",
+      "hit": "block.wool.hit",
+      "blocks": ["yellowish_green_wool"]
     }
   ]
 }

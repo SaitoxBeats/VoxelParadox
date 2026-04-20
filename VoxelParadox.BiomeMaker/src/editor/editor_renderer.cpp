@@ -29,6 +29,8 @@ bool EditorRenderer::init() {
 }
 
 void EditorRenderer::destroyFramebuffer() {
+  releaseCloudDepthTexture();
+
   if (depthStencilRenderbuffer_ != 0) {
     glDeleteRenderbuffers(1, &depthStencilRenderbuffer_);
     depthStencilRenderbuffer_ = 0;
@@ -106,6 +108,10 @@ void EditorRenderer::renderToViewport(PreviewWorldController& world, const Camer
   world.render(camera.position, viewProjection);
 
   if (const BiomePreset* preset = world.biomePreset()) {
+    const int depthTextureUnit = cloudDepthTextureUnit();
+    const bool hasDepthTexture =
+        depthTextureUnit >= 0 && captureCloudDepthTexture();
+
     bindBlockTextures();
     VoxelGame::CloudRenderContext cloudContext{};
     cloudContext.preset = preset;
@@ -120,6 +126,11 @@ void EditorRenderer::renderToViewport(PreviewWorldController& world, const Camer
     cloudContext.timeSeconds = timeSeconds;
     cloudContext.fallbackRenderDistance = world.previewRenderDistance();
     cloudContext.alphaMultiplier = 1.0f;
+    cloudContext.quality = VoxelGame::Clouds::CloudQuality::HIGH;
+    cloudContext.sceneDepthTexture = hasDepthTexture ? cloudSceneDepthTexture_ : 0;
+    cloudContext.sceneDepthTextureUnit = depthTextureUnit;
+    cloudContext.viewportSize = cloudSceneDepthTextureSize_;
+    cloudContext.inverseProjection = glm::inverse(projection);
     cloudRenderer_.render(cloudContext, blockShader_);
   }
 
@@ -173,6 +184,73 @@ void EditorRenderer::cleanupBlockTextures() {
 
 void EditorRenderer::bindBlockTextures() {
   BlockTextureCache::bindBlockTextures(blockTextures_);
+}
+
+bool EditorRenderer::captureCloudDepthTexture() {
+  if (viewportSize_.x <= 0 || viewportSize_.y <= 0) {
+    return false;
+  }
+
+  const int textureUnit = cloudDepthTextureUnit();
+  if (textureUnit < 0) {
+    return false;
+  }
+
+  GLint previousActiveTexture = GL_TEXTURE0;
+  GLint previousTexture = 0;
+  glGetIntegerv(GL_ACTIVE_TEXTURE, &previousActiveTexture);
+  glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(textureUnit));
+  glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+
+  if (cloudSceneDepthTexture_ == 0 ||
+      cloudSceneDepthTextureSize_ != viewportSize_) {
+    if (previousTexture == static_cast<GLint>(cloudSceneDepthTexture_)) {
+      previousTexture = 0;
+    }
+
+    releaseCloudDepthTexture();
+
+    glGenTextures(1, &cloudSceneDepthTexture_);
+    glBindTexture(GL_TEXTURE_2D, cloudSceneDepthTexture_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, viewportSize_.x,
+                 viewportSize_.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    cloudSceneDepthTextureSize_ = viewportSize_;
+  } else {
+    glBindTexture(GL_TEXTURE_2D, cloudSceneDepthTexture_);
+  }
+
+  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, viewportSize_.x,
+                      viewportSize_.y);
+
+  glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
+  glActiveTexture(static_cast<GLenum>(previousActiveTexture));
+  return true;
+}
+
+void EditorRenderer::releaseCloudDepthTexture() {
+  if (cloudSceneDepthTexture_ != 0) {
+    glDeleteTextures(1, &cloudSceneDepthTexture_);
+    cloudSceneDepthTexture_ = 0;
+  }
+
+  cloudSceneDepthTextureSize_ = glm::ivec2(0);
+}
+
+int EditorRenderer::cloudDepthTextureUnit() const {
+  GLint maxTextureUnits = 0;
+  glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
+
+  const int textureUnit = static_cast<int>(blockTextures_.size());
+  if (maxTextureUnits <= 0 || textureUnit >= maxTextureUnits) {
+    return -1;
+  }
+
+  return textureUnit;
 }
 
 glm::vec4 EditorRenderer::getFogColor(int depth) const {

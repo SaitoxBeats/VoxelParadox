@@ -10,6 +10,7 @@
 
 // 3. Local Project Modules
 #include "world/biome/biome_preset.hpp"
+#include "world/cloud/cloud_quality.hpp"
 
 namespace VoxelGame::Clouds {
 
@@ -25,6 +26,7 @@ struct CloudPageKey {
   int layerIndex = 0;
   int layerSegment = 0;
   int resolvedType = 0;
+  int lod = 0;
 
   bool operator==(const CloudPageKey& other) const {
     return seed == other.seed && revision == other.revision &&
@@ -32,7 +34,7 @@ struct CloudPageKey {
            pageX == other.pageX && pageZ == other.pageZ &&
            layerIndex == other.layerIndex &&
            layerSegment == other.layerSegment &&
-           resolvedType == other.resolvedType;
+           resolvedType == other.resolvedType && lod == other.lod;
   }
 };
 
@@ -45,6 +47,8 @@ struct CloudPageDescriptor {
   glm::vec3 worldCenter{0.0f};
   int layerBaseY = 0;
   int layerHeight = 1;
+  int segmentHeight = 1;
+  int lod = 0;
   float opacity = 0.38f;
   float sortDistance2 = 0.0f;
 };
@@ -62,7 +66,8 @@ std::vector<CloudPageDescriptor> collectVisibleCloudPages(
     int depth,
     const glm::vec3& cameraPosition,
     float timeSeconds,
-    int fallbackRenderDistance);
+    int fallbackRenderDistance,
+    CloudQuality quality = CloudQuality::MEDIUM);
 
 bool sampleCloudCell(const CloudPageDescriptor& page,
                      const glm::ivec3& localPos);

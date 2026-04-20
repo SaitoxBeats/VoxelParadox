@@ -2,14 +2,32 @@
 
 // 1. Standard Library
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 // 2. Third-party Libraries
+#include <glm/gtc/matrix_access.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 // 3. Local Project Modules
 #include "engine/meshing/greedy_mesh.hpp"
 #include "world/block/block.hpp"
+
+namespace {
+
+float cloudDepthFadeDistance(VoxelGame::Clouds::CloudQuality quality) {
+  if (quality == VoxelGame::Clouds::CloudQuality::LOW) {
+    return 2.0f;
+  }
+
+  if (quality == VoxelGame::Clouds::CloudQuality::HIGH) {
+    return 4.0f;
+  }
+
+  return 3.0f;
+}
+
+} // namespace
 
 namespace VoxelGame {
 
@@ -35,13 +53,14 @@ void CloudRenderer::render(const CloudRenderContext& context,
       Clouds::collectVisibleCloudPages(*context.preset, context.seed,
                                        context.depth, context.cameraPosition,
                                        context.timeSeconds,
-                                       context.fallbackRenderDistance);
+                                       context.fallbackRenderDistance,
+                                       context.quality);
   if (pages.empty()) {
     pruneCache(0);
     return;
   }
 
-  int buildBudget = computeBuildBudget(pages);
+  int buildBudget = computeBuildBudget(pages, context.quality);
   struct DrawPage {
     Clouds::CloudPageDescriptor descriptor{};
     CachedPage* page = nullptr;
@@ -50,6 +69,10 @@ void CloudRenderer::render(const CloudRenderContext& context,
   drawPages.reserve(pages.size());
 
   for (const Clouds::CloudPageDescriptor& descriptor : pages) {
+    if (!isPageVisible(descriptor, context.viewProjection)) {
+      continue;
+    }
+
     auto found = pageCache_.find(descriptor.key);
     if (found == pageCache_.end()) {
       if (buildBudget <= 0) {
@@ -91,17 +114,31 @@ void CloudRenderer::render(const CloudRenderContext& context,
   GLint blendSrcAlpha = GL_ONE;
   GLint blendDstAlpha = GL_ZERO;
   GLint cullFaceMode = GL_BACK;
+  GLint activeTexture = GL_TEXTURE0;
+  GLint sceneDepthTextureBinding = 0;
   glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMask);
   glGetIntegerv(GL_BLEND_SRC_RGB, &blendSrcRgb);
   glGetIntegerv(GL_BLEND_DST_RGB, &blendDstRgb);
   glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSrcAlpha);
   glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDstAlpha);
   glGetIntegerv(GL_CULL_FACE_MODE, &cullFaceMode);
+  glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
+
+  const bool useSoftParticles =
+      context.sceneDepthTexture != 0 && context.sceneDepthTextureUnit >= 0 &&
+      context.viewportSize.x > 0 && context.viewportSize.y > 0;
+
+  if (useSoftParticles) {
+    glActiveTexture(GL_TEXTURE0 +
+                    static_cast<GLenum>(context.sceneDepthTextureUnit));
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &sceneDepthTextureBinding);
+    glBindTexture(GL_TEXTURE_2D, context.sceneDepthTexture);
+  }
 
   glEnable(GL_DEPTH_TEST);
   glDepthMask(GL_FALSE);
   glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   glDisable(GL_CULL_FACE);
 
   blockShader.use();
@@ -113,6 +150,21 @@ void CloudRenderer::render(const CloudRenderContext& context,
   blockShader.setFloat("uAoStrength", 0.25f);
   blockShader.setVec4("uBiomeTint", glm::vec4(1.0f));
   blockShader.setInt("uUseLocalMaterialSpace", 0);
+  blockShader.setInt("uCloudPass", 1);
+  blockShader.setInt("uCloudQuality", static_cast<int>(context.quality));
+  blockShader.setInt("uCloudSceneDepth",
+                     std::max(context.sceneDepthTextureUnit, 0));
+  blockShader.setInt("uCloudUseSoftParticles", useSoftParticles ? 1 : 0);
+  blockShader.setVec2("uCloudViewportSize", glm::vec2(context.viewportSize));
+  blockShader.setMat4("uCloudInvProjection", context.inverseProjection);
+  blockShader.setFloat("uCloudDepthFadeDistance",
+                       cloudDepthFadeDistance(context.quality));
+  blockShader.setFloat("uCloudSoftness",
+                       context.quality == Clouds::CloudQuality::LOW
+                           ? 0.34f
+                           : (context.quality == Clouds::CloudQuality::HIGH
+                                  ? 0.58f
+                                  : 0.46f));
   blockShader.setInt("uPointLightCount", 0);
   blockShader.setVec3("uBreakBlockCenter", glm::vec3(0.0f));
   blockShader.setFloat("uBreakProgress", 0.0f);
@@ -142,6 +194,22 @@ void CloudRenderer::render(const CloudRenderContext& context,
   blockShader.setMat4("uModel", glm::mat4(1.0f));
   blockShader.setFloat("uAlpha", 1.0f);
   blockShader.setFloat("uAoStrength", 1.0f);
+  blockShader.setInt("uCloudPass", 0);
+  blockShader.setInt("uCloudQuality",
+                     static_cast<int>(Clouds::CloudQuality::MEDIUM));
+  blockShader.setInt("uCloudUseSoftParticles", 0);
+  blockShader.setFloat("uCloudDepthFadeDistance", 0.0f);
+  blockShader.setVec2("uCloudViewportSize", glm::vec2(0.0f));
+  blockShader.setMat4("uCloudInvProjection", glm::mat4(1.0f));
+  blockShader.setFloat("uCloudSoftness", 0.0f);
+
+  if (useSoftParticles) {
+    glActiveTexture(GL_TEXTURE0 +
+                    static_cast<GLenum>(context.sceneDepthTextureUnit));
+    glBindTexture(GL_TEXTURE_2D,
+                  static_cast<GLuint>(sceneDepthTextureBinding));
+  }
+  glActiveTexture(static_cast<GLenum>(activeTexture));
 
   if (blendEnabled) {
     glEnable(GL_BLEND);
@@ -260,8 +328,45 @@ void CloudRenderer::buildPageMesh(
   uploadPage(page, meshResult.vertices);
 }
 
+bool CloudRenderer::isPageVisible(
+    const Clouds::CloudPageDescriptor& descriptor,
+    const glm::mat4& viewProjection) const {
+  const glm::vec3 extents(
+      static_cast<float>(Clouds::kCloudPageSize) * 0.5f + 2.0f,
+      static_cast<float>(std::max(descriptor.segmentHeight, 1)) * 0.5f + 2.0f,
+      static_cast<float>(Clouds::kCloudPageSize) * 0.5f + 2.0f);
+
+  const glm::vec4 rows[4] = {
+      glm::row(viewProjection, 0),
+      glm::row(viewProjection, 1),
+      glm::row(viewProjection, 2),
+      glm::row(viewProjection, 3),
+  };
+  const glm::vec4 planes[6] = {
+      rows[3] + rows[0],
+      rows[3] - rows[0],
+      rows[3] + rows[1],
+      rows[3] - rows[1],
+      rows[3] + rows[2],
+      rows[3] - rows[2],
+  };
+
+  for (const glm::vec4& plane : planes) {
+    const glm::vec3 normal(plane.x, plane.y, plane.z);
+    const float radius = extents.x * std::abs(normal.x) +
+                         extents.y * std::abs(normal.y) +
+                         extents.z * std::abs(normal.z);
+    if (glm::dot(normal, descriptor.worldCenter) + plane.w + radius < 0.0f) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 int CloudRenderer::computeBuildBudget(
-    const std::vector<Clouds::CloudPageDescriptor>& pages) const {
+    const std::vector<Clouds::CloudPageDescriptor>& pages,
+    Clouds::CloudQuality quality) const {
   std::vector<int> seenModules;
   int budget = 0;
 
@@ -279,7 +384,11 @@ int CloudRenderer::computeBuildBudget(
                          1, 64);
   }
 
-  return std::clamp(budget, 1, 128);
+  const int qualityCap =
+      quality == Clouds::CloudQuality::LOW
+          ? 1
+          : (quality == Clouds::CloudQuality::HIGH ? 8 : 3);
+  return std::clamp(budget, 1, qualityCap);
 }
 
 void CloudRenderer::pruneCache(std::size_t visiblePageCount) {

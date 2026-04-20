@@ -13,14 +13,18 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <limits>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
 // 2. Third-party Libraries
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <nlohmann/json.hpp>
 
 // 3. Local Project Modules
 #include "shader_node_editor.hpp"
@@ -41,6 +45,10 @@ constexpr float kBaseNodePadding = 6.0f;
 constexpr float kBaseNodeRounding = 4.0f;
 constexpr float kBaseLinkThickness = 2.5f;
 constexpr float kBaseFontSize = 13.0f;
+constexpr float kInlineRowHeight = 14.0f;
+constexpr float kAppendHeaderDetailHeight = 16.0f;
+constexpr float kBlendHeaderDetailHeight = 32.0f;
+constexpr float kVoronoiHeaderDetailHeight = 16.0f;
 constexpr float kMinZoom = 0.35f;
 constexpr float kMaxZoom = 2.5f;
 constexpr const char* kSidecarFileName = "shader.nodegraph.json";
@@ -72,6 +80,12 @@ ImU32 colorForPinType(PinDataType type) {
     case PinDataType::VEC4:  return IM_COL32(225, 120, 200, 255);
     }
     return IM_COL32(200, 200, 200, 255);
+}
+
+std::string formatCompactFloat(float value, int precision = 2) {
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%.*f", precision, value);
+    return buffer;
 }
 
 void drawBezier(ImDrawList* draw, const ImVec2& a, const ImVec2& b, ImU32 color,
@@ -120,6 +134,533 @@ bool pointNearBezier(const ImVec2& p, const ImVec2& a, const ImVec2& b,
     return false;
 }
 
+std::vector<GradientStop> sortedGradientStops(const std::vector<GradientStop>& stops) {
+    std::vector<GradientStop> result = stops;
+    for (GradientStop& stop : result) {
+        stop.position = std::clamp(stop.position, 0.0f, 1.0f);
+    }
+    std::stable_sort(result.begin(), result.end(),
+        [](const GradientStop& a, const GradientStop& b) {
+            return a.position < b.position;
+        });
+    return result;
+}
+
+glm::vec4 sampleGradientColor(const std::vector<GradientStop>& stops, float t) {
+    const std::vector<GradientStop> sorted = sortedGradientStops(stops);
+    if (sorted.empty()) {
+        return glm::vec4(1.0f);
+    }
+    if (sorted.size() == 1) {
+        return sorted.front().color;
+    }
+
+    t = std::clamp(t, 0.0f, 1.0f);
+    if (t <= sorted.front().position) {
+        return sorted.front().color;
+    }
+
+    for (std::size_t i = 0; i + 1 < sorted.size(); ++i) {
+        const GradientStop& a = sorted[i];
+        const GradientStop& b = sorted[i + 1];
+        if (t < b.position) {
+            const float denom = std::max(b.position - a.position, 0.0001f);
+            const float mixT = std::clamp((t - a.position) / denom, 0.0f, 1.0f);
+            return glm::vec4(
+                a.color.x + (b.color.x - a.color.x) * mixT,
+                a.color.y + (b.color.y - a.color.y) * mixT,
+                a.color.z + (b.color.z - a.color.z) * mixT,
+                a.color.w + (b.color.w - a.color.w) * mixT);
+        }
+    }
+
+    return sorted.back().color;
+}
+
+constexpr int kVoronoiMethodCells = 0;
+constexpr int kVoronoiMethodDistance = 1;
+constexpr int kVoronoiMethodBorders = 2;
+constexpr int kVoronoiMethodSmooth = 3;
+
+constexpr int kVoronoiDistanceEuclidian2 = 0;
+constexpr int kVoronoiDistanceEuclidian = 1;
+constexpr int kVoronoiDistanceManhattan = 2;
+constexpr int kVoronoiDistanceChebyshev = 3;
+
+constexpr int kVoronoiMethodMask = 0x3;
+constexpr int kVoronoiDistanceMask = 0xC;
+constexpr int kVoronoiTileableMask = 0x10;
+constexpr int kVoronoiSmoothMask = 0x20;
+
+int voronoiMethodFromOption(int option) {
+    return option & kVoronoiMethodMask;
+}
+
+int voronoiDistanceFromOption(int option) {
+    return (option >> 2) & 0x3;
+}
+
+bool voronoiTileableFromOption(int option) {
+    return (option & kVoronoiTileableMask) != 0;
+}
+
+bool voronoiSmoothFromOption(int option) {
+    return (option & kVoronoiSmoothMask) != 0;
+}
+
+float fractFloat(float value) {
+    return value - std::floor(value);
+}
+
+glm::vec2 voronoiHash2(const glm::vec2& cell) {
+    const float x = std::sin(cell.x * 127.1f + cell.y * 311.7f) * 43758.5453f;
+    const float y = std::sin(cell.x * 269.5f + cell.y * 183.3f) * 43758.5453f;
+    return glm::vec2(fractFloat(x), fractFloat(y));
+}
+
+float voronoiDistanceValue(int mode, const glm::vec2& delta) {
+    switch (mode) {
+    case kVoronoiDistanceEuclidian2:
+        return delta.x * delta.x + delta.y * delta.y;
+    case kVoronoiDistanceEuclidian:
+        return std::sqrt(delta.x * delta.x + delta.y * delta.y);
+    case kVoronoiDistanceManhattan:
+        return std::abs(delta.x) + std::abs(delta.y);
+    case kVoronoiDistanceChebyshev:
+        return std::max(std::abs(delta.x), std::abs(delta.y));
+    }
+    return std::sqrt(delta.x * delta.x + delta.y * delta.y);
+}
+
+float voronoiDistanceNormalization(int mode, int radius) {
+    const float span = static_cast<float>(std::max(radius + 1, 1));
+    switch (mode) {
+    case kVoronoiDistanceEuclidian2:
+        return 2.0f * span * span;
+    case kVoronoiDistanceEuclidian:
+        return 1.41421356f * span;
+    case kVoronoiDistanceManhattan:
+        return 2.0f * span;
+    case kVoronoiDistanceChebyshev:
+        return span;
+    }
+    return span;
+}
+
+float voronoiPreviewSample(const Node& node, const glm::vec2& uv) {
+    const int method = voronoiMethodFromOption(node.enumOption);
+    const int distanceMode = voronoiDistanceFromOption(node.enumOption);
+    const bool tileable = voronoiTileableFromOption(node.enumOption);
+    const bool smooth = voronoiSmoothFromOption(node.enumOption);
+    const int qualityIndex = std::clamp(
+        static_cast<int>(std::round(node.constValue.z)), 0, 3);
+    const int octaves = std::clamp(
+        static_cast<int>(std::round(node.constValue.w)), 1, 8);
+    const int radius = qualityIndex;
+    const float scale = std::max(node.constValue.x, 0.0001f);
+    const float angle = node.constValue.y * 0.017453292519943295769f;
+    const float c = std::cos(angle);
+    const float s = std::sin(angle);
+    const glm::mat2 rot(c, -s, s, c);
+
+    float total = 0.0f;
+    float amplitude = 1.0f;
+    float normalization = 0.0f;
+
+    for (int octave = 0; octave < octaves; ++octave) {
+        glm::vec2 q = rot * (uv * scale * std::pow(2.0f, static_cast<float>(octave)));
+        if (tileable) {
+            q = glm::fract(q);
+        }
+
+        const glm::vec2 cell = glm::floor(q);
+        float best = 1.0e9f;
+        float second = 1.0e9f;
+        glm::vec2 bestCell(0.0f);
+
+        for (int j = -radius; j <= radius; ++j) {
+            for (int i = -radius; i <= radius; ++i) {
+                const glm::vec2 g(static_cast<float>(i), static_cast<float>(j));
+                const glm::vec2 candidateCell = cell + g;
+                const glm::vec2 seed = voronoiHash2(candidateCell);
+                const glm::vec2 feature = candidateCell + seed;
+                const glm::vec2 delta = feature - q;
+                const float dist = voronoiDistanceValue(distanceMode, delta);
+                if (dist < best) {
+                    second = best;
+                    best = dist;
+                    bestCell = candidateCell;
+                } else if (dist < second) {
+                    second = dist;
+                }
+            }
+        }
+
+        const float norm = std::max(voronoiDistanceNormalization(distanceMode, radius), 0.0001f);
+        float layer = 0.0f;
+        switch (method) {
+        case kVoronoiMethodCells:
+            layer = fractFloat(std::sin(bestCell.x * 12.9898f + bestCell.y * 78.233f) *
+                               43758.5453f);
+            break;
+        case kVoronoiMethodDistance:
+            layer = 1.0f - std::clamp(best / norm, 0.0f, 1.0f);
+            break;
+        case kVoronoiMethodBorders:
+            layer = std::clamp((second - best) / norm, 0.0f, 1.0f);
+            break;
+        case kVoronoiMethodSmooth:
+            layer = std::clamp(1.0f - best / norm, 0.0f, 1.0f);
+            layer = layer * layer * (3.0f - 2.0f * layer);
+            break;
+        }
+
+        if (smooth) {
+            layer = layer * layer * (3.0f - 2.0f * layer);
+        }
+
+        total += layer * amplitude;
+        normalization += amplitude;
+        amplitude *= 0.5f;
+    }
+
+    return normalization > 0.0f ? (total / normalization) : 0.0f;
+}
+
+ImU32 voronoiPreviewColor(const Node& node, const glm::vec2& uv) {
+    const float value = std::clamp(voronoiPreviewSample(node, uv), 0.0f, 1.0f);
+    const float tint = 0.22f + 0.78f * value;
+    return ImGui::ColorConvertFloat4ToU32(ImVec4(tint, tint * 0.92f, tint * 1.05f, 1.0f));
+}
+
+std::string voronoiSubtitle(const Node& node) {
+    return std::string("Method [") + ShaderNodeGraph::voronoiMethodName(voronoiMethodFromOption(node.enumOption)) +
+        "]  Distance [" + ShaderNodeGraph::voronoiDistanceName(voronoiDistanceFromOption(node.enumOption)) + "]";
+}
+
+std::string voronoiSettingsSummary(const Node& node) {
+    const int qualityIndex = std::clamp(static_cast<int>(std::round(node.constValue.z)), 0, 3);
+    const int octaves = std::clamp(static_cast<int>(std::round(node.constValue.w)), 1, 8);
+    const bool tileable = voronoiTileableFromOption(node.enumOption);
+    const bool smooth = voronoiSmoothFromOption(node.enumOption);
+
+    return std::string("Search [") +
+        ShaderNodeGraph::voronoiSearchQualityName(qualityIndex) +
+        "]  Octaves [" + std::to_string(octaves) +
+        "]  Tileable [" + (tileable ? "On" : "Off") +
+        "]  Smooth [" + (smooth ? "On" : "Off") + "]";
+}
+
+ImU32 colorToImU32(const glm::vec4& color) {
+    return ImGui::ColorConvertFloat4ToU32(ImVec4(color.x, color.y, color.z, color.w));
+}
+
+constexpr const char* kNodeClipboardFormat = "VoxelParadox.ShaderEditor.NodeClipboard";
+
+nlohmann::json serializeNodeToJson(const Node& node) {
+    nlohmann::json n;
+    n["id"] = node.id;
+    n["kind"] = static_cast<int>(node.kind);
+    n["pos"] = { node.position.x, node.position.y };
+    n["constValue"] = { node.constValue.x, node.constValue.y,
+                        node.constValue.z, node.constValue.w };
+    n["enumOption"] = node.enumOption;
+
+    if (node.kind == NodeKind::OP_GRADIENT) {
+        nlohmann::json gradientStops = nlohmann::json::array();
+        for (const GradientStop& stop : node.gradientStops) {
+            nlohmann::json s;
+            s["position"] = stop.position;
+            s["color"] = { stop.color.x, stop.color.y,
+                           stop.color.z, stop.color.w };
+            gradientStops.push_back(s);
+        }
+        n["gradientStops"] = gradientStops;
+    }
+
+    nlohmann::json inputs = nlohmann::json::array();
+    for (const InputPin& pin : node.inputs) {
+        nlohmann::json p;
+        p["default"] = { pin.defaultValue.x, pin.defaultValue.y,
+                         pin.defaultValue.z, pin.defaultValue.w };
+        inputs.push_back(p);
+    }
+    n["inputs"] = inputs;
+    return n;
+}
+
+std::string serializeNodeClipboard(const ShaderNodeGraph& graph,
+                                   const std::vector<int>& nodeIds) {
+    if (nodeIds.empty()) {
+        return {};
+    }
+
+    std::unordered_set<int> selected(nodeIds.begin(), nodeIds.end());
+
+    nlohmann::json doc;
+    doc["format"] = kNodeClipboardFormat;
+    doc["version"] = 1;
+
+    nlohmann::json nodes = nlohmann::json::array();
+    for (int nodeId : nodeIds) {
+        const Node* node = graph.findNode(nodeId);
+        if (!node) {
+            continue;
+        }
+        nodes.push_back(serializeNodeToJson(*node));
+    }
+    doc["nodes"] = nodes;
+
+    nlohmann::json links = nlohmann::json::array();
+    for (const Link& link : graph.links()) {
+        if (selected.count(link.from.nodeId) == 0 ||
+            selected.count(link.to.nodeId) == 0) {
+            continue;
+        }
+        nlohmann::json l;
+        l["id"] = link.id;
+        l["from"] = { link.from.nodeId, link.from.pinIndex };
+        l["to"] = { link.to.nodeId, link.to.pinIndex };
+        links.push_back(l);
+    }
+    doc["links"] = links;
+
+    return doc.dump(2);
+}
+
+struct ClipboardNodeRecord {
+    int oldId = -1;
+    NodeKind kind = NodeKind::CONST_FLOAT;
+    glm::vec2 position{ 0.0f, 0.0f };
+    glm::vec4 constValue{ 1.0f };
+    int enumOption = 0;
+    std::vector<GradientStop> gradientStops{};
+    std::vector<glm::vec4> inputDefaults{};
+};
+
+bool validateNodeClipboardPayload(const std::string& payload, std::string& outError) {
+    try {
+        if (payload.find(kNodeClipboardFormat) == std::string::npos) {
+            return false;
+        }
+        const nlohmann::json doc = nlohmann::json::parse(payload);
+        if (doc.value("format", "") != kNodeClipboardFormat) {
+            return false;
+        }
+        if (doc.value("version", 0) != 1) {
+            outError = "Unsupported node clipboard version.";
+            return false;
+        }
+        if (!doc.contains("nodes") || !doc["nodes"].is_array() ||
+            doc["nodes"].empty()) {
+            outError = "Clipboard does not contain any nodes.";
+            return false;
+        }
+
+        for (const auto& saved : doc["nodes"]) {
+            (void)saved.value("id", -1);
+            const int kindValue = saved.value("kind", 0);
+            if (kindValue < 0 ||
+                kindValue >= static_cast<int>(NodeKind::COUNT_)) {
+                outError = "Clipboard contains an unknown node type.";
+                return false;
+            }
+            if (saved.contains("pos") && saved["pos"].is_array() &&
+                saved["pos"].size() >= 2) {
+                (void)saved["pos"][0].get<float>();
+                (void)saved["pos"][1].get<float>();
+            }
+            if (saved.contains("constValue") && saved["constValue"].is_array()) {
+                for (std::size_t i = 0; i < saved["constValue"].size() && i < 4; ++i) {
+                    (void)saved["constValue"][i].get<float>();
+                }
+            }
+            if (saved.contains("gradientStops") &&
+                saved["gradientStops"].is_array()) {
+                for (const auto& savedStop : saved["gradientStops"]) {
+                    (void)savedStop.value("position", 0.0f);
+                    if (savedStop.contains("color") &&
+                        savedStop["color"].is_array()) {
+                        for (std::size_t i = 0; i < savedStop["color"].size() && i < 4; ++i) {
+                            (void)savedStop["color"][i].get<float>();
+                        }
+                    }
+                }
+            }
+            if (saved.contains("inputs") && saved["inputs"].is_array()) {
+                for (const auto& savedInput : saved["inputs"]) {
+                    if (savedInput.contains("default") &&
+                        savedInput["default"].is_array()) {
+                        for (std::size_t i = 0; i < savedInput["default"].size() && i < 4; ++i) {
+                            (void)savedInput["default"][i].get<float>();
+                        }
+                    }
+                }
+            }
+        }
+
+        if (doc.contains("links") && doc["links"].is_array()) {
+            for (const auto& savedLink : doc["links"]) {
+                if (!savedLink.contains("from") || !savedLink.contains("to") ||
+                    !savedLink["from"].is_array() || !savedLink["to"].is_array() ||
+                    savedLink["from"].size() < 2 || savedLink["to"].size() < 2) {
+                    continue;
+                }
+                (void)savedLink["from"][0].get<int>();
+                (void)savedLink["from"][1].get<int>();
+                (void)savedLink["to"][0].get<int>();
+                (void)savedLink["to"][1].get<int>();
+            }
+        }
+
+        return true;
+    }
+    catch (const std::exception& ex) {
+        outError = ex.what();
+        return false;
+    }
+}
+
+bool importNodeClipboardPayload(ShaderNodeGraph& graph,
+                                const std::string& payload,
+                                const glm::vec2& anchorWorldPos,
+                                std::vector<int>& outNodeIds,
+                                std::string& outError) {
+    try {
+        const nlohmann::json doc = nlohmann::json::parse(payload);
+        if (doc.value("format", "") != kNodeClipboardFormat) {
+            return false;
+        }
+        if (doc.value("version", 0) != 1) {
+            outError = "Unsupported node clipboard version.";
+            return false;
+        }
+        if (!doc.contains("nodes") || !doc["nodes"].is_array() ||
+            doc["nodes"].empty()) {
+            outError = "Clipboard does not contain any nodes.";
+            return false;
+        }
+
+        std::vector<ClipboardNodeRecord> records;
+        records.reserve(doc["nodes"].size());
+
+        glm::vec2 boundsMin(std::numeric_limits<float>::max(),
+                            std::numeric_limits<float>::max());
+        for (const auto& saved : doc["nodes"]) {
+            ClipboardNodeRecord record;
+            record.oldId = saved.value("id", -1);
+            record.kind = static_cast<NodeKind>(saved.value("kind", 0));
+            if (saved.contains("pos") && saved["pos"].is_array() &&
+                saved["pos"].size() >= 2) {
+                record.position.x = saved["pos"][0].get<float>();
+                record.position.y = saved["pos"][1].get<float>();
+            }
+    if (saved.contains("constValue") && saved["constValue"].is_array()) {
+        for (std::size_t i = 0; i < saved["constValue"].size() && i < 4; ++i) {
+            (&record.constValue.x)[i] = saved["constValue"][i].get<float>();
+        }
+    }
+            record.enumOption = saved.value("enumOption", 0);
+
+            if (saved.contains("gradientStops") &&
+                saved["gradientStops"].is_array()) {
+                for (const auto& savedStop : saved["gradientStops"]) {
+                    GradientStop stop;
+                    stop.position = savedStop.value("position", 0.0f);
+                    if (savedStop.contains("color") &&
+                        savedStop["color"].is_array()) {
+                        for (std::size_t i = 0; i < savedStop["color"].size() && i < 4; ++i) {
+                            (&stop.color.x)[i] = savedStop["color"][i].get<float>();
+                        }
+                    }
+                    record.gradientStops.push_back(stop);
+                }
+            }
+
+            if (saved.contains("inputs") && saved["inputs"].is_array()) {
+                for (const auto& savedInput : saved["inputs"]) {
+                    glm::vec4 def{ 0.0f };
+                    if (savedInput.contains("default") &&
+                        savedInput["default"].is_array()) {
+                        for (std::size_t i = 0; i < savedInput["default"].size() && i < 4; ++i) {
+                            (&def.x)[i] = savedInput["default"][i].get<float>();
+                        }
+                    }
+                    record.inputDefaults.push_back(def);
+                }
+            }
+
+            boundsMin.x = std::min(boundsMin.x, record.position.x);
+            boundsMin.y = std::min(boundsMin.y, record.position.y);
+            records.push_back(std::move(record));
+        }
+
+        const glm::vec2 offset = anchorWorldPos - boundsMin;
+        std::unordered_map<int, int> idMap;
+        outNodeIds.clear();
+        outNodeIds.reserve(records.size());
+
+        for (const ClipboardNodeRecord& record : records) {
+            const int newNodeId = graph.addNode(record.kind, record.position + offset);
+            Node* node = graph.findNode(newNodeId);
+            if (!node) {
+                outError = "Failed to create pasted node.";
+                return false;
+            }
+
+            node->constValue = record.constValue;
+            node->enumOption = record.enumOption;
+            if (record.kind == NodeKind::APPEND && !node->outputs.empty()) {
+                node->outputs.front().type = ShaderNodeGraph::appendOutputType(node->enumOption);
+            }
+            if (record.kind == NodeKind::OP_GRADIENT &&
+                !record.gradientStops.empty()) {
+                node->gradientStops = record.gradientStops;
+            }
+
+            const std::size_t inputCount = std::min(node->inputs.size(),
+                                                    record.inputDefaults.size());
+            for (std::size_t i = 0; i < inputCount; ++i) {
+                node->inputs[i].defaultValue = record.inputDefaults[i];
+            }
+
+            idMap[record.oldId] = newNodeId;
+            outNodeIds.push_back(newNodeId);
+        }
+
+        if (doc.contains("links") && doc["links"].is_array()) {
+            for (const auto& savedLink : doc["links"]) {
+                if (!savedLink.contains("from") || !savedLink.contains("to") ||
+                    !savedLink["from"].is_array() || !savedLink["to"].is_array() ||
+                    savedLink["from"].size() < 2 || savedLink["to"].size() < 2) {
+                    continue;
+                }
+
+                const int oldFromNode = savedLink["from"][0].get<int>();
+                const int oldFromPin = savedLink["from"][1].get<int>();
+                const int oldToNode = savedLink["to"][0].get<int>();
+                const int oldToPin = savedLink["to"][1].get<int>();
+
+                const auto fromIt = idMap.find(oldFromNode);
+                const auto toIt = idMap.find(oldToNode);
+                if (fromIt == idMap.end() || toIt == idMap.end()) {
+                    continue;
+                }
+
+                graph.connect(
+                    PinRef{ fromIt->second, oldFromPin },
+                    PinRef{ toIt->second, oldToPin });
+            }
+        }
+
+        return true;
+    }
+    catch (const std::exception& ex) {
+        outError = ex.what();
+        return false;
+    }
+}
+
 } // namespace
 
 #pragma endregion
@@ -139,11 +680,56 @@ float ShaderNodeEditor::nodeHeight(const Node& node) const {
     const int pinRows = static_cast<int>(
         std::max(node.inputs.size(), node.outputs.size()));
     const float baseBody = static_cast<float>(pinRows) * pinGap() + pinGap() * 0.5f;
-    const bool hasConst =
-        node.kind == NodeKind::CONST_FLOAT || node.kind == NodeKind::CONST_VEC2 ||
-        node.kind == NodeKind::CONST_VEC3 || node.kind == NodeKind::CONST_COLOR;
-    const float constExtra = hasConst ? 28.0f * zoom_ : 0.0f;
-    return titleHeight() + baseBody + constExtra + nodePadding();
+    const float detailHeight = nodeHeaderDetailHeight(node);
+    const float inlineH = nodeInlineEditorHeight(node);
+    return titleHeight() + detailHeight + baseBody + inlineH + nodePadding();
+}
+
+float ShaderNodeEditor::nodeInlineEditorHeight(const Node& node) const {
+    const float rowH = kInlineRowHeight * zoom_;
+    int rows = 0;
+    switch (node.kind) {
+    case NodeKind::CONST_FLOAT:
+    case NodeKind::CONST_VEC2:
+    case NodeKind::CONST_VEC3:
+    case NodeKind::CONST_COLOR:
+        rows += 1;
+        break;
+    case NodeKind::APPEND:
+        rows += 1;
+        break;
+    case NodeKind::FN_VORONOI:
+        rows += 8;
+        break;
+    case NodeKind::BLEND_OPERATIONS:
+        rows += 3;
+        break;
+    default:
+        break;
+    }
+    // One inline default editor per unlinked input pin.
+    for (const InputPin& pin : node.inputs) {
+        if (pin.connectedLinkId <= 0) {
+            ++rows;
+        }
+    }
+    float h = static_cast<float>(rows) * rowH;
+    if (rows > 0) h += 4.0f;
+    if (node.previewEnabled) h += 52.0f;
+    return h;
+}
+
+float ShaderNodeEditor::nodeHeaderDetailHeight(const Node& node) const {
+    if (node.kind == NodeKind::APPEND) {
+        return kAppendHeaderDetailHeight * zoom_;
+    }
+    if (node.kind == NodeKind::FN_VORONOI) {
+        return kVoronoiHeaderDetailHeight * zoom_;
+    }
+    if (node.kind == NodeKind::BLEND_OPERATIONS) {
+        return kBlendHeaderDetailHeight * zoom_;
+    }
+    return 0.0f;
 }
 
 glm::vec2 ShaderNodeEditor::nodeScreenPos(const Node& node) const {
@@ -154,14 +740,16 @@ glm::vec2 ShaderNodeEditor::nodeScreenPos(const Node& node) const {
 glm::vec2 ShaderNodeEditor::inputPinPos(const Node& node, int inputIndex,
                                         const glm::vec2& nodePos) const {
     return glm::vec2(nodePos.x,
-                     nodePos.y + titleHeight() + pinGap() * 0.75f +
+                     nodePos.y + titleHeight() + nodeHeaderDetailHeight(node) +
+                         pinGap() * 0.75f +
                          pinGap() * static_cast<float>(inputIndex));
 }
 
 glm::vec2 ShaderNodeEditor::outputPinPos(const Node& node, int outputIndex,
                                          const glm::vec2& nodePos) const {
     return glm::vec2(nodePos.x + nodeWidth(),
-                     nodePos.y + titleHeight() + pinGap() * 0.75f +
+                     nodePos.y + titleHeight() + nodeHeaderDetailHeight(node) +
+                         pinGap() * 0.75f +
                          pinGap() * static_cast<float>(outputIndex));
 }
 
@@ -234,6 +822,173 @@ void ShaderNodeEditor::resetHistory() {
     snapshotPendingForDrag_ = false;
 }
 
+std::vector<int> ShaderNodeEditor::selectedNodeIdsForClipboard() const {
+    std::unordered_set<int> selection = multiSelection_;
+    if (selection.empty() && selectedNodeId_ > 0) {
+        selection.insert(selectedNodeId_);
+    }
+
+    std::vector<int> result;
+    result.reserve(selection.size());
+    for (const Node& node : graph_.nodes()) {
+        if (selection.count(node.id) > 0) {
+            result.push_back(node.id);
+        }
+    }
+    return result;
+}
+
+glm::vec2 ShaderNodeEditor::selectedNodeBoundsMin(const std::vector<int>& nodeIds) const {
+    glm::vec2 boundsMin(0.0f, 0.0f);
+    bool initialized = false;
+    for (int nodeId : nodeIds) {
+        const Node* node = graph_.findNode(nodeId);
+        if (!node) {
+            continue;
+        }
+        if (!initialized) {
+            boundsMin = node->position;
+            initialized = true;
+        } else {
+            boundsMin.x = std::min(boundsMin.x, node->position.x);
+            boundsMin.y = std::min(boundsMin.y, node->position.y);
+        }
+    }
+    return boundsMin;
+}
+
+bool ShaderNodeEditor::copySelectedNodes() {
+    const std::vector<int> nodeIds = selectedNodeIdsForClipboard();
+    if (nodeIds.empty()) {
+        statusMessage_ = "No nodes selected to copy.";
+        return false;
+    }
+
+    nodeClipboardPayload_ = serializeNodeClipboard(graph_, nodeIds);
+    if (nodeClipboardPayload_.empty()) {
+        statusMessage_ = "No nodes selected to copy.";
+        return false;
+    }
+
+    ImGui::SetClipboardText(nodeClipboardPayload_.c_str());
+    statusMessage_ = "Copied " + std::to_string(nodeIds.size()) + " node(s).";
+    return true;
+}
+
+bool ShaderNodeEditor::pasteNodesFromClipboard(const glm::vec2& anchorWorldPos) {
+    std::string payload = nodeClipboardPayload_;
+    if (payload.empty()) {
+        const char* clipboard = ImGui::GetClipboardText();
+        if (clipboard) {
+            payload = clipboard;
+        }
+    }
+    if (payload.empty()) {
+        statusMessage_ = "Clipboard is empty.";
+        return false;
+    }
+
+    std::string validationErr;
+    if (!validateNodeClipboardPayload(payload, validationErr)) {
+        if (!validationErr.empty()) {
+            statusMessage_ = "Paste failed: " + validationErr;
+        } else {
+            statusMessage_ = "Clipboard does not contain node data.";
+        }
+        return false;
+    }
+
+    pushUndoSnapshot();
+
+    std::vector<int> newNodeIds;
+    std::string err;
+    if (!importNodeClipboardPayload(graph_, payload, anchorWorldPos, newNodeIds, err)) {
+        std::string restoreErr;
+        if (!undoStack_.empty()) {
+            const std::string snapshot = undoStack_.back();
+            undoStack_.pop_back();
+            if (!graph_.deserialize(snapshot, restoreErr)) {
+                statusMessage_ = "Paste failed: " + restoreErr;
+                return false;
+            }
+        }
+        if (!err.empty()) {
+            statusMessage_ = "Paste failed: " + err;
+        } else {
+            statusMessage_ = "Paste failed.";
+        }
+        return false;
+    }
+
+    nodeClipboardPayload_ = payload;
+    multiSelection_.clear();
+    for (int nodeId : newNodeIds) {
+        multiSelection_.insert(nodeId);
+    }
+    selectedNodeId_ = newNodeIds.empty() ? -1 : newNodeIds.front();
+    selectedLinkId_ = -1;
+    graphDirty_ = true;
+    statusMessage_ = "Pasted " + std::to_string(newNodeIds.size()) + " node(s).";
+    return true;
+}
+
+bool ShaderNodeEditor::duplicateSelectedNodes() {
+    const std::vector<int> nodeIds = selectedNodeIdsForClipboard();
+    if (nodeIds.empty()) {
+        statusMessage_ = "No nodes selected to duplicate.";
+        return false;
+    }
+
+    const glm::vec2 anchor = selectedNodeBoundsMin(nodeIds) + glm::vec2(32.0f, 32.0f);
+    const std::string payload = serializeNodeClipboard(graph_, nodeIds);
+    if (payload.empty()) {
+        statusMessage_ = "No nodes selected to duplicate.";
+        return false;
+    }
+
+    std::string validationErr;
+    if (!validateNodeClipboardPayload(payload, validationErr)) {
+        if (!validationErr.empty()) {
+            statusMessage_ = "Duplicate failed: " + validationErr;
+        } else {
+            statusMessage_ = "Duplicate failed.";
+        }
+        return false;
+    }
+
+    pushUndoSnapshot();
+
+    std::vector<int> newNodeIds;
+    std::string err;
+    if (!importNodeClipboardPayload(graph_, payload, anchor, newNodeIds, err)) {
+        std::string restoreErr;
+        if (!undoStack_.empty()) {
+            const std::string snapshot = undoStack_.back();
+            undoStack_.pop_back();
+            if (!graph_.deserialize(snapshot, restoreErr)) {
+                statusMessage_ = "Duplicate failed: " + restoreErr;
+                return false;
+            }
+        }
+        if (!err.empty()) {
+            statusMessage_ = "Duplicate failed: " + err;
+        } else {
+            statusMessage_ = "Duplicate failed.";
+        }
+        return false;
+    }
+
+    multiSelection_.clear();
+    for (int nodeId : newNodeIds) {
+        multiSelection_.insert(nodeId);
+    }
+    selectedNodeId_ = newNodeIds.empty() ? -1 : newNodeIds.front();
+    selectedLinkId_ = -1;
+    graphDirty_ = true;
+    statusMessage_ = "Duplicated " + std::to_string(newNodeIds.size()) + " node(s).";
+    return true;
+}
+
 void ShaderNodeEditor::undo() {
     if (undoStack_.empty()) return;
     redoStack_.push_back(graph_.serialize());
@@ -301,6 +1056,14 @@ void ShaderNodeEditor::draw(const ShaderNodeEditorCallbacks& callbacks) {
                 if (io.KeyShift) redo(); else undo();
             } else if (ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
                 redo();
+            } else if (!io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_F, false)) {
+                applyToBlock(callbacks, false);
+            }
+        }
+        if (!io.KeyCtrl && !io.KeyAlt && !io.KeyShift && !io.WantTextInput &&
+            !ImGui::IsAnyItemActive()) {
+            if (ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+                showInspector_ = !showInspector_;
             }
         }
     }
@@ -311,19 +1074,24 @@ void ShaderNodeEditor::draw(const ShaderNodeEditorCallbacks& callbacks) {
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     const float totalWidth = ImGui::GetContentRegionAvail().x;
-    const float inspectorWidth = std::max(totalWidth * 0.28f, 240.0f);
-    const float canvasWidth = std::max(totalWidth - inspectorWidth - 6.0f, 200.0f);
+    const float inspectorWidth = showInspector_
+        ? std::max(totalWidth * 0.28f, 240.0f)
+        : 0.0f;
+    const float canvasWidth = showInspector_
+        ? std::max(totalWidth - inspectorWidth - 6.0f, 200.0f)
+        : totalWidth;
 
     ImGui::BeginChild("##nodeCanvas", ImVec2(canvasWidth, 0), true,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     drawCanvas(callbacks);
     ImGui::EndChild();
 
-    ImGui::SameLine();
-
-    ImGui::BeginChild("##nodeInspector", ImVec2(0, 0), true);
-    drawInspector();
-    ImGui::EndChild();
+    if (showInspector_) {
+        ImGui::SameLine();
+        ImGui::BeginChild("##nodeInspector", ImVec2(0, 0), true);
+        drawInspector();
+        ImGui::EndChild();
+    }
 
     ImGui::EndChild();
 
@@ -348,6 +1116,9 @@ void ShaderNodeEditor::drawToolbar(const ShaderNodeEditorCallbacks& callbacks) {
 
     if (ImGui::Button("Apply to Block")) {
         applyToBlock(callbacks, false);
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Apply to Block (Ctrl+F)");
     }
     ImGui::SameLine();
     ImGui::Checkbox("Auto-Apply", &autoApplyEnabled_);
@@ -381,7 +1152,27 @@ void ShaderNodeEditor::drawToolbar(const ShaderNodeEditorCallbacks& callbacks) {
         zoom_ = 1.0f;
     }
     ImGui::SameLine();
-    ImGui::TextDisabled("Zoom %.2fx  |  Right-click: menu, Del: remove, Ctrl+Z: undo",
+    {
+        // "N" toggles the right-hand inspector panel so the canvas can claim the
+        // full editor width when the user wants more room for node work.
+        const bool active = showInspector_;
+        if (active) {
+            ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(200, 160, 60, 255));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(220, 180, 80, 255));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(240, 200, 100, 255));
+        }
+        if (ImGui::Button("N")) {
+            showInspector_ = !showInspector_;
+        }
+        if (active) {
+            ImGui::PopStyleColor(3);
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Toggle Inspector panel (N)");
+        }
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("Zoom %.2fx  |  Right-click: menu, Del: remove, Ctrl+Z: undo, Ctrl+C/V/D: copy/paste/duplicate",
                         zoom_);
 
     if (!statusMessage_.empty()) {
@@ -523,6 +1314,45 @@ void ShaderNodeEditor::drawCanvas(const ShaderNodeEditorCallbacks& callbacks) {
                       IM_COL32(235, 235, 235, 255),
                       ShaderNodeGraph::nodeDisplayName(node.kind));
 
+        if (node.kind == NodeKind::APPEND) {
+            const std::string typeLabel = std::string("Type [") +
+                ShaderNodeGraph::appendOutputTypeName(node.enumOption) + "]";
+            draw->AddText(font, fontSize() * 0.82f,
+                          ImVec2(nodeMin.x + nodePadding(),
+                                 nodeMin.y + titleHeight() + 2.0f * zoom_),
+                          IM_COL32(225, 225, 230, 255),
+                          typeLabel.c_str());
+        }
+
+        if (node.kind == NodeKind::FN_VORONOI) {
+            const std::string detail = voronoiSubtitle(node);
+            draw->AddText(font, fontSize() * 0.76f,
+                          ImVec2(nodeMin.x + nodePadding(),
+                                 nodeMin.y + titleHeight() + 2.0f * zoom_),
+                          IM_COL32(225, 225, 230, 255),
+                          detail.c_str());
+        }
+
+        if (node.kind == NodeKind::BLEND_OPERATIONS) {
+            const bool saturate = node.constValue.y >= 0.5f;
+            const std::string modeLabel = std::string("Mode [") +
+                ShaderNodeGraph::blendOperationName(node.enumOption) + "]";
+            const std::string settingsLabel = std::string("Opacity [") +
+                formatCompactFloat(std::clamp(node.constValue.x, 0.0f, 1.0f), 2) +
+                "]  Saturate [" + (saturate ? "On" : "Off") + "]";
+
+            draw->AddText(font, fontSize() * 0.80f,
+                          ImVec2(nodeMin.x + nodePadding(),
+                                 nodeMin.y + titleHeight() + 2.0f * zoom_),
+                          IM_COL32(225, 225, 230, 255),
+                          modeLabel.c_str());
+            draw->AddText(font, fontSize() * 0.73f,
+                          ImVec2(nodeMin.x + nodePadding(),
+                                 nodeMin.y + titleHeight() + 14.0f * zoom_),
+                          IM_COL32(205, 208, 214, 255),
+                          settingsLabel.c_str());
+        }
+
         // Input pins.
         for (std::size_t i = 0; i < node.inputs.size(); ++i) {
             const glm::vec2 pos = inputPinPos(node, static_cast<int>(i), nodePos);
@@ -555,6 +1385,12 @@ void ShaderNodeEditor::drawCanvas(const ShaderNodeEditorCallbacks& callbacks) {
         }
     }
 
+    // Per-node read-only property summaries (drawn after all node bodies so
+    // later nodes cannot paint over earlier summaries).
+    for (Node& node : graph_.nodes()) {
+        drawNodePropertyEditors(node);
+    }
+
     // Rubber-band selection overlay (drawn above nodes so it stays visible).
     if (selectionRectActive_) {
         const ImVec2 a(canvasOrigin_.x + panOffset_.x + selectionRectStart_.x * zoom_,
@@ -563,6 +1399,14 @@ void ShaderNodeEditor::drawCanvas(const ShaderNodeEditorCallbacks& callbacks) {
                        canvasOrigin_.y + panOffset_.y + selectionRectEnd_.y * zoom_);
         draw->AddRectFilled(a, b, IM_COL32(100, 150, 230, 40));
         draw->AddRect(a, b, IM_COL32(160, 200, 255, 200));
+    }
+
+    // Per-node previews draw on top of node bodies; do them in a second pass so
+    // later nodes cannot paint over earlier node previews.
+    for (const Node& node : graph_.nodes()) {
+        if (node.previewEnabled) {
+            drawNodePreview(node);
+        }
     }
 
     draw->PopClipRect();
@@ -852,6 +1696,25 @@ void ShaderNodeEditor::drawCanvas(const ShaderNodeEditorCallbacks& callbacks) {
         }
     }
 
+    // Clipboard shortcuts live on the canvas so they can act on the active
+    // graph without interfering with text entry in the inspector.
+    if (canvasHovered && ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)) {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.KeyCtrl && !io.KeyAlt && !io.WantTextInput && !ImGui::IsAnyItemActive()) {
+            const glm::vec2 mouseWorld(
+                (io.MousePos.x - canvasOrigin_.x - panOffset_.x) / zoom_,
+                (io.MousePos.y - canvasOrigin_.y - panOffset_.y) / zoom_);
+
+            if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
+                copySelectedNodes();
+            } else if (ImGui::IsKeyPressed(ImGuiKey_V, false)) {
+                pasteNodesFromClipboard(mouseWorld);
+            } else if (ImGui::IsKeyPressed(ImGuiKey_D, false)) {
+                duplicateSelectedNodes();
+            }
+        }
+    }
+
     // Persistence + auto-apply: only commit once the user stops interacting so we
     // don't rewrite shader.glsl every frame during a drag.
     const bool interacting = draggedNodeId_ > 0 || linkDragActive_ ||
@@ -865,6 +1728,295 @@ void ShaderNodeEditor::drawCanvas(const ShaderNodeEditorCallbacks& callbacks) {
         }
         graphDirty_ = false;
     }
+}
+
+#pragma endregion
+
+#pragma region 5b. In-Node Editors
+
+// Read-only summary text rendered inside the node body. Editing happens only in
+// the Inspector — clicking the node body is reserved for drag/selection.
+void ShaderNodeEditor::drawNodePropertyEditors(Node& node) {
+    const glm::vec2 nodePos = nodeScreenPos(node);
+    const int pinRows = static_cast<int>(
+        std::max(node.inputs.size(), node.outputs.size()));
+    const float lineH = kInlineRowHeight * zoom_;
+    const float editorTop = nodePos.y + titleHeight() + nodeHeaderDetailHeight(node) +
+                            pinGap() * 0.75f +
+                            pinGap() * static_cast<float>(pinRows) + 2.0f;
+    const float editorLeft = nodePos.x + nodePadding();
+    const float editorRight = nodePos.x + nodeWidth() - nodePadding();
+    const float rowTextSize = fontSize() * 0.82f;
+
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    ImFont* font = ImGui::GetFont();
+    const ImU32 labelColor = IM_COL32(205, 208, 214, 255);
+    const ImU32 valueColor = IM_COL32(235, 235, 240, 255);
+
+    auto drawRow = [&](int rowIndex, const std::string& text, ImU32 color) {
+        const float y = editorTop + static_cast<float>(rowIndex) * lineH;
+        draw->AddText(font, rowTextSize, ImVec2(editorLeft, y), color, text.c_str());
+    };
+
+    auto drawSwatchRow = [&](int rowIndex, const std::string& label,
+                             const glm::vec4& color, bool showAlpha) {
+        const float y = editorTop + static_cast<float>(rowIndex) * lineH;
+        draw->AddText(font, rowTextSize, ImVec2(editorLeft, y), labelColor,
+                      label.c_str());
+        const float swatchSize = lineH - 2.0f;
+        const float swatchRight = editorRight;
+        const float swatchLeft = swatchRight - swatchSize * 2.0f;
+        const ImVec2 sMin(swatchLeft, y);
+        const ImVec2 sMax(swatchRight, y + swatchSize);
+        const ImU32 rgb = ImGui::ColorConvertFloat4ToU32(ImVec4(
+            std::clamp(color.x, 0.0f, 1.0f),
+            std::clamp(color.y, 0.0f, 1.0f),
+            std::clamp(color.z, 0.0f, 1.0f),
+            1.0f));
+        draw->AddRectFilled(sMin, sMax, rgb);
+        if (showAlpha) {
+            const float aW = (sMax.x - sMin.x) *
+                std::clamp(color.w, 0.0f, 1.0f);
+            draw->AddLine(ImVec2(sMin.x, sMax.y - 2.0f),
+                          ImVec2(sMin.x + aW, sMax.y - 2.0f),
+                          IM_COL32(255, 255, 255, 220), 2.0f);
+        }
+        draw->AddRect(sMin, sMax, IM_COL32(20, 20, 24, 255));
+    };
+
+    int row = 0;
+
+    switch (node.kind) {
+    case NodeKind::CONST_FLOAT: {
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "value: %.3f", node.constValue.x);
+        drawRow(row++, buf, valueColor);
+        break;
+    }
+    case NodeKind::CONST_VEC2: {
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "value: %.2f, %.2f",
+                      node.constValue.x, node.constValue.y);
+        drawRow(row++, buf, valueColor);
+        break;
+    }
+    case NodeKind::CONST_VEC3: {
+        char buf[96];
+        std::snprintf(buf, sizeof(buf), "value: %.2f, %.2f, %.2f",
+                      node.constValue.x, node.constValue.y, node.constValue.z);
+        drawRow(row++, buf, valueColor);
+        break;
+    }
+    case NodeKind::CONST_COLOR:
+        drawSwatchRow(row++, "color", node.constValue, false);
+        break;
+    case NodeKind::APPEND: {
+        std::string line = std::string("Type: ") +
+            ShaderNodeGraph::appendOutputTypeName(node.enumOption);
+        drawRow(row++, line, valueColor);
+        break;
+    }
+    case NodeKind::FN_VORONOI: {
+        drawRow(row++, voronoiSubtitle(node), valueColor);
+        drawRow(row++, voronoiSettingsSummary(node), valueColor);
+
+        const int qualityIndex = std::clamp(static_cast<int>(std::round(node.constValue.z)), 0, 3);
+        const int octaves = std::clamp(static_cast<int>(std::round(node.constValue.w)), 1, 8);
+        const bool tileable = voronoiTileableFromOption(node.enumOption);
+        const bool smooth = voronoiSmoothFromOption(node.enumOption);
+
+        drawRow(row++, std::string("Search: ") +
+                       ShaderNodeGraph::voronoiSearchQualityName(qualityIndex), valueColor);
+        drawRow(row++, std::string("Octaves: ") + std::to_string(octaves), valueColor);
+        drawRow(row++, std::string("Tileable: ") + (tileable ? "On" : "Off"), valueColor);
+        drawRow(row++, std::string("Smooth: ") + (smooth ? "On" : "Off"), valueColor);
+
+        char scaleBuf[64];
+        std::snprintf(scaleBuf, sizeof(scaleBuf), "Scale: %.2f", node.constValue.x);
+        drawRow(row++, scaleBuf, valueColor);
+
+        char angleBuf[64];
+        std::snprintf(angleBuf, sizeof(angleBuf), "Angle: %.1f", node.constValue.y);
+        drawRow(row++, angleBuf, valueColor);
+        break;
+    }
+    case NodeKind::BLEND_OPERATIONS: {
+        drawRow(row++, std::string("Mode: ") +
+                         ShaderNodeGraph::blendOperationName(node.enumOption),
+                valueColor);
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "Opacity: %.2f",
+                      std::clamp(node.constValue.x, 0.0f, 1.0f));
+        drawRow(row++, buf, valueColor);
+        drawRow(row++,
+                node.constValue.y >= 0.5f ? "Saturate: On" : "Saturate: Off",
+                valueColor);
+        break;
+    }
+    default:
+        break;
+    }
+
+    // One read-only summary per unlinked input pin so current defaults are
+    // visible directly on the node even though editing is inspector-only.
+    for (std::size_t i = 0; i < node.inputs.size(); ++i) {
+        const InputPin& pin = node.inputs[i];
+        if (pin.connectedLinkId > 0) continue;
+        switch (pin.type) {
+        case PinDataType::FLOAT: {
+            char buf[96];
+            std::snprintf(buf, sizeof(buf), "%s: %.3f",
+                          pin.name.c_str(), pin.defaultValue.x);
+            drawRow(row++, buf, labelColor);
+            break;
+        }
+        case PinDataType::VEC2: {
+            char buf[128];
+            std::snprintf(buf, sizeof(buf), "%s: %.2f, %.2f",
+                          pin.name.c_str(),
+                          pin.defaultValue.x, pin.defaultValue.y);
+            drawRow(row++, buf, labelColor);
+            break;
+        }
+        case PinDataType::VEC3:
+            drawSwatchRow(row++, pin.name, pin.defaultValue, false);
+            break;
+        case PinDataType::VEC4:
+            drawSwatchRow(row++, pin.name, pin.defaultValue, true);
+            break;
+        }
+    }
+}
+
+void ShaderNodeEditor::drawNodePreview(const Node& node) const {
+    const glm::vec2 nodePos = nodeScreenPos(node);
+    const int pinRows = static_cast<int>(
+        std::max(node.inputs.size(), node.outputs.size()));
+    int rows = 0;
+    switch (node.kind) {
+    case NodeKind::CONST_FLOAT:
+    case NodeKind::CONST_VEC2:
+    case NodeKind::CONST_VEC3:
+    case NodeKind::CONST_COLOR:
+    case NodeKind::APPEND:
+        rows = 1; break;
+    case NodeKind::BLEND_OPERATIONS:
+        rows = 3; break;
+    default: break;
+    }
+    for (const InputPin& pin : node.inputs) {
+        if (pin.connectedLinkId <= 0) ++rows;
+    }
+
+    const float editorTop = nodePos.y + titleHeight() + nodeHeaderDetailHeight(node) +
+                            pinGap() * 0.75f +
+                            pinGap() * static_cast<float>(pinRows) + 2.0f;
+    const float previewTop = editorTop +
+        static_cast<float>(rows) * (kInlineRowHeight * zoom_) +
+        (rows > 0 ? 4.0f : 0.0f);
+    const float previewLeft = nodePos.x + nodePadding();
+    const float previewRight = nodePos.x + nodeWidth() - nodePadding();
+    const float previewBottom = previewTop + 44.0f;
+
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImVec2 pMin(previewLeft, previewTop);
+    const ImVec2 pMax(previewRight, previewBottom);
+
+    draw->AddRectFilled(pMin, pMax, IM_COL32(22, 24, 30, 255), 3.0f);
+
+    auto colorFromVec4 = [](const glm::vec4& c) {
+        return ImGui::ColorConvertFloat4ToU32(ImVec4(
+            std::clamp(c.x, 0.0f, 1.0f),
+            std::clamp(c.y, 0.0f, 1.0f),
+            std::clamp(c.z, 0.0f, 1.0f),
+            1.0f));
+    };
+
+    switch (node.kind) {
+    case NodeKind::CONST_FLOAT: {
+        const float v = std::clamp(node.constValue.x, 0.0f, 1.0f);
+        const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(v, v, v, 1.0f));
+        draw->AddRectFilled(pMin, pMax, col, 3.0f);
+        break;
+    }
+    case NodeKind::CONST_VEC2: {
+        glm::vec4 c(std::clamp(node.constValue.x, 0.0f, 1.0f),
+                    std::clamp(node.constValue.y, 0.0f, 1.0f), 0.0f, 1.0f);
+        draw->AddRectFilled(pMin, pMax, colorFromVec4(c), 3.0f);
+        break;
+    }
+    case NodeKind::CONST_VEC3:
+    case NodeKind::CONST_COLOR:
+        draw->AddRectFilled(pMin, pMax, colorFromVec4(node.constValue), 3.0f);
+        break;
+    case NodeKind::OP_GRADIENT: {
+        if (node.gradientStops.empty()) {
+            draw->AddRectFilled(pMin, pMax, IM_COL32(200, 200, 200, 255), 3.0f);
+        } else {
+            const std::vector<GradientStop> sorted = sortedGradientStops(node.gradientStops);
+            const float span = std::max(pMax.x - pMin.x, 1.0f);
+            if (sorted.size() == 1) {
+                draw->AddRectFilled(pMin, pMax, colorToImU32(sorted.front().color), 3.0f);
+            } else {
+                for (std::size_t i = 0; i + 1 < sorted.size(); ++i) {
+                    const GradientStop& a = sorted[i];
+                    const GradientStop& b = sorted[i + 1];
+                    const float x0 = pMin.x + span * std::clamp(a.position, 0.0f, 1.0f);
+                    const float x1 = pMin.x + span * std::clamp(b.position, 0.0f, 1.0f);
+                    if (x1 > x0 + 0.5f) {
+                        draw->AddRectFilledMultiColor(
+                            ImVec2(x0, pMin.y), ImVec2(x1, pMax.y),
+                            colorToImU32(a.color), colorToImU32(b.color),
+                            colorToImU32(b.color), colorToImU32(a.color));
+                    }
+                }
+            }
+        }
+        break;
+    }
+    case NodeKind::FN_VORONOI: {
+        const int cols = 18;
+        const int rowsGrid = 5;
+        const float cellW = std::max((pMax.x - pMin.x) / static_cast<float>(cols), 1.0f);
+        const float cellH = std::max((pMax.y - pMin.y) / static_cast<float>(rowsGrid), 1.0f);
+
+        for (int y = 0; y < rowsGrid; ++y) {
+            for (int x = 0; x < cols; ++x) {
+                const glm::vec2 uv(
+                    (static_cast<float>(x) + 0.5f) / static_cast<float>(cols),
+                    (static_cast<float>(y) + 0.5f) / static_cast<float>(rowsGrid));
+                const ImU32 col = voronoiPreviewColor(node, uv);
+                const ImVec2 a(pMin.x + cellW * static_cast<float>(x),
+                               pMin.y + cellH * static_cast<float>(y));
+                const ImVec2 b(pMin.x + cellW * static_cast<float>(x + 1),
+                               pMin.y + cellH * static_cast<float>(y + 1));
+                draw->AddRectFilled(a, b, col);
+            }
+        }
+
+        break;
+    }
+    default: {
+        // Placeholder: diagonal stripes signaling "preview unavailable".
+        const ImU32 a = IM_COL32(48, 50, 58, 255);
+        const ImU32 b = IM_COL32(70, 74, 86, 255);
+        draw->AddRectFilled(pMin, pMax, a, 3.0f);
+        const float stripeW = 8.0f;
+        draw->PushClipRect(pMin, pMax, true);
+        for (float x = pMin.x - (pMax.y - pMin.y); x < pMax.x; x += stripeW * 2.0f) {
+            draw->AddQuadFilled(
+                ImVec2(x, pMin.y),
+                ImVec2(x + stripeW, pMin.y),
+                ImVec2(x + stripeW + (pMax.y - pMin.y), pMax.y),
+                ImVec2(x + (pMax.y - pMin.y), pMax.y),
+                b);
+        }
+        draw->PopClipRect();
+        break;
+    }
+    }
+
+    draw->AddRect(pMin, pMax, IM_COL32(20, 20, 24, 255), 3.0f);
 }
 
 #pragma endregion
@@ -915,6 +2067,271 @@ void ShaderNodeEditor::drawInspector() {
         break;
     default:
         break;
+    }
+
+    if (node->kind == NodeKind::BLEND_OPERATIONS) {
+        ImGui::Separator();
+        ImGui::TextWrapped(
+            "Common layer blending modes. It blends two inputs with the selected blend mode.");
+        ImGui::TextWrapped(
+            "Opacity and opacity mask are multiplied before mixing the source and the result.");
+        ImGui::Separator();
+
+        const auto& blendModes = ShaderNodeGraph::blendOperationNames();
+        int blendModeIndex = std::clamp(
+            node->enumOption, 0, static_cast<int>(blendModes.size()) - 1);
+        if (blendModeIndex != node->enumOption) {
+            node->enumOption = blendModeIndex;
+        }
+
+        if (ImGui::Combo("Blend Operation", &blendModeIndex,
+                         blendModes.data(), static_cast<int>(blendModes.size()))) {
+            node->enumOption = blendModeIndex;
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        bool saturate = node->constValue.y >= 0.5f;
+        if (ImGui::Checkbox("Saturate", &saturate)) {
+            node->constValue.y = saturate ? 1.0f : 0.0f;
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        node->constValue.x = std::clamp(node->constValue.x, 0.0f, 1.0f);
+        if (ImGui::SliderFloat("Opacity", &node->constValue.x, 0.0f, 1.0f, "%.2f")) {
+            node->constValue.x = std::clamp(node->constValue.x, 0.0f, 1.0f);
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+    }
+
+    if (node->kind == NodeKind::APPEND) {
+        ImGui::Separator();
+        ImGui::TextUnformatted("Append");
+
+        const char* appendTypes[] = { "Vector2", "Vector3", "Vector4", "Color" };
+        int appendTypeIndex = std::clamp(node->enumOption, 0, 3);
+        if (appendTypeIndex != node->enumOption) {
+            node->enumOption = appendTypeIndex;
+        }
+
+        if (ImGui::Combo("Type", &appendTypeIndex, appendTypes, 4)) {
+            node->enumOption = appendTypeIndex;
+            if (!node->outputs.empty()) {
+                node->outputs.front().type = ShaderNodeGraph::appendOutputType(node->enumOption);
+            }
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+        else if (!node->outputs.empty()) {
+            node->outputs.front().type = ShaderNodeGraph::appendOutputType(node->enumOption);
+        }
+    }
+
+    if (node->kind == NodeKind::FN_VORONOI) {
+        ImGui::Separator();
+        ImGui::TextWrapped("Voronoi noise generator.");
+        ImGui::Separator();
+
+        const auto& methodNames = ShaderNodeGraph::voronoiMethodNames();
+        int method = voronoiMethodFromOption(node->enumOption);
+        if (ImGui::Combo("Method", &method, methodNames.data(),
+                         static_cast<int>(methodNames.size()))) {
+            node->enumOption = (node->enumOption & ~kVoronoiMethodMask) | (method & kVoronoiMethodMask);
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        const auto& distanceNames = ShaderNodeGraph::voronoiDistanceNames();
+        int distance = voronoiDistanceFromOption(node->enumOption);
+        if (ImGui::Combo("Distance Function", &distance, distanceNames.data(),
+                         static_cast<int>(distanceNames.size()))) {
+            node->enumOption =
+                (node->enumOption & ~kVoronoiDistanceMask) |
+                ((distance & 0x3) << 2);
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        const auto& searchQualityNames = ShaderNodeGraph::voronoiSearchQualityNames();
+        int searchQuality = std::clamp(static_cast<int>(std::round(node->constValue.z)), 0, 3);
+        if (ImGui::Combo("Search Quality", &searchQuality,
+                         searchQualityNames.data(),
+                         static_cast<int>(searchQualityNames.size()))) {
+            node->constValue.z = static_cast<float>(searchQuality);
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        int octaves = std::clamp(static_cast<int>(std::round(node->constValue.w)), 1, 8);
+        if (ImGui::SliderInt("Octaves", &octaves, 1, 8)) {
+            node->constValue.w = static_cast<float>(octaves);
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        bool tileable = voronoiTileableFromOption(node->enumOption);
+        if (ImGui::Checkbox("Tileable", &tileable)) {
+            if (tileable) {
+                node->enumOption |= kVoronoiTileableMask;
+            } else {
+                node->enumOption &= ~kVoronoiTileableMask;
+            }
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        bool smooth = voronoiSmoothFromOption(node->enumOption);
+        if (ImGui::Checkbox("Smooth", &smooth)) {
+            if (smooth) {
+                node->enumOption |= kVoronoiSmoothMask;
+            } else {
+                node->enumOption &= ~kVoronoiSmoothMask;
+            }
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        node->constValue.y = std::clamp(node->constValue.y, -180.0f, 180.0f);
+        if (ImGui::DragFloat("Angle", &node->constValue.y, 0.1f, -180.0f, 180.0f, "%.1f")) {
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+
+        node->constValue.x = std::max(node->constValue.x, 0.01f);
+        if (ImGui::DragFloat("Scale", &node->constValue.x, 0.05f, 0.01f, 1000.0f, "%.2f")) {
+            node->constValue.x = std::max(node->constValue.x, 0.01f);
+            graphDirty_ = true;
+            if (ImGui::IsItemActivated()) {
+                pushUndoSnapshot();
+            }
+        }
+    }
+
+    if (node->kind == NodeKind::OP_GRADIENT) {
+        ImGui::Separator();
+        ImGui::TextUnformatted("Color Ramp");
+
+        const std::vector<GradientStop> sortedStops = sortedGradientStops(node->gradientStops);
+        const float previewWidth = ImGui::GetContentRegionAvail().x;
+        const ImVec2 previewSize(std::max(previewWidth, 1.0f), 32.0f);
+        ImGui::InvisibleButton("##gradientPreview", previewSize);
+
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImVec2 previewMin = ImGui::GetItemRectMin();
+        const ImVec2 previewMax = ImGui::GetItemRectMax();
+        const ImU32 previewBg = IM_COL32(34, 34, 38, 255);
+        const ImU32 previewBorder = IM_COL32(90, 90, 100, 255);
+        draw->AddRectFilled(previewMin, previewMax, previewBg, 4.0f);
+
+        if (sortedStops.empty()) {
+            draw->AddRectFilled(previewMin, previewMax, IM_COL32(255, 255, 255, 255), 4.0f);
+        } else if (sortedStops.size() == 1) {
+            draw->AddRectFilled(previewMin, previewMax,
+                                colorToImU32(sortedStops.front().color), 4.0f);
+        } else {
+            const float previewSpan = std::max(previewMax.x - previewMin.x, 1.0f);
+            for (std::size_t i = 0; i + 1 < sortedStops.size(); ++i) {
+                const GradientStop& a = sortedStops[i];
+                const GradientStop& b = sortedStops[i + 1];
+                const float x0 = previewMin.x + previewSpan * std::clamp(a.position, 0.0f, 1.0f);
+                const float x1 = previewMin.x + previewSpan * std::clamp(b.position, 0.0f, 1.0f);
+                if (x1 <= x0 + 0.5f) {
+                    draw->AddLine(ImVec2(x0, previewMin.y), ImVec2(x0, previewMax.y),
+                                  colorToImU32(b.color), 2.0f);
+                } else {
+                    draw->AddRectFilledMultiColor(
+                        ImVec2(x0, previewMin.y),
+                        ImVec2(x1, previewMax.y),
+                        colorToImU32(a.color),
+                        colorToImU32(b.color),
+                        colorToImU32(b.color),
+                        colorToImU32(a.color));
+                }
+            }
+        }
+
+        for (const GradientStop& stop : sortedStops) {
+            const float t = std::clamp(stop.position, 0.0f, 1.0f);
+            const float x = previewMin.x + (previewMax.x - previewMin.x) * t;
+            draw->AddLine(ImVec2(x, previewMin.y), ImVec2(x, previewMax.y),
+                          IM_COL32(255, 255, 255, 100), 1.0f);
+            draw->AddCircleFilled(ImVec2(x, previewMin.y + 2.0f), 3.0f,
+                                  IM_COL32(255, 255, 255, 220));
+        }
+
+        draw->AddRect(previewMin, previewMax, previewBorder, 4.0f);
+
+        ImGui::Dummy(ImVec2(0.0f, 4.0f));
+
+        if (ImGui::Button("Add Stop")) {
+            pushUndoSnapshot();
+            GradientStop stop;
+            stop.position = 0.5f;
+            stop.color = sampleGradientColor(node->gradientStops, stop.position);
+            node->gradientStops.push_back(stop);
+            graphDirty_ = true;
+        }
+
+        ImGui::Separator();
+
+        int removeIndex = -1;
+        for (std::size_t i = 0; i < node->gradientStops.size(); ++i) {
+            GradientStop& stop = node->gradientStops[i];
+            ImGui::PushID(static_cast<int>(i));
+
+            ImGui::Text("Stop %zu", i + 1);
+            ImGui::SetNextItemWidth(-1.0f);
+            wrapConstEdit(ImGui::SliderFloat("Position", &stop.position, 0.0f, 1.0f, "%.3f"));
+            ImGui::SetNextItemWidth(-1.0f);
+            wrapConstEdit(ImGui::ColorEdit4("Color", &stop.color.x));
+
+            const bool canRemove = node->gradientStops.size() > 2;
+            if (!canRemove) {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Button("Remove Stop")) {
+                removeIndex = static_cast<int>(i);
+            }
+            if (!canRemove) {
+                ImGui::EndDisabled();
+            }
+
+            if (i + 1 < node->gradientStops.size()) {
+                ImGui::Separator();
+            }
+
+            ImGui::PopID();
+        }
+
+        if (removeIndex >= 0) {
+            pushUndoSnapshot();
+            node->gradientStops.erase(node->gradientStops.begin() + removeIndex);
+            graphDirty_ = true;
+        }
     }
 
     if (!node->inputs.empty()) {
@@ -996,6 +2413,17 @@ void ShaderNodeEditor::drawContextMenu() {
             ImGui::TextDisabled("Add Node");
             ImGui::Separator();
 
+            const char* clipboardText = ImGui::GetClipboardText();
+            const bool hasClipboardNodes = !nodeClipboardPayload_.empty() ||
+                (clipboardText && std::strstr(clipboardText, kNodeClipboardFormat) != nullptr);
+            ImGui::BeginDisabled(!hasClipboardNodes);
+            if (ImGui::MenuItem("Paste Nodes", "Ctrl+V")) {
+                pasteNodesFromClipboard(contextMenuCanvasPos_);
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndDisabled();
+            ImGui::Separator();
+
             // Auto-focus the search field when the menu first opens so the user
             // can start typing immediately without clicking first.
             if (addMenuSearchJustOpened_) {
@@ -1018,8 +2446,9 @@ void ShaderNodeEditor::drawContextMenu() {
                         std::tolower(static_cast<unsigned char>(c)));
                 }
 
-                // Single pass: find the first match and collect all matches.
+                // Single pass: collect matches and prefer exact matches when available.
                 NodeKind firstMatch = NodeKind::COUNT_;
+                NodeKind exactMatch = NodeKind::COUNT_;
                 bool anyMatch = false;
                 for (int i = 0; i < static_cast<int>(NodeKind::COUNT_); ++i) {
                     const NodeKind kind = static_cast<NodeKind>(i);
@@ -1030,13 +2459,19 @@ void ShaderNodeEditor::drawContextMenu() {
                     }
                     if (nameLower.find(query) == std::string::npos) continue;
                     if (!anyMatch) firstMatch = kind;
+                    if (nameLower == query && exactMatch == NodeKind::COUNT_) {
+                        exactMatch = kind;
+                    }
                     anyMatch = true;
                 }
 
-                // Enter confirms the first match without going through the list.
+                const NodeKind chosenMatch =
+                    exactMatch != NodeKind::COUNT_ ? exactMatch : firstMatch;
+
+                // Enter confirms the best match without going through the list.
                 if (enterPressed && anyMatch) {
                     pushUndoSnapshot();
-                    graph_.addNode(firstMatch, contextMenuCanvasPos_);
+                    graph_.addNode(chosenMatch, contextMenuCanvasPos_);
                     graphDirty_ = true;
                     ImGui::CloseCurrentPopup();
                 } else if (anyMatch) {
@@ -1049,9 +2484,9 @@ void ShaderNodeEditor::drawContextMenu() {
                                 std::tolower(static_cast<unsigned char>(c)));
                         }
                         if (nameLower.find(query) == std::string::npos) continue;
-                        // Highlight the first (Enter) result so the user knows
-                        // which node will be added on Enter.
-                        const bool isFirst = (kind == firstMatch);
+                        // Highlight the Enter result so the user knows which
+                        // node will be added on Enter.
+                        const bool isFirst = (kind == chosenMatch);
                         if (isFirst) ImGui::PushStyleColor(ImGuiCol_Text,
                                                            IM_COL32(255, 220, 100, 255));
                         if (ImGui::MenuItem(name)) {
@@ -1100,6 +2535,24 @@ void ShaderNodeEditor::drawContextMenu() {
                 return;
             }
             ImGui::TextDisabled("%s", ShaderNodeGraph::nodeDisplayName(node->kind));
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Copy Nodes", "Ctrl+C")) {
+                copySelectedNodes();
+                ImGui::CloseCurrentPopup();
+            }
+            if (ImGui::MenuItem("Duplicate Nodes", "Ctrl+D")) {
+                duplicateSelectedNodes();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem(node->previewEnabled
+                                    ? "Hide Preview"
+                                    : "Show Preview")) {
+                pushUndoSnapshot();
+                node->previewEnabled = !node->previewEnabled;
+                graphDirty_ = true;
+            }
             ImGui::Separator();
 
             // Count connections so entries can be disabled sensibly.

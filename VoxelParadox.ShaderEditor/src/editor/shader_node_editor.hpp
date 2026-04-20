@@ -97,7 +97,9 @@ private:
     bool graphDirty_ = false;
     std::string statusMessage_{};
     std::string lastGeneratedGlsl_{};
+    std::string nodeClipboardPayload_{};
     bool showGeneratedPreview_ = false;
+    bool showInspector_ = true;
     bool autoApplyEnabled_ = false;
 
     // Undo/redo. Serialized JSON snapshots; cap with kMaxHistory to stay bounded.
@@ -116,6 +118,14 @@ private:
     void drawInspector();
     void drawContextMenu();
     void drawGeneratedPreview();
+    void drawNodePreview(const Node& node) const;
+    void drawNodePropertyEditors(Node& node);
+
+    std::vector<int> selectedNodeIdsForClipboard() const;
+    glm::vec2 selectedNodeBoundsMin(const std::vector<int>& nodeIds) const;
+    bool copySelectedNodes();
+    bool pasteNodesFromClipboard(const glm::vec2& anchorWorldPos);
+    bool duplicateSelectedNodes();
 
     void applyToBlock(const ShaderNodeEditorCallbacks& callbacks,
                       bool triggeredByAutoApply);
@@ -132,11 +142,13 @@ private:
     float pinGap() const;
     float pinRadius() const;
     float titleHeight() const;
+    float nodeHeaderDetailHeight(const Node& node) const;
     float nodePadding() const;
     float nodeRounding() const;
     float linkThickness() const;
     float fontSize() const;
     float nodeHeight(const Node& node) const;
+    float nodeInlineEditorHeight(const Node& node) const;
     glm::vec2 nodeScreenPos(const Node& node) const;
     glm::vec2 inputPinPos(const Node& node, int inputIndex,
                           const glm::vec2& nodePos) const;

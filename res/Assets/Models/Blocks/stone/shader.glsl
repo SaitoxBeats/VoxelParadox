@@ -3,19 +3,22 @@
     vec3 n_0 = base;
     vec4 n_1 = blockTexel;
     vec3 n_2 = (n_0 * (n_1).xyz);
-    vec3 stone_3_alb;
-    float stone_3_rough;
+    vec2 n_3 = uv;
+    vec2 pix_4_cells = max(vec2((16.0), (16.0)), vec2(1.0));
+    vec2 pix_4 = floor((n_3) * pix_4_cells) / pix_4_cells;
+    vec3 stone_5_alb;
+    float stone_5_rough;
     {
-        vec2 sp = uv * (1.0);
+        vec2 sp = (pix_4) * (1.0);
         float strata = fbm21(vec2(sp.x * 3.4, sp.y * 1.4));
         float grain = simpleNoise2(localUv * 11.0);
         vec3 alb = (n_2) * mix(0.72, 1.15, strata);
         alb += vec3((grain - 0.5) * 0.06);
-        stone_3_alb = clamp(alb, vec3(0.0), vec3(1.4));
-        stone_3_rough = 0.92;
+        stone_5_alb = clamp(alb, vec3(0.0), vec3(1.4));
+        stone_5_rough = 0.92;
     }
-    vec3 generatedAlbedo = clamp(stone_3_alb, vec3(0.0), vec3(2.0));
-    float generatedRoughness = clamp(stone_3_rough, 0.0, 1.0);
+    vec3 generatedAlbedo = clamp(stone_5_alb, vec3(0.0), vec3(2.0));
+    float generatedRoughness = clamp(stone_5_rough, 0.0, 1.0);
     float generatedSpecular = clamp(0.1, 0.0, 2.0);
     float generatedEmissive = max(0.0, 0.0);
     return makeSample(generatedAlbedo, generatedRoughness, generatedSpecular, generatedEmissive);

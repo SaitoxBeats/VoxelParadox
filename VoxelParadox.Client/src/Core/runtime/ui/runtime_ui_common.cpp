@@ -37,6 +37,10 @@ const char* renderDistanceDisplayName(WorldStack::RenderDistancePreset preset) {
   return "Normal";
 }
 
+const char* cloudQualitySelectionText(VoxelGame::Clouds::CloudQuality quality) {
+  return VoxelGame::Clouds::cloudQualityDisplayName(quality);
+}
+
 std::string mouseSensitivityText(float sensitivity) {
   char buffer[32];
   std::snprintf(buffer, sizeof(buffer), "%.4f", sensitivity);
@@ -55,6 +59,16 @@ std::string renderScaleText(float renderScale) {
                 glm::clamp(renderScale, ClientDefaults::kMinRenderScale,
                            ClientDefaults::kMaxRenderScale) *
                     100.0f);
+  return buffer;
+}
+
+std::string antiAliasingSelectionText(int sampleCount) {
+  if (sampleCount <= 0) {
+    return "Off";
+  }
+
+  char buffer[32];
+  std::snprintf(buffer, sizeof(buffer), "%dx", sampleCount);
   return buffer;
 }
 
@@ -125,11 +139,13 @@ bool sameGameSettings(const GameSettings& a, const GameSettings& b) {
          sameFloat(a.mouseSensitivity, b.mouseSensitivity) &&
          sameFloat(a.fieldOfView, b.fieldOfView) &&
          sameFloat(a.renderScale, b.renderScale) &&
+         a.antiAliasingSamples == b.antiAliasingSamples &&
          a.windowMode == b.windowMode &&
          a.vSyncEnabled == b.vSyncEnabled &&
          a.showFpsCounterOnly == b.showFpsCounterOnly &&
          a.advancedLightingEnabled == b.advancedLightingEnabled &&
          a.cloudsEnabled == b.cloudsEnabled &&
+         a.cloudQuality == b.cloudQuality &&
          sameAudioSettings(a.audioSettings, b.audioSettings) &&
          sameControlOverrides(a.controlOverrides, b.controlOverrides);
 }
@@ -241,6 +257,22 @@ void stepRenderScaleSelection(GameSettings& settings, float delta) {
   settings.renderScale =
       glm::clamp(settings.renderScale + delta, ClientDefaults::kMinRenderScale,
                  ClientDefaults::kMaxRenderScale);
+}
+
+void stepAntiAliasingSelection(GameSettings& settings, int delta) {
+  const auto& options = ClientDefaults::kAntiAliasingSampleOptions;
+  int currentIndex = 0;
+
+  for (int index = 0; index < static_cast<int>(options.size()); ++index) {
+    if (options[static_cast<std::size_t>(index)] == settings.antiAliasingSamples) {
+      currentIndex = index;
+      break;
+    }
+  }
+
+  const int count = static_cast<int>(options.size());
+  currentIndex = (currentIndex + (delta % count) + count) % count;
+  settings.antiAliasingSamples = options[static_cast<std::size_t>(currentIndex)];
 }
 
 int currentResolutionIndex(
@@ -363,6 +395,17 @@ void toggleCloudsSelection(GameSettings& settings) {
   settings.cloudsEnabled = !settings.cloudsEnabled;
 }
 
+void stepCloudQualitySelection(GameSettings& settings, int delta) {
+  int index = static_cast<int>(settings.cloudQuality) + delta;
+  if (index < 0) {
+    index = 2;
+  } else if (index > 2) {
+    index = 0;
+  }
+  settings.cloudQuality =
+      static_cast<VoxelGame::Clouds::CloudQuality>(index);
+}
+
 std::string audioVolumeText(float value) {
   char buffer[32];
   std::snprintf(buffer, sizeof(buffer), "%.0f%%",
@@ -429,6 +472,8 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
       !sameFloat(appliedSettings.fieldOfView, pendingSettings.fieldOfView);
   const bool renderScaleChanged =
       !sameFloat(appliedSettings.renderScale, pendingSettings.renderScale);
+  const bool antiAliasingChanged =
+      appliedSettings.antiAliasingSamples != pendingSettings.antiAliasingSamples;
   const bool windowSettingsChanged =
       appliedSettings.windowMode != pendingSettings.windowMode ||
       !sameResolution(appliedSettings.resolution, pendingSettings.resolution);
@@ -461,6 +506,13 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
     renderer.setRenderScale(pendingSettings.renderScale);
     std::printf("[Settings] Render scale: %s\n",
                 renderScaleText(pendingSettings.renderScale).c_str());
+  }
+
+  if (antiAliasingChanged) {
+    renderer.setAntiAliasingSamples(pendingSettings.antiAliasingSamples);
+    std::printf("[Settings] Anti-aliasing: %s\n",
+                antiAliasingSelectionText(
+                    pendingSettings.antiAliasingSamples).c_str());
   }
 
   if (windowSettingsChanged) {
@@ -499,6 +551,12 @@ bool applyPendingSettings(Player& player, WorldStack& worldStack,
     renderer.setCloudsEnabled(pendingSettings.cloudsEnabled);
     std::printf("[Settings] Clouds: %s\n",
                 onOffText(pendingSettings.cloudsEnabled));
+  }
+
+  if (appliedSettings.cloudQuality != pendingSettings.cloudQuality) {
+    renderer.setCloudQuality(pendingSettings.cloudQuality);
+    std::printf("[Settings] Cloud quality: %s\n",
+                cloudQualitySelectionText(pendingSettings.cloudQuality));
   }
 
   if (audioChanged) {

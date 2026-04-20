@@ -145,7 +145,7 @@ public:
         float crouchAmplitudeMultiplier = 0.70f;
         float crouchFrequencyMultiplier = 0.82f;
         float blendInSpeed = 10.0f;
-        float blendOutSpeed = 7.0f;
+        float blendOutSpeed = 1.0f;
     };
 
     struct FootstepSettings {

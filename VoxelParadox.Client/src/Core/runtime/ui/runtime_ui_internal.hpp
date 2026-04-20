@@ -38,9 +38,11 @@ T* attachToHUDGroup(T* element, const char* groupName, int layer = 0) {
 }
 
 const char* renderDistanceDisplayName(WorldStack::RenderDistancePreset preset);
+const char* cloudQualitySelectionText(VoxelGame::Clouds::CloudQuality quality);
 std::string mouseSensitivityText(float sensitivity);
 std::string fieldOfViewText(float fieldOfView);
 std::string renderScaleText(float renderScale);
+std::string antiAliasingSelectionText(int sampleCount);
 std::string fontSelectionText(const GameSettings& settings,
                               const std::vector<std::string>& availableFonts);
 std::string resolutionDisplayText(const glm::ivec2& resolution);
@@ -65,6 +67,7 @@ void stepRenderDistanceSelection(GameSettings& settings, int delta);
 void stepMouseSensitivitySelection(GameSettings& settings, float delta);
 void stepFieldOfViewSelection(GameSettings& settings, float delta);
 void stepRenderScaleSelection(GameSettings& settings, float delta);
+void stepAntiAliasingSelection(GameSettings& settings, int delta);
 int currentResolutionIndex(
     const GameSettings& settings,
     const std::vector<glm::ivec2>& availableResolutions);
@@ -82,6 +85,7 @@ void toggleVSyncSelection(GameSettings& settings);
 void toggleFpsCounterOnlySelection(GameSettings& settings);
 void toggleAdvancedLightingSelection(GameSettings& settings);
 void toggleCloudsSelection(GameSettings& settings);
+void stepCloudQualitySelection(GameSettings& settings, int delta);
 
 std::string audioVolumeText(float value);
 const char* audioCategoryDisplayName(ENGINE::AUDIO::SoundCategoryId category);

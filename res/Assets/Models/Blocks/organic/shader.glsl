@@ -2,24 +2,26 @@
 // Edit via the ShaderEditor Node Graph panel; direct edits may be overwritten.
     vec3 n_0 = base;
     vec3 n_1 = clamp(n_0, vec3(0.0), vec3(1.0));
-    vec2 n_2 = faceUv(worldPos, faceNormal) * (1.0);
-    float n_3 = uTime;
-    vec2 n_4 = distortUvFbm(n_2, 0.2, n_3);
-    vec4 n_5 = sampleBlockTexture(materialId, n_4);
-    vec3 n_6 = mix(n_1, (n_5).xyz, 0.3);
-    vec3 stone_7_alb;
-    float stone_7_rough;
+    vec2 n_2 = uv;
+    vec2 pix_3_cells = max(vec2((16.0), (16.0)), vec2(1.0));
+    vec2 pix_3 = floor((n_2) * pix_3_cells) / pix_3_cells;
+    float n_4 = uTime * (1.0);
+    vec2 n_5 = distortUvFbm(pix_3, 0.2, n_4);
+    vec4 n_6 = sampleBlockTexture(materialId, n_5);
+    vec3 n_7 = mix(n_1, (n_6).xyz, 0.3);
+    vec3 stone_8_alb;
+    float stone_8_rough;
     {
-        vec2 sp = (n_4) * (1.0);
+        vec2 sp = (n_5) * (1.0);
         float strata = fbm21(vec2(sp.x * 3.4, sp.y * 1.4));
         float grain = simpleNoise2(localUv * 11.0);
-        vec3 alb = (n_6) * mix(0.72, 1.15, strata);
+        vec3 alb = (n_7) * mix(0.72, 1.15, strata);
         alb += vec3((grain - 0.5) * 0.06);
-        stone_7_alb = clamp(alb, vec3(0.0), vec3(1.4));
-        stone_7_rough = 0.92;
+        stone_8_alb = clamp(alb, vec3(0.0), vec3(1.4));
+        stone_8_rough = 0.92;
     }
-    vec3 generatedAlbedo = clamp(stone_7_alb, vec3(0.0), vec3(2.0));
-    float generatedRoughness = clamp(stone_7_rough, 0.0, 1.0);
+    vec3 generatedAlbedo = clamp(stone_8_alb, vec3(0.0), vec3(2.0));
+    float generatedRoughness = clamp(stone_8_rough, 0.0, 1.0);
     float generatedSpecular = clamp(0.1, 0.0, 2.0);
     float generatedEmissive = max(0.0, 0.0);
     return makeSample(generatedAlbedo, generatedRoughness, generatedSpecular, generatedEmissive);

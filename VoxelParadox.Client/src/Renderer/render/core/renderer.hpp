@@ -115,9 +115,12 @@ public:
 
     struct SceneRenderTarget {
         GLuint framebuffer = 0;
+        GLuint resolveFramebuffer = 0;
         GLuint colorTexture = 0;
+        GLuint colorRenderbuffer = 0;
         GLuint depthStencilRenderbuffer = 0;
         glm::ivec2 size{ 0 };
+        int sampleCount = 0;
     };
 
     // Create an IMGUI here to get a visual idea.. trying to do it in your head can really wear you down mentally
@@ -176,6 +179,7 @@ public:
     void cleanup();
 
     void setRenderScale(float scale);
+    void setAntiAliasingSamples(int samples);
     float getRenderScale() const { return renderScale_; }
 
     void setAdvancedLightingEnabled(bool enabled) { advancedLightingEnabled_ = enabled; }
@@ -183,6 +187,10 @@ public:
 
     void setCloudsEnabled(bool enabled) { cloudsEnabled_ = enabled; }
     bool areCloudsEnabled() const { return cloudsEnabled_; }
+    void setCloudQuality(VoxelGame::Clouds::CloudQuality quality) {
+        cloudQuality_ = quality;
+    }
+    VoxelGame::Clouds::CloudQuality cloudQuality() const { return cloudQuality_; }
 
     void render(WorldStack& worldStack, Player& player, float aspect, float time,
         bool wireframeMode = false, bool debugThirdPersonView = false);
@@ -248,9 +256,16 @@ private:
     std::vector<BlockBreakParticle> blockBreakParticles_{};
     std::vector<BlockBreakParticleVertex> blockBreakParticleVertices_{};
     SceneRenderTarget sceneRenderTarget_{};
+    GLuint cloudSceneDepthTexture_ = 0;
+    GLuint cloudSceneDepthFramebuffer_ = 0;
+    glm::ivec2 cloudSceneDepthTextureSize_{ 0 };
     float renderScale_ = 1.0f;
+    int antiAliasingSamples_ = ClientDefaults::kDefaultAntiAliasingSamples;
+    int maxSupportedAntiAliasingSamples_ = 0;
     bool advancedLightingEnabled_ = true;
     bool cloudsEnabled_ = true;
+    VoxelGame::Clouds::CloudQuality cloudQuality_ =
+        VoxelGame::Clouds::CloudQuality::MEDIUM;
 
     // --- 4. Atmosphere, Transitions & Lighting ---
 
@@ -388,9 +403,13 @@ private:
     void renderCameraFrustumDebug(const Camera& source, const glm::mat4& debugViewProjection);
 
     glm::ivec2 sceneRenderSizeFor(const glm::ivec2& outputSize) const;
-    bool shouldUseScaledSceneTarget(const glm::ivec2& outputSize) const;
+    int effectiveAntiAliasingSamples() const;
+    bool shouldUseSceneRenderTarget(const glm::ivec2& outputSize) const;
     void ensureSceneRenderTarget(const glm::ivec2& outputSize);
     void releaseSceneRenderTarget();
+    bool captureCloudDepthTexture();
+    void releaseCloudDepthTexture();
+    int cloudDepthTextureUnit() const;
 
     void renderScene(WorldStack& worldStack, Player& player, float aspect, float time,
         bool wireframeMode, bool debugThirdPersonView);

@@ -23,6 +23,14 @@ struct CloudProfile {
   int octaves = 4;
 };
 
+struct CloudQualityTuning {
+  int maxRenderDistance = 4;
+  int maxVisiblePages = 256;
+  int maxLayerScan = 12;
+  float lod1DistanceBlocks = 48.0f;
+  float lod2DistanceBlocks = 84.0f;
+};
+
 int floorDiv(int value, int divisor) {
   if (divisor <= 0) {
     return 0;
@@ -102,6 +110,18 @@ float fbm3(glm::vec3 p, int octaves, std::uint32_t seed) {
   return normalization > 0.0f ? sum / normalization : 0.0f;
 }
 
+CloudQualityTuning tuningFor(CloudQuality quality) {
+  switch (quality) {
+  case CloudQuality::LOW:
+    return {2, 96, 8, 28.0f, 48.0f};
+  case CloudQuality::HIGH:
+    return {8, 768, 24, 80.0f, 144.0f};
+  case CloudQuality::MEDIUM:
+  default:
+    return {4, 256, 14, 48.0f, 84.0f};
+  }
+}
+
 CloudProfile profileFor(CloudType type) {
   switch (type) {
   case CloudType::CIRRUS:
@@ -179,10 +199,18 @@ void appendModulePages(const BiomePreset& preset,
                        int depth,
                        const glm::vec3& cameraPosition,
                        float timeSeconds,
+                       int fallbackRenderDistance,
+                       CloudQuality quality,
                        std::vector<CloudPageDescriptor>& outPages) {
   (void)preset;
   const CloudGeneratorModule& settings = module.cloudGenerator;
-  const int renderDistance = std::clamp(settings.renderDistance, 1, 16);
+  const CloudQualityTuning tuning = tuningFor(quality);
+  const int worldRenderDistance =
+      fallbackRenderDistance > 0 ? fallbackRenderDistance : settings.renderDistance;
+  const int renderDistance = std::clamp(
+      std::min({settings.renderDistance, worldRenderDistance,
+                tuning.maxRenderDistance}),
+      1, 16);
   const int spacing = std::max(settings.verticalSpacing, settings.layerHeight + 1);
   const int layerHeight = std::max(settings.layerHeight, 1);
   const glm::vec2 movement = movementOffsetFor(settings, timeSeconds);
@@ -214,7 +242,8 @@ void appendModulePages(const BiomePreset& preset,
       1;
   int maxLayer =
       floorDiv(maxWorldY - settings.baseY + settings.verticalJitter, spacing) + 1;
-  const int maxLayerScan = std::max(8, renderDistance * 2 + 4);
+  const int maxLayerScan =
+      std::max(4, std::min(tuning.maxLayerScan, renderDistance * 2 + 6));
   if (maxLayer - minLayer + 1 > maxLayerScan) {
     const int centerLayer =
         floorDiv(static_cast<int>(std::floor(cameraPosition.y)) - settings.baseY,
@@ -269,6 +298,13 @@ void appendModulePages(const BiomePreset& preset,
               static_cast<float>(origin.z) + movement.y +
                   static_cast<float>(kCloudPageSize) * 0.5f);
           const glm::vec3 delta = worldCenter - cameraPosition;
+          const float distance = std::sqrt(glm::dot(delta, delta));
+          int lod = 0;
+          if (distance > tuning.lod2DistanceBlocks) {
+            lod = 2;
+          } else if (distance > tuning.lod1DistanceBlocks) {
+            lod = 1;
+          }
 
           CloudPageDescriptor page{};
           page.key.seed = seed;
@@ -280,6 +316,7 @@ void appendModulePages(const BiomePreset& preset,
           page.key.layerIndex = layerIndex;
           page.key.layerSegment = segment;
           page.key.resolvedType = static_cast<int>(resolvedType);
+          page.key.lod = lod;
           page.module = &module;
           page.resolvedType = resolvedType;
           page.origin = origin;
@@ -287,6 +324,8 @@ void appendModulePages(const BiomePreset& preset,
           page.worldCenter = worldCenter;
           page.layerBaseY = layerBaseY;
           page.layerHeight = layerHeight;
+          page.segmentHeight = segmentHeight;
+          page.lod = lod;
           page.opacity = settings.opacity;
           page.sortDistance2 = glm::dot(delta, delta);
           modulePages.push_back(page);
@@ -302,7 +341,8 @@ void appendModulePages(const BiomePreset& preset,
             });
 
   const std::size_t visibleLimit =
-      static_cast<std::size_t>(std::max(settings.maxVisiblePages, 16));
+      static_cast<std::size_t>(std::max(
+          16, std::min(settings.maxVisiblePages, tuning.maxVisiblePages)));
   if (modulePages.size() > visibleLimit) {
     modulePages.resize(visibleLimit);
   }
@@ -352,6 +392,7 @@ std::uint32_t hashCloudPageKey(const CloudPageKey& key) {
   hash = mixHash(hash, static_cast<std::uint32_t>(key.layerIndex));
   hash = mixHash(hash, static_cast<std::uint32_t>(key.layerSegment));
   hash = mixHash(hash, static_cast<std::uint32_t>(key.resolvedType));
+  hash = mixHash(hash, static_cast<std::uint32_t>(key.lod));
   return hash;
 }
 
@@ -368,8 +409,8 @@ std::vector<CloudPageDescriptor> collectVisibleCloudPages(
     int depth,
     const glm::vec3& cameraPosition,
     float timeSeconds,
-    int fallbackRenderDistance) {
-  (void)fallbackRenderDistance;
+    int fallbackRenderDistance,
+    CloudQuality quality) {
   std::vector<CloudPageDescriptor> pages;
 
   for (std::size_t index = 0; index < preset.modules.size(); ++index) {
@@ -381,7 +422,8 @@ std::vector<CloudPageDescriptor> collectVisibleCloudPages(
     const std::uint32_t cloudSeed =
         seed ^ hash3i(depth, static_cast<int>(index), 0, 0xC70D51E5u);
     appendModulePages(preset, module, static_cast<int>(index), cloudSeed, depth,
-                      cameraPosition, timeSeconds, pages);
+                      cameraPosition, timeSeconds, fallbackRenderDistance,
+                      quality, pages);
   }
 
   std::sort(pages.begin(), pages.end(),
@@ -411,7 +453,10 @@ bool sampleCloudCell(const CloudPageDescriptor& page,
 
   const CloudProfile profile = profileFor(page.resolvedType);
   const float cellSize = static_cast<float>(std::max(settings.cellSize, 1));
-  glm::vec3 samplePoint = glm::vec3(worldCell) + glm::vec3(0.5f);
+  const int lodStride = page.lod <= 0 ? 1 : (page.lod == 1 ? 2 : 4);
+  const glm::ivec3 sampledCell =
+      page.origin + (localPos / lodStride) * lodStride;
+  glm::vec3 samplePoint = glm::vec3(sampledCell) + glm::vec3(0.5f);
 
   if (settings.jitter > 0) {
     const int jitterCellSize = std::max(settings.cellSize * 4, 4);
@@ -441,10 +486,13 @@ bool sampleCloudCell(const CloudPageDescriptor& page,
       samplePoint.x * scale * profile.xStretch,
       samplePoint.y * scale * 0.35f,
       samplePoint.z * scale * profile.zStretch);
-  const float baseNoise = fbm3(basePoint, profile.octaves, baseSeed);
+  const int octaveCount = std::max(2, profile.octaves - page.lod);
+  const float baseNoise = fbm3(basePoint, octaveCount, baseSeed);
   const float detailNoise =
-      fbm3(basePoint * 3.35f + glm::vec3(13.7f, 2.9f, -8.4f), 3,
-           baseSeed ^ 0x7F4A7C15u);
+      page.lod >= 2
+          ? 0.5f
+          : fbm3(basePoint * 3.35f + glm::vec3(13.7f, 2.9f, -8.4f),
+                 page.lod == 1 ? 2 : 3, baseSeed ^ 0x7F4A7C15u);
   const float streak =
       0.5f + 0.5f *
                  std::sin(samplePoint.x * scale * 28.0f +

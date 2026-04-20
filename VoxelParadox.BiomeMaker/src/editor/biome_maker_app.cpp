@@ -907,6 +907,48 @@ namespace BiomeMaker {
         markDocumentDirty("Added a module from the folder.");
     }
 
+    void BiomeMakerApp::copySelectedModule() {
+        const BiomeModule* module = selectedModule();
+        if (!module) {
+            return;
+        }
+
+        copiedModule_ = *module;
+        hasCopiedModule_ = true;
+
+        appendLog("Copied a module layer.");
+    }
+
+    void BiomeMakerApp::pasteCopiedModule() {
+        if (!hasCopiedModule_) {
+            return;
+        }
+
+        BiomeModule copy = copiedModule_;
+        copy.id = makeUniqueModuleId(copy.id);
+        copy.filePath = makeUniqueModuleRelativePath(copy.id);
+
+        std::string error;
+        if (!saveBiomeModuleToFile(resolvePresetRelativePath(copy.filePath), copy, error)) {
+            appendLog("Failed to paste module file: " + copy.filePath.generic_string() + " | " + error);
+            return;
+        }
+
+        clampSelectedModuleIndex();
+        const int insertIndex = selectedModuleIndex_ >= 0
+            ? selectedModuleIndex_ + 1
+            : static_cast<int>(currentPreset_.modules.size());
+
+        currentPreset_.modules.insert(
+            currentPreset_.modules.begin() + insertIndex, copy
+        );
+        selectedModuleIndex_ = insertIndex;
+        bufferedModuleIndex_ = -1;
+
+        scanModuleLibrary();
+        markDocumentDirty("Pasted a copied module layer.");
+    }
+
     void BiomeMakerApp::duplicateSelectedModule() {
         BiomeModule* module = selectedModule();
         if (!module) {
@@ -1401,6 +1443,20 @@ namespace BiomeMaker {
         // --- 5. Selected Layer Controls ---
         const bool hasSelectedModule = selectedModule() != nullptr;
 
+        ImGui::BeginDisabled(!hasSelectedModule);
+        if (ImGui::Button("Copy Module")) {
+            copySelectedModule();
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+
+        ImGui::BeginDisabled(!hasCopiedModule_);
+        if (ImGui::Button("Paste Module")) {
+            pasteCopiedModule();
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+
         if (ImGui::Button("Duplicate Layer") && hasSelectedModule) {
             duplicateSelectedModule();
         }
@@ -1415,6 +1471,10 @@ namespace BiomeMaker {
         ImGui::SameLine();
         if (ImGui::Button("Move Down") && hasSelectedModule) {
             moveSelectedModule(1);
+        }
+
+        if (hasCopiedModule_) {
+            ImGui::TextDisabled("Clipboard: %s", displayModuleName(copiedModule_).c_str());
         }
 
         if (BiomeModule* module = selectedModule()) {

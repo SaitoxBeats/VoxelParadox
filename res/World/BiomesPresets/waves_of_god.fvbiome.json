@@ -4,6 +4,36 @@
   "id": "waves_of_god",
   "modules": [
     {
+      "blend_mode": "place_on_air",
+      "display_name": "One Block",
+      "enabled": true,
+      "format_version": 1,
+      "id": "one_block",
+      "settings": {
+        "accent_block": "portal",
+        "accent_chance": 0.0,
+        "block": "portal",
+        "cell_size": {
+          "x": 8,
+          "z": 8
+        },
+        "density": 0.029999999329447746,
+        "infinite_y": true,
+        "jitter": {
+          "x": 3,
+          "z": 3
+        },
+        "max_blocks": 1,
+        "max_y": 96,
+        "min_blocks": 1,
+        "min_y": -8,
+        "pattern": "random_scatter",
+        "require_air": true,
+        "support_block": "membrane"
+      },
+      "type": "one_block"
+    },
+    {
       "blend_mode": "overwrite_all",
       "display_name": "Perlin",
       "enabled": true,

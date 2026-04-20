@@ -150,8 +150,10 @@ namespace VoxelParadox {
             return -1;
         }
         renderer.setRenderScale(settingsBundle.applied.renderScale);
+        renderer.setAntiAliasingSamples(settingsBundle.applied.antiAliasingSamples);
         renderer.setAdvancedLightingEnabled(settingsBundle.applied.advancedLightingEnabled);
         renderer.setCloudsEnabled(settingsBundle.applied.cloudsEnabled);
+        renderer.setCloudQuality(settingsBundle.applied.cloudQuality);
 
         const bool imguiInitialized = ImGuiLayer::initialize(window);
         Bootstrap::reportImGuiStatus(imguiInitialized);

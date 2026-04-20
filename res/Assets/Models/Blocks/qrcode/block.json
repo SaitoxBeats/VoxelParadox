@@ -1,0 +1,31 @@
+{
+  "id": "qrcode",
+  "display_name": "QR Code",
+  "categories": ["terrain", "decoration"],
+  "replaceable": false,
+  "placeable": true,
+  "targetable": true,
+  "material_id": 14,
+  "properties": {
+    "solid": true,
+    "transparent": false,
+    "interactable": false,
+    "emits_light": false,
+    "has_entity": false,
+    "preferred_tool": "pickaxe",
+    "hardness": 3.0
+  },
+  "data": {
+    "drop_item": "block:qrcode",
+    "drop_without_tool": true
+  },
+  "render": {
+    "base_color": [1.00, 1.00, 1.00],
+    "shader": "shader.glsl",
+    "texture": "texture.png"
+  },
+  "placement": {
+    "support_mode": "solid",
+    "allowed_support_blocks": []
+  }
+}

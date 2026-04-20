@@ -108,6 +108,9 @@
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_generator.cpp">
       <Filter>Client Shared\World\Cloud</Filter>
     </ClCompile>
+    <ClCompile Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_quality.cpp">
+      <Filter>Client Shared\World\Cloud</Filter>
+    </ClCompile>
     <ClCompile Include="..\VoxelParadox.Client\src\World\world\generation\chunk_generator_source.cpp">
       <Filter>Client Shared\World\Generation</Filter>
     </ClCompile>
@@ -198,6 +201,9 @@
       <Filter>Client Shared\World\Block</Filter>
     </ClInclude>
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_generator.hpp">
+      <Filter>Client Shared\World\Cloud</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_quality.hpp">
       <Filter>Client Shared\World\Cloud</Filter>
     </ClInclude>
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\generation\chunk.hpp">

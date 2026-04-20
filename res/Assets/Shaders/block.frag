@@ -19,6 +19,14 @@ uniform float uAlpha;
 uniform float uAoStrength;
 uniform vec4 uBiomeTint;
 uniform int uUseLocalMaterialSpace;
+uniform int uCloudPass;
+uniform int uCloudQuality;
+uniform float uCloudSoftness;
+uniform sampler2D uCloudSceneDepth;
+uniform int uCloudUseSoftParticles;
+uniform vec2 uCloudViewportSize;
+uniform mat4 uCloudInvProjection;
+uniform float uCloudDepthFadeDistance;
 /*__BLOCK_TEXTURE_DECLARATIONS__*/
 uniform vec3 uBreakBlockCenter;
 uniform float uBreakProgress;
@@ -461,6 +469,33 @@ float bayerDither4x4(vec2 pix, float brightness) {
     return brightness > threshold ? 1.0 : 0.0;
 }
 
+float cloudViewDepthFromDeviceDepth(float depth, vec2 uv) {
+    vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 view = uCloudInvProjection * clip;
+    view.xyz /= abs(view.w) > 0.000001 ? view.w : 1.0;
+    return max(-view.z, 0.0);
+}
+
+float cloudSoftParticleFade(vec2 fragCoord, float cloudDeviceDepth) {
+    if (uCloudUseSoftParticles == 0 ||
+        uCloudViewportSize.x <= 0.0 ||
+        uCloudViewportSize.y <= 0.0) {
+        return 1.0;
+    }
+
+    vec2 uv = clamp(fragCoord / uCloudViewportSize, vec2(0.0), vec2(1.0));
+    float sceneDeviceDepth = texture(uCloudSceneDepth, uv).r;
+    if (sceneDeviceDepth >= 0.99999) {
+        return 1.0;
+    }
+
+    float cloudViewDepth = cloudViewDepthFromDeviceDepth(cloudDeviceDepth, uv);
+    float sceneViewDepth = cloudViewDepthFromDeviceDepth(sceneDeviceDepth, uv);
+    float depthDelta = sceneViewDepth - cloudViewDepth;
+    float fadeDistance = max(uCloudDepthFadeDistance, 0.001);
+    return smoothstep(0.0, fadeDistance, depthDelta);
+}
+
 void main() {
     vec3 worldNormal = normalize(vNormal);
     vec3 faceNormal = normalize(vFaceNormal);
@@ -485,6 +520,19 @@ void main() {
 
     vec3 color = material.albedo * light +
                  mix(vec3(specular), material.albedo * specular, 0.25);
+
+    if (uCloudPass != 0) {
+        vec3 cloudLightDir = normalize(vec3(0.34, 0.82, 0.46));
+        float topLight = smoothstep(-0.20, 0.92, worldNormal.y);
+        float horizon = pow(1.0 - abs(dot(worldNormal, viewDir)), 2.0);
+        float silver = pow(max(dot(normalize(cloudLightDir + viewDir), worldNormal), 0.0), 3.0);
+        float underside = 1.0 - smoothstep(-0.85, 0.15, worldNormal.y);
+        vec3 upper = material.albedo * (0.76 + topLight * 0.46);
+        vec3 lower = mix(material.albedo * 0.62, uFogColor.rgb * 0.74, underside * 0.22);
+        color = mix(lower, upper, topLight);
+        color += vec3(0.16, 0.17, 0.18) * silver * (0.65 + float(uCloudQuality) * 0.18);
+        color = mix(color, uFogColor.rgb, horizon * 0.08);
+    }
 
     // Point light accumulation (emissive blocks + player torch)
     vec3 pointLightContrib = vec3(0.0);
@@ -605,5 +653,23 @@ void main() {
     color = mix(color, uFogColor.rgb, fog);
     color = applySelectionHighlight(color, vWorldPos, faceNormal);
 
-    FragColor = vec4(color, uAlpha);
+    float alpha = uAlpha;
+    if (uCloudPass != 0) {
+        vec2 cloudUv = faceUv(vWorldPos, faceNormal) * 0.08;
+        float breakup = fbm21(cloudUv + vec2(uTime * 0.004, -uTime * 0.002));
+        float viewSoftness = clamp(abs(dot(worldNormal, viewDir)) + uCloudSoftness, 0.0, 1.0);
+        float depthFade = cloudSoftParticleFade(gl_FragCoord.xy, gl_FragCoord.z);
+        alpha *= mix(0.74, 1.08, breakup);
+        alpha *= mix(0.62, 1.0, viewSoftness);
+        alpha *= depthFade;
+        alpha = clamp(alpha, 0.0, 0.92);
+        color = mix(uFogColor.rgb, color, mix(0.58, 1.0, depthFade));
+        if (alpha <= 0.003) {
+            discard;
+        }
+        FragColor = vec4(color * alpha, alpha);
+        return;
+    }
+
+    FragColor = vec4(color, alpha);
 }

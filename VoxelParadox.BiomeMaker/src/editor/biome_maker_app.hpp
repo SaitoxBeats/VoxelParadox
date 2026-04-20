@@ -39,9 +39,11 @@ private:
   Camera camera_{};
 
   BiomePreset currentPreset_{};
+  BiomeModule copiedModule_{};
   std::filesystem::path currentPresetPath_{};
   bool documentDirty_ = false;
   bool previewSourceDirty_ = true;
+  bool hasCopiedModule_ = false;
 
   std::vector<std::filesystem::path> presetFiles_{};
   std::vector<ModuleLibraryEntry> moduleLibrary_{};
@@ -100,6 +102,8 @@ private:
   std::string makeUniqueModuleId(const std::string& base,
                                  int ignoreIndex = -1) const;
   void addModuleFromLibrary(int libraryIndex);
+  void copySelectedModule();
+  void pasteCopiedModule();
   void duplicateSelectedModule();
   void removeSelectedModule();
   void moveSelectedModule(int direction);
