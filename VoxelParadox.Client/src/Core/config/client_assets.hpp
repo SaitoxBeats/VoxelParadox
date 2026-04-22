@@ -31,6 +31,7 @@ inline constexpr char kHudFragmentShader[] = "Assets/Shaders/hud.frag";
 inline constexpr char kBlockVertexShader[] = "Assets/Shaders/block.vert";
 inline constexpr char kBlockFragmentShader[] = "Assets/Shaders/block.frag";
 inline constexpr char kDeathScreenShaderToy[] = "Assets/Shaders/GLSL/death_screen.glsl";
+inline constexpr char kMenuScreenShaderToy[] = "Assets/Shaders/GLSL/menu_screen.glsl";
 
 inline constexpr char kStartupStructureEnvVar[] = "VP_ENABLE_STARTUP_STRUCTURE";
 inline constexpr char kStartupStructureAsset[] = "Assets/Voxs/castle.vox";

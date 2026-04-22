@@ -1,6 +1,26 @@
 {
   "contexts": [
     {
+      "id": "menu.main",
+      "priority": 80,
+      "required_tags": ["state.main_menu"],
+      "start_delay_seconds": 0.0,
+      "silence_seconds": 0.0,
+      "fade_in_seconds": 4.0,
+      "fade_out_seconds": 8.0,
+      "tracks": [
+        { "id": "exploration_01", "path": "Music/exploration_01.mp3", "weight": 1.0 },
+        { "id": "exploration_02", "path": "Music/exploration_02.mp3", "weight": 1.0 },
+        { "id": "ruins_01", "path": "Music/ruins_01.mp3", "weight": 1.0 },
+        { "id": "sponge_01", "path": "Music/sponge_01.mp3", "weight": 1.0 },
+        { "id": "waves_01", "path": "Music/waves_01.mp3", "weight": 1.0 },
+        { "id": "stone_grips_01", "path": "Music/stone_grips/stone_grips_01.ogg", "weight": 1.0 },
+        { "id": "stone_grips_02", "path": "Music/stone_grips/stone_grips_02.ogg", "weight": 1.0 },
+        { "id": "stone_grips_03", "path": "Music/stone_grips/stone_grips_03.ogg", "weight": 1.0 },
+        { "id": "stone_grips_04", "path": "Music/stone_grips/stone_grips_04.ogg", "weight": 1.0 }
+      ]
+    },
+    {
       "id": "biome.ancient_ruins",
       "priority": 60,
       "required_tags": ["state.gameplay", "biome.ancient_ruins"],

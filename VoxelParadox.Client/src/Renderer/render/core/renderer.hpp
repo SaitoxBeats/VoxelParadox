@@ -204,6 +204,7 @@ public:
     void renderHUD3DOverlays(const Player& player, const FractalWorld* world, int depth, float time);
     void renderDeathScreenBackground(const glm::ivec2& screenSize, float timeSeconds,
         float vignetteExtra);
+    void renderMenuScreenBackground(const glm::ivec2& screenSize, float timeSeconds);
 
     void renderItemPreviewInRect(const glm::ivec4& slotRectTopLeft, int screenHeight, int inset,
         const InventoryItem& item, int depth, float time,
@@ -222,6 +223,7 @@ private:
     Shader itemSpriteShader{};
     Shader entityShader{};
     Shader deathScreenShader{};
+    Shader menuScreenShader{};
 
     GLuint crosshairVAO = 0;
     GLuint crosshairVBO = 0;

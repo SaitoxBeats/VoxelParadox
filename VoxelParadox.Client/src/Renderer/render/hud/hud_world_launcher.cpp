@@ -162,7 +162,7 @@ hudWorldLauncher::hudWorldLauncher(const std::string& fontPath) {
     actionButtonText_ = new hudText("Generate", 0, 0, glm::vec2(1.0f), 18, fontPath);
     renameButtonText_ = new hudText("Rename", 0, 0, glm::vec2(1.0f), 18, fontPath);
     deleteButtonText_ = new hudText("Delete", 0, 0, glm::vec2(1.0f), 18, fontPath);
-    exitButtonText_ = new hudText("Exit Game", 0, 0, glm::vec2(1.0f), 18, fontPath);
+    exitButtonText_ = new hudText("Back to Menu", 0, 0, glm::vec2(1.0f), 18, fontPath);
     statusText_ = new hudText("", 0, 0, glm::vec2(1.0f), 14, fontPath);
     loadingText_ = new hudText("Loading World", 0, 0, glm::vec2(1.0f), 26, fontPath);
     loadingDotsText_ = new hudText("", 0, 0, glm::vec2(1.0f), 20, fontPath);
@@ -905,7 +905,7 @@ void hudWorldLauncher::updateButtons(float mouseX, float mouseY) {
         }
 
         if (pointInRect(mouseX, mouseY, layout_.exitButtonRect)) {
-            pendingRequest_.type = ActionType::ExitGame;
+            pendingRequest_.type = ActionType::BackToMenu;
             pendingRequest_.worldName.clear();
             pendingRequest_.worldDirectory.clear();
             pendingRequest_.hasCustomSeed = false;
@@ -1187,9 +1187,8 @@ void hudWorldLauncher::draw(Shader& shader, int screenWidth, int screenHeight) {
     );
 
     // --- Draw Main Backgrounds ---
-    drawRect(shader, glm::ivec4(0, 0, screenWidth, screenHeight), glm::vec4(0.04f, 0.04f, 0.05f, 1.0f));
-    drawRect(shader, expandRect(panelRect, 4), glm::vec4(0.18f, 0.21f, 0.32f, 1.0f));
-    drawRect(shader, panelRect, glm::vec4(0.07f, 0.08f, 0.11f, 1.0f));
+    drawRect(shader, expandRect(panelRect, 4), glm::vec4(0.18f, 0.21f, 0.32f, 0.0f));
+    drawRect(shader, panelRect, glm::vec4(0.07f, 0.08f, 0.11f, 0.0f));
 
     // --- Draw Headers ---
     titleText_->setPosition(panelRect.x + kOuterPadding, panelRect.y + kOuterPadding);
@@ -1199,8 +1198,8 @@ void hudWorldLauncher::draw(Shader& shader, int screenWidth, int screenHeight) {
     subtitleText_->draw(shader, screenWidth, screenHeight);
 
     // --- Draw World List Box ---
-    drawRect(shader, expandRect(layout_.listRect, 4), glm::vec4(0.18f, 0.21f, 0.32f, 1.0f));
-    drawRect(shader, layout_.listRect, glm::vec4(0.08f, 0.09f, 0.12f, 1.0f));
+    drawRect(shader, expandRect(layout_.listRect, 4), glm::vec4(0.18f, 0.21f, 0.32f, 0.0f));
+    drawRect(shader, layout_.listRect, glm::vec4(0.08f, 0.09f, 0.12f, 0.0f));
 
     const int rowWidth = layout_.listRect.z - kListInnerPadding * 2 - kListScrollbarWidth - kListScrollbarMargin;
     const int firstRowY = layout_.listRect.y + kListInnerPadding;
@@ -1344,7 +1343,7 @@ void hudWorldLauncher::draw(Shader& shader, int screenWidth, int screenHeight) {
         : glm::vec4(0.12f, 0.09f, 0.11f, 1.0f));
 
     exitButtonText_->setColor(glm::vec3(0.98f, 0.90f, 0.90f));
-    drawCenteredText(*exitButtonText_, "Exit Game", layout_.exitButtonRect, screenWidth, screenHeight, shader);
+    drawCenteredText(*exitButtonText_, "Back to Menu", layout_.exitButtonRect, screenWidth, screenHeight, shader);
 
     // --- Draw Status Texts & Overlays ---
     if (!statusMessage_.empty()) {

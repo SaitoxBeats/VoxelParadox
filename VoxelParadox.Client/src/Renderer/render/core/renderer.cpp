@@ -664,6 +664,15 @@ bool Renderer::init() {
         return false;
     }
 
+    if (!menuScreenShader.compileFullscreenShadertoyFromFile(
+            ClientAssets::kMenuScreenShaderToy,
+            deathScreenMacroOverrides) &&
+        !menuScreenShader.compileFullscreenShadertoy(
+            DEATH_SCREEN_GLSL,
+            deathScreenMacroOverrides)) {
+        return false;
+    }
+
     // --- 2. Core Geometry ---
     setupBreakBlockCube();
     setupStencilFaceQuad();
@@ -1141,6 +1150,30 @@ void Renderer::renderDeathScreenBackground(const glm::ivec2& screenSize, float t
     deathScreenShader.setFloat("uTime", timeSeconds);
     deathScreenShader.setVec4("uMouse", glm::vec4(0.0f));
     deathScreenShader.setFloat("uVignetteExtra", glm::clamp(vignetteExtra, 0.0f, 1.0f));
+
+    glBindVertexArray(screenQuadVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+}
+
+void Renderer::renderMenuScreenBackground(const glm::ivec2& screenSize, float timeSeconds) {
+    if (screenSize.x <= 0 || screenSize.y <= 0) {
+        return;
+    }
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDepthMask(GL_FALSE);
+
+    menuScreenShader.use();
+    menuScreenShader.setVec2("uResolution", glm::vec2(screenSize));
+    menuScreenShader.setFloat("uTime", timeSeconds);
+    menuScreenShader.setVec4("uMouse", glm::vec4(0.0f));
+    menuScreenShader.setFloat("uVignetteExtra", 0.0f);
 
     glBindVertexArray(screenQuadVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);

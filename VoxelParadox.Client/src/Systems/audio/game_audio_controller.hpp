@@ -48,8 +48,10 @@ public:
     // Call every frame to update continuous audio state (music, ambiances, 3D listener).
     void syncFrame(const ENGINE::AUDIO::AudioListenerState& listenerState,
         const GameAudioFrameState& frameState, float dtSeconds);
+    void syncMenuFrame(bool settingsMenuOpen, float dtSeconds);
 
     // --- UI Events ---
+    void onMenuActionSelected();
     void onHotbarSelectionChanged();
     void onInventoryStateChanged(bool open);
     void onPauseMenuToggled(bool open);

@@ -21,6 +21,7 @@
 #include "runtime/app/runtime_app.hpp"
 #include "runtime/app/runtime_app_internal.hpp"
 #include "runtime/state/game_chat.hpp"
+#include "runtime/launcher/initial_menu.hpp"
 #include "runtime/launcher/world_launcher.hpp"
 #include "player/player.hpp"
 
@@ -169,18 +170,57 @@ namespace VoxelParadox {
             return -1;
         }
 
+        // --- 4. Audio Subsystem ---
+        RuntimeAppInternal::printBootstrapInfo("Preparing the audio subsystem...");
+
+        ENGINE::AUDIO::AudioManager audioManager;
+        std::string audioStatusMessage;
+        audioManager.initialize({}, &audioStatusMessage);
+
+        GameAudioController audioController(audioManager);
+        audioController.applySettings(settingsBundle.applied.audioSettings);
+
+        RuntimeAppInternal::printBootstrapDetail("Audio Backend:", audioManager.backendReady() ? "OpenAL" : "Silent");
+        if (!audioStatusMessage.empty()) {
+            RuntimeAppInternal::printBootstrapDetail("Audio Status:", audioStatusMessage);
+        }
+        RuntimeAppInternal::printBootstrapSuccess("Audio initialized!");
+
         // --- 4. Launcher <-> Gameplay Session Loop ---
+        bool showInitialMenu = true;
         while (!glfwWindowShouldClose(window)) {
             resetUiStateForLauncher(settingsBundle);
             HUD::setDefaultFont(settingsBundle.applied.fontAssetPath());
+
+            if (showInitialMenu) {
+                std::string initialMenuError;
+                const InitialMenu::RunResult initialMenuResult =
+                    InitialMenu::run(window, renderer, audioController,
+                                     settingsBundle, &initialMenuError);
+                if (initialMenuResult == InitialMenu::RunResult::ExitGame) {
+                    break;
+                }
+                if (initialMenuResult == InitialMenu::RunResult::Error) {
+                    if (!initialMenuError.empty()) {
+                        RuntimeAppInternal::printBootstrapError(initialMenuError.c_str());
+                    }
+                    RuntimeAppInternal::shutdownGame(window, renderer, nullptr);
+                    return -1;
+                }
+                showInitialMenu = false;
+            }
 
             WorldSaveService::WorldSession worldSession;
             std::string launcherError;
             const WorldLauncher::RunResult launcherResult =
                 WorldLauncher::run(window, rootBiomeSelection, worldSession,
-                                   &launcherError);
+                                   &launcherError, &audioController, &renderer);
             if (launcherResult == WorldLauncher::RunResult::ExitGame) {
                 break;
+            }
+            if (launcherResult == WorldLauncher::RunResult::BackToMenu) {
+                showInitialMenu = true;
+                continue;
             }
             if (launcherResult == WorldLauncher::RunResult::Error) {
                 if (!launcherError.empty()) {
@@ -236,22 +276,7 @@ namespace VoxelParadox {
                 }
             }
 
-            // --- 6. Audio Subsystem ---
-            RuntimeAppInternal::printBootstrapInfo("Preparing the audio subsystem...");
-
-            ENGINE::AUDIO::AudioManager audioManager;
-            std::string audioStatusMessage;
-            audioManager.initialize({}, &audioStatusMessage);
-
-            GameAudioController audioController(audioManager);
-            audioController.applySettings(settingsBundle.applied.audioSettings);
             player.setAudioController(&audioController);
-
-            RuntimeAppInternal::printBootstrapDetail("Audio Backend:", audioManager.backendReady() ? "OpenAL" : "Silent");
-            if (!audioStatusMessage.empty()) {
-                RuntimeAppInternal::printBootstrapDetail("Audio Status:", audioStatusMessage);
-            }
-            RuntimeAppInternal::printBootstrapSuccess("Audio initialized!");
 
             // --- 7. HUD & Social Systems ---
             RuntimeAppInternal::printBootstrapInfo("Preparing the HUD...");
@@ -291,6 +316,7 @@ namespace VoxelParadox {
         }
 
         RuntimeAppInternal::printBootstrapInfo("Game exit requested. Beginning shutdown...");
+        audioManager.shutdown();
         RuntimeAppInternal::shutdownGame(window, renderer, nullptr);
         RuntimeAppInternal::terminateRuntimeProcess(0);
 

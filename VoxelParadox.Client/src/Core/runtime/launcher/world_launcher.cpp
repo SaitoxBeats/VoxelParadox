@@ -20,7 +20,9 @@
 
 #include "engine/engine.hpp"
 #include "engine/input.hpp"
+#include "audio/game_audio_controller.hpp"
 #include "input/input_action_system.hpp"
+#include "render/core/renderer.hpp"
 #include "render/hud/hud.hpp"
 #include "render/hud/hud_world_launcher.hpp"
 
@@ -89,13 +91,16 @@ void restoreGameplayInput() {
   Input::enableTextInput(false);
   Input::setFocusMode(Input::FocusMode::GAMEPLAY);
   Input::setCursorVisible(false);
+  ENGINE::SETPAUSED(false);
 }
 
 }  // namespace
 
 RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
               WorldSaveService::WorldSession& outSession,
-              std::string* outError) {
+              std::string* outError,
+              GameAudioController* audioController,
+              Renderer* renderer) {
   if (!window) {
     if (outError) {
       *outError = "Launcher window is not available.";
@@ -239,13 +244,15 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
           return runRenameTask(request.worldDirectory, request.worldName);
         });
         break;
-      case hudWorldLauncher::ActionType::ExitGame:
-        restoreGameplayInput();
+      case hudWorldLauncher::ActionType::BackToMenu:
+        Input::enableTextInput(false);
+        Input::setFocusMode(Input::FocusMode::UI);
+        Input::setCursorVisible(true);
         HUD::clear();
         if (outError) {
           outError->clear();
         }
-        return RunResult::ExitGame;
+        return RunResult::BackToMenu;
       case hudWorldLauncher::ActionType::None:
       default:
         break;
@@ -256,9 +263,17 @@ RunResult run(GLFWwindow* window, const BiomeSelection& rootBiomeSelection,
     int framebufferHeight = 0;
     glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
     if (framebufferWidth > 0 && framebufferHeight > 0) {
+      if (audioController) {
+        audioController->syncMenuFrame(false, rawDt);
+      }
       glViewport(0, 0, framebufferWidth, framebufferHeight);
       glClearColor(0.04f, 0.04f, 0.05f, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      if (renderer) {
+        renderer->renderMenuScreenBackground(
+            glm::ivec2(framebufferWidth, framebufferHeight),
+            static_cast<float>(currentTime));
+      }
       HUD::update(framebufferWidth, framebufferHeight);
       HUD::render(framebufferWidth, framebufferHeight);
     }

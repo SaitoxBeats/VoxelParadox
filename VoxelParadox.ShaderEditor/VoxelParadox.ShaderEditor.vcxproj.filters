@@ -10,6 +10,9 @@
     <Filter Include="Support">
       <UniqueIdentifier>{AB87E32F-B32D-5A25-B348-F4D9DF9CCE52}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resources">
+      <UniqueIdentifier>{D30B9CB8-91E9-4121-8F4C-4C3F4B4B7B6F}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\game_pch.cpp">
@@ -56,5 +59,8 @@
     <ClInclude Include="src\editor\shader_node_graph.hpp">
       <Filter>Editor</Filter>
     </ClInclude>
+    <ResourceCompile Include="VoxelParadox.ShaderEditor.rc">
+      <Filter>Resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

@@ -103,10 +103,38 @@ void GameAudioController::syncFrame(const ENGINE::AUDIO::AudioListenerState& lis
     }
 }
 
+void GameAudioController::syncMenuFrame(bool settingsMenuOpen, float dtSeconds) {
+    audioManager_.setGameplayPaused(false);
+
+    ENGINE::AUDIO::AudioListenerState listenerState;
+    audioManager_.setListenerState(listenerState);
+
+    ENGINE::AUDIO::MusicPlaybackRequest musicRequest;
+    musicRequest.tags.push_back("state.main_menu");
+    if (settingsMenuOpen) {
+        musicRequest.tags.push_back("menu.settings");
+    }
+    musicRequest.immediate = !musicBootstrapped_ || forceImmediateMusicRefresh_;
+
+    audioManager_.setMusicRequest(musicRequest);
+    audioManager_.update(dtSeconds);
+
+    musicBootstrapped_ = true;
+    forceImmediateMusicRefresh_ = false;
+}
+
 #pragma endregion
 
 #pragma region 3. UI Events
 // --- 3. UI Events ---
+
+void GameAudioController::onMenuActionSelected() {
+    if (deathScreenActive_) {
+        return;
+    }
+
+    playUiEvent("ui.menu.click");
+}
 
 void GameAudioController::onHotbarSelectionChanged() {
     if (deathScreenActive_) {

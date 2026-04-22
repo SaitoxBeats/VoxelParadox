@@ -10,6 +10,9 @@
     <Filter Include="Support">
       <UniqueIdentifier>{21D2DF79-3A56-56AA-8D99-A2A947F789FD}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resources">
+      <UniqueIdentifier>{4A0A7DB2-7F55-4C2B-9F90-9348F2E2E7A9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\game_pch.cpp">
@@ -53,5 +56,8 @@
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_quality.hpp">
       <Filter>Support</Filter>
     </ClInclude>
+    <ResourceCompile Include="VoxelParadox.BiomeMaker.rc">
+      <Filter>Resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

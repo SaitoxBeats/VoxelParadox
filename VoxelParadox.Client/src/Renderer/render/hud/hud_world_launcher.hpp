@@ -21,7 +21,7 @@ public:
         LoadWorld,
         RenameWorld,
         DeleteWorld,
-        ExitGame,
+        BackToMenu,
     };
 
     struct ActionRequest {

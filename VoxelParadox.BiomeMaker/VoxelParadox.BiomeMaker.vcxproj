@@ -66,6 +66,9 @@
     <ClInclude Include="..\VoxelParadox.Client\src\World\world\cloud\cloud_quality.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="VoxelParadox.BiomeMaker.rc" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\VoxelParadox.Engine\VoxelParadox.Engine.vcxproj">
       <Project>{F8C2F3C0-3E7A-4E5C-A0D8-1A6B4015E201}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

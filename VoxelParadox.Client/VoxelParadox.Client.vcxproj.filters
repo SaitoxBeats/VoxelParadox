@@ -118,6 +118,9 @@
     <Filter Include="src\World\Voxel Assets">
       <UniqueIdentifier>{451DC1A4-687D-43F7-A245-F35B545176DE}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resources">
+      <UniqueIdentifier>{AF80756A-7AF0-4C74-A2F6-2E3D1E5DB58D}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Core\support\game_pch.cpp">
@@ -338,6 +341,12 @@
     </ClCompile>
     <ClCompile Include="src\Entities\player\player_item_script.cpp">
       <Filter>src\Entities\player</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Core\runtime\launcher\initial_menu.cpp">
+      <Filter>src\Core\runtime\Launcher</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderer\render\hud\hud_initial_menu.cpp">
+      <Filter>src\Renderer\render\hud</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -662,6 +671,12 @@
     <ClInclude Include="src\World\world\cloud\cloud_quality.hpp">
       <Filter>src\World\Cloud</Filter>
     </ClInclude>
+    <ClInclude Include="src\Core\runtime\launcher\initial_menu.hpp">
+      <Filter>src\Core\runtime\Launcher</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderer\render\hud\hud_initial_menu.hpp">
+      <Filter>src\Renderer\render\hud</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\UI\ui\imgui_layer.cpp">
@@ -673,5 +688,8 @@
     <None Include="src\World\world\generation\chunk_generator_source.cpp">
       <Filter>src\World\Generation</Filter>
     </None>
+    <ResourceCompile Include="VoxelParadox.Client.rc">
+      <Filter>Resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

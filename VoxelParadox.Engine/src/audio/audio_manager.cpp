@@ -940,6 +940,34 @@ struct AudioManager::Impl {
     }
   }
 
+  std::size_t initialMusicTrackIndex(const MusicContextDefinition& context) {
+    if (context.tracks.empty()) {
+      return 0u;
+    }
+
+    float totalWeight = 0.0f;
+    for (const MusicTrackDefinition& track : context.tracks) {
+      totalWeight += std::max(0.0f, track.weight);
+    }
+
+    if (totalWeight <= 0.0f) {
+      std::uniform_int_distribution<std::size_t> distribution(
+          0u, context.tracks.size() - 1u);
+      return distribution(rng);
+    }
+
+    std::uniform_real_distribution<float> distribution(0.0f, totalWeight);
+    float cursor = distribution(rng);
+    for (std::size_t index = 0u; index < context.tracks.size(); index++) {
+      cursor -= std::max(0.0f, context.tracks[index].weight);
+      if (cursor <= 0.0f) {
+        return index;
+      }
+    }
+
+    return context.tracks.size() - 1u;
+  }
+
   void trimMusicDecodeCache(
       const std::function<void(std::unordered_set<std::string>&)>& appendRetainedKeys = {}) {
     std::unordered_set<std::string> retainedKeys;
@@ -984,7 +1012,12 @@ struct AudioManager::Impl {
       return nullptr;
     }
 
-    const std::size_t nextIndex = nextMusicTrackIndices[context.name] % context.tracks.size();
+    auto [nextIndexIt, inserted] = nextMusicTrackIndices.try_emplace(context.name, 0u);
+    if (inserted) {
+      nextIndexIt->second = initialMusicTrackIndex(context);
+    }
+
+    const std::size_t nextIndex = nextIndexIt->second % context.tracks.size();
     const std::size_t chosenIndex = (nextIndex + offset) % context.tracks.size();
     return &context.tracks[chosenIndex];
   }
