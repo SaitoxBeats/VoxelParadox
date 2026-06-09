@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // block.frag
 // Shared block surface shader template. The block registry injects block base colors,
 // per-block texture bindings, material functions, and the dispatch table below.

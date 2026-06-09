@@ -11,7 +11,7 @@
 namespace ImGuiLayer {
 namespace {
 
-constexpr const char* kGlslVersion = "#version 460";
+constexpr const char* kGlslVersion = "#version 330";
 bool initialized = false;
 std::string iniFilenameStorage;
 

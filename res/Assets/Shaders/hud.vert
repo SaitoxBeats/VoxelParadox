@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // Arquivo: res/Assets/Shaders/hud.vert
 // Papel: shader de vértice genérico do HUD 2D.
 // Fluxo: posiciona quads de interface na tela usando projeção ortográfica e transformações por elemento.

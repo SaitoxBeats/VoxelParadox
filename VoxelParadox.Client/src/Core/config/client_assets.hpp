@@ -11,7 +11,7 @@ inline constexpr char kBlockTexturesDirectory[] = "Assets/Textures/Blocks";
 inline constexpr char kBlockTextureAtlasMetadataFile[] = "Assets/Textures/Blocks/atlas.json";
 inline constexpr char kItemsDirectory[] = "Assets/Models/Items";
 inline constexpr char kItemRegistryFile[] = "Assets/Models/Items/registry.json";
-inline constexpr char kBlockModelsDirectory[] = "Assets/Models/block";
+inline constexpr char kBlockModelsDirectory[] = "Assets/Models/Blocks";
 inline constexpr char kEntityModelsDirectory[] = "Assets/Models/entity";
 inline constexpr char kRecipesDirectory[] = "Assets/Recipes";
 inline constexpr char kVoxDirectory[] = "Assets/Voxs";
@@ -23,7 +23,8 @@ inline constexpr char kSaveWorldDirectory[] = "Saves/worlds";
 inline constexpr char kAxeTexture[] = "Assets/Textures/Items/axe.png";
 inline constexpr char kPickaxeTexture[] = "Assets/Textures/Items/pickaxe.png";
 inline constexpr char kCrosshairTexture[] = "Assets/Textures/Hud/crosshair.png";
-inline constexpr char kMembraneWireModelAsset[] = "Assets/Models/block/membrane_wire.obj";
+inline constexpr char kMembraneWireModelAsset[] =
+    "Assets/Models/Blocks/membrane_wire/membrane_wire.obj";
 inline constexpr char kGuyModelAsset[] = "Assets/Models/entity/guy.fbx";
 
 inline constexpr char kHudVertexShader[] = "Assets/Shaders/hud.vert";

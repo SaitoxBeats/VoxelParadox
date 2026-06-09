@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // Arquivo: res/Assets/Shaders/line.vert
 // Papel: shader de vértice simples para linhas de debug e wireframes.
 

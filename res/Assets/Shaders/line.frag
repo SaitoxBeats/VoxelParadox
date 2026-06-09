@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // Arquivo: res/Assets/Shaders/line.frag
 // Papel: shader de fragmento de cor sólida usado por overlays lineares e wireframes.
 

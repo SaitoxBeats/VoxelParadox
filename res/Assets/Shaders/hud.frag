@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // Arquivo: res/Assets/Shaders/hud.frag
 // Papel: shader de fragmento genérico do HUD.
 // Fluxo: suporta tanto quads texturizados comuns quanto glifos monocromáticos de fonte com tint.

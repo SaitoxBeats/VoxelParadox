@@ -175,6 +175,8 @@ bool EditorRenderer::setupBlockTextures() {
   cleanupBlockTextures();
   blockTextures_ =
       BlockTextureCache::loadBlockTextures(BlockRegistry::instance().definitions());
+  BlockTextureCache::configureBlockTextureSamplerBindings(
+      blockShader_, BlockRegistry::instance().definitions());
   return true;
 }
 

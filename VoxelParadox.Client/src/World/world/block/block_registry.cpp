@@ -971,7 +971,6 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
     std::ostringstream fallbackDeclarationsBuilder;
     std::ostringstream fallbackDispatchBuilder;
 
-    int textureUnit = 0;
     for (const BlockDefinition& definition : definitions_) {
         baseColorBuilder
             << "    if (materialId == " << definition.materialId << ") {\n"
@@ -980,14 +979,13 @@ BlockShaderSources BlockRegistry::buildShaderSources() const {
 
         if (!definition.textureAssetPath.empty()) {
             textureDeclarationBuilder
-                << "layout(binding = " << textureUnit << ") uniform sampler2D uBlockTexture_"
+                << "uniform sampler2D uBlockTexture_"
                 << definition.id << ";\n";
             textureSampleBuilder
                 << "    if (materialId == " << definition.materialId << ") {\n"
                 << "        return texture(uBlockTexture_" << definition.id
                 << ", localUv);\n"
                 << "    }\n";
-            ++textureUnit;
         }
 
         declarationsBuilder

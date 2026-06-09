@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // Arquivo: res/Assets/Shaders/depth_window.vert
 // Papel: shader de vértice da janela de profundidade usada no preview de portal.
 // Fluxo: desenha um quad simples que prepara o depth buffer antes da renderização do mundo filho.

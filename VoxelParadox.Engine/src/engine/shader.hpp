@@ -129,7 +129,7 @@ private:
 
     static const char* fullscreenQuadVertexSource() {
         return R"(
-#version 460 core
+#version 330 core
 layout(location = 0) in vec3 aPos;
 out vec2 vUv;
 void main() {
@@ -236,7 +236,7 @@ void main() {
 
         std::ostringstream wrapped;
         wrapped
-            << "#version 460 core\n"
+            << "#version 330 core\n"
             << "in vec2 vUv;\n"
             << "out vec4 FragColor;\n"
             << "uniform vec2 uResolution;\n"

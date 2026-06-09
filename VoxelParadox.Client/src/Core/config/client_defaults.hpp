@@ -10,8 +10,8 @@
 
 namespace ClientDefaults {
 
-inline constexpr int kOpenGLMajor = 4;
-inline constexpr int kOpenGLMinor = 6;
+inline constexpr int kOpenGLMajor = 3;
+inline constexpr int kOpenGLMinor = 3;
 inline constexpr std::uint32_t kRootSeed = 42;
 
 inline constexpr char kWindowTitle[] = "Voxel Paradox";

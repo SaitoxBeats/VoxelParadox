@@ -8,6 +8,7 @@
 #include <regex>
 #include <sstream>
 
+#include "render/cache/block_texture_cache.hpp"
 #include "path/app_paths.hpp"
 #include "world/block/block_registry.hpp"
 
@@ -216,6 +217,8 @@ bool BlockShaderSession::compileCurrentSelection(double nowSeconds,
 
   shader_.release();
   shader_.program = program;
+  BlockTextureCache::configureBlockTextureSamplerBindings(
+      shader_, BlockRegistry::instance().definitions());
   valid_ = true;
   sourceDirty_ = false;
   appliedFingerprint_ = observedFingerprint_;

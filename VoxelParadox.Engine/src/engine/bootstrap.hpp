@@ -23,8 +23,8 @@ struct GLFWwindow;
 namespace Bootstrap {
 
 struct Config {
-  int openGLMajor = 4;
-  int openGLMinor = 6;
+  int openGLMajor = 3;
+  int openGLMinor = 3;
   std::string windowTitle = "Voxel Paradox";
   glm::ivec2 windowSize{1280, 720};
   ENGINE::VIEWPORTMODE viewportMode = ENGINE::VIEWPORTMODE::BORDERLESS;

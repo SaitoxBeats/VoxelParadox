@@ -18,7 +18,7 @@
 namespace {
 
 constexpr const char* ENTITY_VERT = R"(
-#version 460 core
+#version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
@@ -40,7 +40,7 @@ void main() {
 )";
 
 constexpr const char* ENTITY_FRAG = R"(
-#version 460 core
+#version 330 core
 in vec3 vWorldPos;
 in vec3 vNormal;
 in vec2 vUV;

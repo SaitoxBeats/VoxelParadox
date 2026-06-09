@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // Arquivo: res/Assets/Shaders/dust_particle.vert
 // Papel: shader de vértice das partículas de poeira ambiente.
 // Fluxo: projeta os pontos no espaço da câmera e ajusta o tamanho do sprite conforme a distância.

@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // Arquivo: res/Assets/Shaders/item_sprite.frag
 // Papel: shader de fragmento para sprites de item.
 // Fluxo: amostra a textura do item e preserva a transparência em previews e item segurado.

@@ -1,4 +1,4 @@
-#version 460 core
+#version 330 core
 // Arquivo: res/Assets/Shaders/item_sprite.vert
 // Papel: shader de vértice para itens 2D texturizados, como a axe.
 // Fluxo: é usado tanto nos previews do HUD quanto no item segurado em primeira pessoa.

@@ -67,7 +67,7 @@ int resolveSupportedAntiAliasingSamples(int requestedSamples,
     // that feeds world, player, and HUD preview data into the GPU.
 
     static const char* BLOCK_VERT = R"(
-#version 460 core
+#version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec4 aTint;
@@ -94,7 +94,7 @@ void main() {
 )";
 
     static const char* BLOCK_FRAG = R"(
-#version 460 core
+#version 330 core
 in vec3 vWorldPos;
 in vec3 vLocalPos;
 in vec3 vNormal;
@@ -416,7 +416,7 @@ void main() {
 )";
 
     static const char* LINE_VERT = R"(
-#version 460 core
+#version 330 core
 layout(location = 0) in vec3 aPos;
 uniform mat4 uMVP;
 void main() {
@@ -425,7 +425,7 @@ void main() {
 )";
 
     static const char* LINE_FRAG = R"(
-#version 460 core
+#version 330 core
 uniform vec4 uColor;
 out vec4 FragColor;
 void main() {
@@ -434,7 +434,7 @@ void main() {
 )";
 
     static const char* DEPTH_WINDOW_VERT = R"(
-#version 460 core
+#version 330 core
 layout(location = 0) in vec3 aPos;
 void main() {
     gl_Position = vec4(aPos.xy, 0.0, 1.0);
@@ -442,14 +442,14 @@ void main() {
 )";
 
     static const char* DEPTH_WINDOW_FRAG = R"(
-#version 460 core
+#version 330 core
 void main() {
     gl_FragDepth = 1.0;
 }
 )";
 
     static const char* DUST_PARTICLE_VERT = R"(
-#version 460 core
+#version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in float aAlpha;
 layout(location = 2) in float aSize;
@@ -465,7 +465,7 @@ void main() {
 )";
 
     static const char* DUST_PARTICLE_FRAG = R"(
-#version 460 core
+#version 330 core
 in float vAlpha;
 uniform vec4 uColor;
 out vec4 FragColor;
@@ -475,7 +475,7 @@ void main() {
 )";
 
     static const char* ITEM_SPRITE_VERT = R"(
-#version 460 core
+#version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aUV;
 uniform mat4 uVP;
@@ -488,7 +488,7 @@ void main() {
 )";
 
     static const char* ITEM_SPRITE_FRAG = R"(
-#version 460 core
+#version 330 core
 in vec2 vUV;
 uniform sampler2D uTexture;
 uniform float uAlpha;
@@ -771,6 +771,8 @@ bool Renderer::setupBlockTextures() {
     cleanupBlockTextures();
     blockTextures_ =
         BlockTextureCache::loadBlockTextures(BlockRegistry::instance().definitions());
+    BlockTextureCache::configureBlockTextureSamplerBindings(
+        blockShader, BlockRegistry::instance().definitions());
     return true;
 }
 

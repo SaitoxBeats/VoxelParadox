@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <filesystem>
+#include <string>
 #include <system_error>
 #include <vector>
 
@@ -11,6 +12,7 @@
 #include <glad/glad.h>
 
 // 3. Local Project Modules
+#include "engine/shader.hpp"
 #include "path/app_paths.hpp"
 #include "render/cache/item_texture_cache.hpp"
 #include "world/block/block_registry.hpp"
@@ -122,6 +124,28 @@ inline void bindBlockTextures(const std::vector<GLuint>& textures) {
     }
 
     glActiveTexture(GL_TEXTURE0);
+}
+
+inline void configureBlockTextureSamplerBindings(
+    Shader& shader,
+    const std::vector<BlockDefinition>& definitions
+) {
+    if (shader.program == 0) {
+        return;
+    }
+
+    shader.use();
+
+    int textureUnit = 0;
+    for (const BlockDefinition& definition : definitions) {
+        if (definition.textureAssetPath.empty()) {
+            continue;
+        }
+
+        const std::string samplerName = "uBlockTexture_" + definition.id;
+        shader.setInt(samplerName.c_str(), textureUnit);
+        ++textureUnit;
+    }
 }
 
 } // namespace BlockTextureCache
