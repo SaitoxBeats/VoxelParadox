@@ -1,5 +1,7 @@
 # Voxel Paradox
 
+<img src="https://img.itch.zone/aW1nLzI2ODAzNDI1LmpwZw==/315x250%23c/MfyNSp.jpg" alt="Logo do Voxel Paradox" width="315">
+
 ## Build Instructions
 
 ### Prerequisites
