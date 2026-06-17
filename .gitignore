@@ -23,6 +23,3 @@ vcpkg_installed/
 # Local app settings
 imgui_biomaker.ini
 imgui_shader_editor.ini
-
-# Project context files
-CLAUDE.md
